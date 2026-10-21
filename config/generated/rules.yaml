@@ -1,5 +1,5 @@
 # AI 服务分流规则 — 由 MetaCubeX/meta-rules-dat geosite category-ai-chat-!cn 生成
-# 更新于 2026-10-21 17:20:11
+# 更新于 2026-10-22 02:05:17
 # 同键规则已去重（保留首次出现；顶部覆盖优先）
 # ===== G. 高带宽直连（省机场流量，2026-10-21）=====
 # 模板把这些域名送进代理组，但它们在国内有可用 CDN，实测直连更快：
@@ -15,8 +15,11 @@
 - DOMAIN-SUFFIX,gvt1.com,🎯 全球直连
 - DOMAIN-SUFFIX,gvt1-cn.com,🎯 全球直连
 - DOMAIN-SUFFIX,jetbrains.com,🎯 全球直连
-# 模型 API 专用出口（必须排在 geosite 规则之前）
+# 模型 API / 账号 Token（必须排在 geosite 规则之前）
 - DOMAIN-SUFFIX,opencode.ai,🤖 AI接口
+# ZCode 账号/项目 Token：直连，避免默认代理（香港出口）拖到 15s 超时
+- DOMAIN-SUFFIX,z.ai,🎯 全球直连
+- DOMAIN-SUFFIX,bigmodel.cn,🎯 全球直连
 # Google 服务统一出口（必须排在 geosite 规则和模板 googleapis 规则之前）
 - DOMAIN-SUFFIX,play.googleapis.com,🤖 干净出口
 - DOMAIN-SUFFIX,android.clients.google.com,🤖 干净出口

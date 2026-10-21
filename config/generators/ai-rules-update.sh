@@ -5,8 +5,11 @@
 # 用法: sh /etc/ShellCrash/ai-rules-update.sh
 #       之后重启生效: /etc/ShellCrash/start.sh start
 #
-# 注意：opencode.ai（模型 API）固定指向 "🤖 AI接口" 专用组，
-#       这条覆盖必须写在最前面，且生成时跳过 geosite 里的同名条目。
+# 注意：opencode.ai（模型 API）固定指向 "🤖 AI接口" 专用组；
+#       z.ai / bigmodel.cn（ZCode 账号/项目 Token）固定直连，避免落到默认代理
+#       的香港出口（2026-10-22 实测：直连 0.34s，默认代理下 project token 15s 超时）。
+#       这些覆盖必须写在最前面；opencode.ai 生成时跳过 geosite 同名条目，
+#       z.ai/bigmodel.cn 靠“顶部优先 + 同键去重”保留。
 #       Google 服务（Play/更新/FCM）固定指向 "🚀 节点选择"，
 #       避免模板里 DOMAIN-SUFFIX,googleapis.com 把整段域带去 AI 组。
 #       末尾的“分类修正层”用于修正模板 ai.list/ProxyLite/ChinaDomain 的
@@ -50,8 +53,11 @@ fi
 	echo "- DOMAIN-SUFFIX,gvt1.com,🎯 全球直连"
 	echo "- DOMAIN-SUFFIX,gvt1-cn.com,🎯 全球直连"
 	echo "- DOMAIN-SUFFIX,jetbrains.com,🎯 全球直连"
-	echo "# 模型 API 专用出口（必须排在 geosite 规则之前）"
+	echo "# 模型 API / 账号 Token（必须排在 geosite 规则之前）"
 	echo "- DOMAIN-SUFFIX,opencode.ai,${API_GROUP}"
+	echo "# ZCode 账号/项目 Token：直连，避免默认代理（香港出口）拖到 15s 超时"
+	echo "- DOMAIN-SUFFIX,z.ai,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,bigmodel.cn,🎯 全球直连"
 	echo "# Google 服务统一出口（必须排在 geosite 规则和模板 googleapis 规则之前）"
 	echo "- DOMAIN-SUFFIX,play.googleapis.com,$CL"
 	echo "- DOMAIN-SUFFIX,android.clients.google.com,$CL"
@@ -207,6 +213,14 @@ if [ "$n" -lt 50 ]; then
 fi
 if ! grep -q "opencode.ai,${API_GROUP}" "$OUT.tmp"; then
 	echo "警告: opencode.ai 覆盖规则丢失，请检查 $OUT.tmp"
+	exit 1
+fi
+if ! grep -q "z.ai,🎯 全球直连" "$OUT.tmp"; then
+	echo "警告: z.ai 直连覆盖规则丢失，请检查 $OUT.tmp"
+	exit 1
+fi
+if ! grep -q "bigmodel.cn,🎯 全球直连" "$OUT.tmp"; then
+	echo "警告: bigmodel.cn 直连覆盖规则丢失，请检查 $OUT.tmp"
 	exit 1
 fi
 if ! grep -q "play.googleapis.com,$CL" "$OUT.tmp"; then

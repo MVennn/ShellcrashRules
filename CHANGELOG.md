@@ -9,6 +9,29 @@
 
 ---
 
+## [未发布] — 2026-10-22
+
+### 规则
+
+- 新增 `DOMAIN-SUFFIX,z.ai,🎯 全球直连` —— ZCode 账号/项目 Token API 不再落到默认代理的香港出口；路由器直连实测 0.34s，原路径 project token 15s 超时
+- 新增 `DOMAIN-SUFFIX,bigmodel.cn,🎯 全球直连` —— 与 Z.ai 账号相关的国内端点保持直连
+
+### 生成器
+
+- 调整 `config/generators/ai-rules-update.sh` —— 顶部覆盖段加入上述两条，并在生成后校验；`config/generated/rules.yaml` 已用路由器生成物同步（306 条）
+- 调整 `docs/RULE-AUDIT.md` —— 记录本次 +2 条与原因；审计表 `00_custom` 201 为 2026-10-19 旧快照
+
+### 部署验证（2026-10-22）
+
+- 备份：`/root/backup/pre-zai-20261022-020452`
+- 生成器：306 条；`z.ai` / `bigmodel.cn` 在第 21–22 行
+- `hotupdate`：成功；`/tmp/ShellCrash/config.yaml` 第 500–501 行命中 `🎯 全球直连`
+- `ai-api-check.sh`：17 段全过；1 个既有 WARN（`🤖 AI网页` 出口 = 新加坡-优化3，与本次无关）
+
+> 发版时按功能更新进位到 `0.2.0`（新增使用者可感知的分流能力）。
+
+---
+
 ## [0.1.1] — 2026-10-22
 
 与设备上实际运行的看门狗对齐。设备侧在公开化之后补了内存闸门，
