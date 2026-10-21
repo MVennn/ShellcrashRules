@@ -3,6 +3,12 @@
 # ⚠️ 当前设备**不再维护手工节点** —— 节点全部来自机场订阅，转换器丢掉的部分由
 #    starts/sub-sync.sh 自动补齐。本文件只在你要额外加备用入口时参考。
 #
+# ⚠️ 设备上的 `proxies.yaml` 里还有两个**自动维护**的块，整文件覆盖会把它们冲掉：
+#      `# >>> SUB-SYNC`     —— starts/sub-sync.sh 写入（转换器丢掉的节点）
+#      `# >>> PUBLIC-NODES` —— tools/public-nodes/screen.py 写入（公开备用节点）
+#    只改手工段时请用编辑器局部修改，**不要 `scp` 整个文件覆盖设备**
+#    （2026-10-22 曾因此冲掉 4 个公开节点）。
+#
 # ⚠️ 这是**模板**。真实值（含 vmess uuid）放在同目录的 `proxies.yaml` 里，
 #    而 `proxies.yaml` 已被 `.gitignore` 排除 —— 克隆本仓后按下面的步骤重建：
 #
