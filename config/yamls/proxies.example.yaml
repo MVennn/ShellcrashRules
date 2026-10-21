@@ -1,10 +1,14 @@
 # 备用节点入口模板：同一地区可以补多个入口，端口与 WS Host 按你的订阅填写。
 #
+# ⚠️ 当前设备**不再维护手工节点** —— 节点全部来自机场订阅，转换器丢掉的部分由
+#    starts/sub-sync.sh 自动补齐。本文件只在你要额外加备用入口时参考。
+#
 # ⚠️ 这是**模板**。真实值（含 vmess uuid）放在同目录的 `proxies.yaml` 里，
 #    而 `proxies.yaml` 已被 `.gitignore` 排除 —— 克隆本仓后按下面的步骤重建：
 #
 #      cp config/yamls/proxies.example.yaml config/yamls/proxies.yaml
 #      # 然后把 <YOUR-...> / <REPLACE-...> 占位符替换成真实值
+#      # 注意：这会覆盖已有文件，SUB-SYNC 块要一并保留
 #
 #    本文件由 starts/clash_modify.sh 合并进生成的 config.yaml（见 docs/ARCHITECTURE.md §3）。
 #
