@@ -1,0 +1,61 @@
+# ============================================================
+# ShellcrashRules —— 忽略规则
+#
+# 原则：**只排凭据与大产物，不排源码与文档。**
+# config/ tools/ docs/ firewall/ 下的东西一律进版本库 ——
+# 那正是本仓存在的意义（可独立看懂、独立演进）。
+# ============================================================
+
+# ---------- 凭据 / 密钥 ----------
+*.key
+*.crt
+*.pem
+*.p12
+*.uuid
+*.vmess
+.env
+.env.*
+!.env.example
+
+# 机场订阅原始内容（sub.raw / sub-decoded / sub-nodes）
+# —— 含节点 UUID 与入口凭据，绝不入库
+/evidence/subscription/
+sub.raw
+sub-decoded.txt
+sub-nodes.txt
+mojie_sub_raw.txt
+
+# mihomo /proxies 快照：含节点凭据（UUID / 密码）
+proxies.json
+/evidence/**/proxies.json
+/evidence/**/conns*.json
+
+# 自定义节点源：含明文 vmess uuid —— 真实文件不入库
+/config/yamls/proxies.yaml
+# 模板必须入库
+!/config/yamls/proxies.example.yaml
+
+# ---------- 大产物 / 临时产物 ----------
+__pycache__/
+*.py[cod]
+*.pyo
+*.bak
+*.tmp
+*.swp
+*~
+/config/generated/*.tmp
+*.log
+
+# ---------- 编辑器 / 操作系统 ----------
+.idea/
+.vscode/
+*.code-workspace
+Thumbs.db
+.DS_Store
+
+# ---------- 本地索引（不入库，各人自建） ----------
+.codegraph/
+
+# ---------- 私有材料（绝不入库） ----------
+/vault/
+/.work/

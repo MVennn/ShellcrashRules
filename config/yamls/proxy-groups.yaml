@@ -1,0 +1,117 @@
+# ============================================================
+# ShellCrash 自定义策略组
+# 每次启动 / 更新订阅时由 starts/clash_modify.sh 自动合并，不会被订阅覆盖
+#
+# 语法：- name: 组名#要挂进哪个现有组#可以写多个
+# 节点筛选用正则，订阅更新/节点改名后自动跟随，无需重新调优
+# ============================================================
+
+# AI API 专用出口：健康检查直接打 opencode.ai，按真实 API 延迟选路
+# 覆盖全部机场节点（含印度/加拿大/德国/英国）
+# 必须排除香港：OpenAI 上游会返回 unsupported_country_region_territory
+# 必须排除公共节点：陌生人的出口可能记录/篡改 API 流量（2026-10-21 实测
+#   🆓 公共-01 延迟最低时会被 url-test 选中，所以这里必须硬排除）。
+- name: 🤖 AI接口#🚀 节点选择
+  type: url-test
+  url: https://opencode.ai/
+  # 容差 50ms: 延迟差小于 50ms 不换节点 —— 出口 IP 稳定, 避免 API 会话中途换 IP
+  tolerance: 50
+  include-all-proxies: true
+  exclude-filter: "过滤|流量|到期|剩余|套餐|香港|HK|Hong Kong|公共"
+
+# AI 网页专用出口：按 ChatGPT 真实握手延迟选路
+# 新加坡出口对 chatgpt.com 常返回 504，用 expected-status 直接排除
+# 挂进 🤖 人工智能 作为选项，需在面板选中它
+#CLEAN_EXIT_MARKER 2026-10-20：Google 把本机场多数出口 IP 判为 CN，
+#  url-test 按延迟会把出口漂到被判定为中国区的节点 → Gemini 报「不支持此国家」。
+#  改为 select 固定出口（成员含印度=Google 判定干净的稳定节点），
+#  具体选哪个由守护进程按 Google 侧 cc 实测自动维护。
+- name: 🤖 AI网页#🤖 人工智能
+  type: select
+  include-all-proxies: true
+  filter: "(印度|India|IN|台湾-优化3)"
+  exclude-filter: "过滤|流量|到期|剩余|套餐|香港|HK|Hong Kong|公共"
+
+# ============================================================
+# 补齐模板没有单独分组的地区（原模板只有港/台/新/日/美）
+# ============================================================
+- name: 🇮🇳 印度节点#🚀 节点选择
+  type: url-test
+  url: http://www.gstatic.com/generate_204
+  interval: 300
+  include-all-proxies: true
+  filter: "(印度|India|孟买|Mumbai)"
+
+- name: 🇨🇦 加拿大节点#🚀 节点选择
+  type: url-test
+  url: http://www.gstatic.com/generate_204
+  interval: 300
+  include-all-proxies: true
+  filter: "(加拿大|Canada|多伦多|温哥华|Toronto|Vancouver)"
+
+- name: 🇩🇪 德国节点#🚀 节点选择
+  type: url-test
+  url: http://www.gstatic.com/generate_204
+  interval: 300
+  include-all-proxies: true
+  filter: "(德国|Germany|法兰克福|Frankfurt)"
+
+- name: 🇬🇧 英国节点#🚀 节点选择
+  type: url-test
+  url: http://www.gstatic.com/generate_204
+  interval: 300
+  include-all-proxies: true
+  filter: "(英国|United Kingdom|伦敦|London|UK|GB)"
+
+#CLEAN_EXIT_GROUP_MARKER 2026-10-20：唯一经 Google cc 实测判为非 CN 的稳定出口
+# 用 select 不用 url-test：url-test 会按延迟漂到被判 CN 的日本/香港节点
+# （实测 28 节点里印度延迟排第 17，url-test 永远选不到它）
+# 2026-10-21 复测：机场按目标分配落地，google.com 的落地被 Google 判 CN，
+#   30 个节点里只有「🇹🇼 台湾-优化3」判为 TW（其余全 CN / 少数超时）。
+#   台湾-优化3 不在印度过滤条件内，所以显式加进 filter；
+#   guardian.sh 的 is_bad_node 也要给它开例外，否则每 5 分钟会被切回印度。
+- name: 🤖 干净出口#🤖 人工智能
+  type: select
+  include-all-proxies: true
+  filter: "(印度|India|IN|台湾-优化3)"
+  exclude-filter: "过滤|流量|到期|剩余|套餐|香港|HK|Hong Kong|公共"
+
+# ============================================================
+# 🆓 公共备用 —— AutoMergePublicNodes（NoMoreWalls fork）公开节点
+#
+# 定位：机场入口全挂时的网页保底通道，挂在 🚀 节点选择 末尾。
+# 公开节点由陌生人运营，可能记录/篡改流量：
+#   **禁止用于 AI、网银、邮箱、社交账号登录等敏感流量。**
+# AI 仍走 🤖 AI接口 / 🤖 干净出口。
+#
+# 节点由 `🆓 公共-NN` 命名，本地写入 /etc/ShellCrash/yamls/proxies.yaml
+# （含公开凭据，不入库）。组用 include-all-proxies + filter 自动纳管。
+# url-test 每 10 分钟测一次 gstatic，坏的节点自动被绕过。
+# ============================================================
+- name: 🆓 公共备用#🚀 节点选择
+  type: url-test
+  url: http://www.gstatic.com/generate_204
+  interval: 600
+  timeout: 5000
+  tolerance: 100
+  include-all-proxies: true
+  filter: "🆓 公共"
+
+# ============================================================
+# 🛟 主备自动 —— 机场自动选择优先，机场全挂时自动落到公共备用
+#
+# 只挂进 🚀 节点选择（并设为默认项），不碰 AI 组：公开节点不进 AI。
+# fallback 按顺序取第一个健康成员：
+#   1) ♻️ 自动选择 —— 机场节点 url-test，正常时永远用它；
+#   2) 🆓 公共备用 —— 机场全挂/全部超时才启用。
+# 故意不放 DIRECT：两边都挂时宁可连不上，也不静默直连泄露真实 IP。
+# ============================================================
+- name: 🛟 主备自动#🚀 节点选择
+  type: fallback
+  url: http://www.gstatic.com/generate_204
+  interval: 300
+  timeout: 5000
+  lazy: false
+  proxies:
+    - ♻️ 自动选择
+    - 🆓 公共备用

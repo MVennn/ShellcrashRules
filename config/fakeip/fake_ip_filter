@@ -1,0 +1,20 @@
+#Chrome Web Store 图标与浏览器进程下载：避免 fake-IP 被 Chrome LNA 判为本地网络
++.googleusercontent.com
+clients2.google.com
+clients4.google.com
+dl.google.com
++.gvt1.com
+update.googleapis.com
+safebrowsing.googleapis.com
+optimizationguide-pa.googleapis.com
+www.googleapis.com
+play.googleapis.com
+android.clients.google.com
+android.googleapis.com
+fcm.googleapis.com
+fcmregistrations.googleapis.com
+firebaseinstallations.googleapis.com
+accounts.google.com
++.xn--ngstr-lra8j.com
++.googlevideo.com
++.google.com

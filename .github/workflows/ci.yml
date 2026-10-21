@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: 守卫与语法
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      # 私钥/凭据守卫：本仓不含私钥，但节点凭据与订阅原文可能混进来 —— 拦一道。
+      - name: 凭据守卫
+        run: python3 tools/check-vault-not-staged.py --all
+
+      # 公开仓密钥扫描：订阅链接、节点 URI、私钥块、shadow 哈希。
+      - name: 密钥扫描
+        run: python3 tools/check-secrets.py
+
+      - name: Shell 语法
+        run: find . -name '*.sh' -not -path './third-party/*' -not -path './.work/*' -print0 | xargs -0 -n1 sh -n
+
+  docs:
+    name: 文档自检
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: 文档自检
+        run: python3 tools/check-docs.py

@@ -1,0 +1,135 @@
+ShellCrash 分流规则库（shellcrash-rules）
+Copyright 2026
+
+> **一句话**：本仓库用到的第三方组件有哪些、来自哪里、什么许可证、为什么用、
+> 以及**哪些随本仓库一起分发**（随仓分发的副本在 `third-party/`，逐个带来源凭证）。
+
+==============================================================================
+第三方组件
+==============================================================================
+
+本产品使用了下列第三方软件。各组件的版权、许可证、用途与是否随仓分发如下：
+
+------------------------------------------------------------------------------
+1. ShellCrash（Juewuy / juewuy）
+------------------------------------------------------------------------------
+  来源 URL：https://github.com/juewuy/ShellCrash
+  许可证：  GNU General Public License v3.0（GPL-3.0）
+  用途：    透明代理框架本身。本仓库的全部配置都通过 ShellCrash 提供的官方扩展点接入 ——
+            `yamls/`（自定义策略组、节点、顶层参数）、`starts/`（上游脚本打补丁）、
+            `task/task.sh hotupdate`（订阅热更新）、`/etc/ShellCrash` 的目录布局。
+  是否随仓分发：**是**
+            仓库内副本：`third-party/ShellCrash/`
+            vendored commit：`de1d9e20f71a77e794519d1c42d713253714f2e5`（分支 `dev`）
+            副本内容：`LICENSE.txt`（GPL-3.0 全文）、`version`、`rules/ShellClash.ini`、
+                      `rules/ai.list`、`starts/`（28 个上游启动脚本）
+            副本体积：上游内容 148 913 字节 / 32 个文件
+  说明：    `config/starts/fw_nftables.sh` 与 `config/starts/start_legacy_wd.sh`
+            是 ShellCrash 上游 `starts/` 同名脚本的**打补丁派生件**，保留了上游的
+            GPL-3.0 版权头（见文件首行 "Copyright (C) Juewuy"）。
+            上游**原版**保存在 `third-party/ShellCrash/starts/`，与派生件逐字节可比对。
+            补丁点共 4 处，详见 `docs/UPSTREAM.md` §2 与
+            `third-party/ShellCrash/UPSTREAM.md`。
+            上游完整仓库见 https://github.com/juewuy/ShellCrash
+            （注意：`https://github.com/jucase/ShellCrash` 不存在；`juewuy/ShellClash`
+            是同一仓库的旧名，GitHub 会重定向到 `juewuy/ShellCrash`）。
+
+------------------------------------------------------------------------------
+2. ACL4SSR
+------------------------------------------------------------------------------
+  来源 URL：https://github.com/ACL4SSR/ACL4SSR
+  许可证：  Creative Commons Attribution-ShareAlike 4.0 International（CC BY-SA 4.0）
+            上游根目录许可证文件名为 `LICENCE`（非 `LICENSE`）
+  用途：    分流规则的**数据源与模板血统**。设备侧生效的规则模板
+            `rules/ShellClash.ini`（ShellCrash 提供）是 ACL4SSR
+            `Clash/config/ACL4SSR_Online_Full.ini` 的裁剪改编版；该模板里 18 条
+            `ruleset=` 中有 15 条直接指向 ACL4SSR 的 `.list` 规则文件，
+            这 15 个文件即本仓库分流规则的数据本体（离线规则审计
+            `OpenwrtOpsToolkit` 仓 `mihomo/rule_audit.py` 的输入）。
+  是否随仓分发：**是**
+            仓库内副本：`third-party/ACL4SSR/`
+            vendored commit：`575637df38884575bfa523e95c17d0ee3be1676c`（分支 `master`）
+            副本内容：`LICENCE`（CC BY-SA 4.0 全文）、
+                      `Clash/config/ACL4SSR_Online_Full.ini`、
+                      `Clash/` 下 12 个 + `Clash/Ruleset/` 下 3 个规则列表
+            副本体积：上游内容 458 569 字节 / 17 个文件
+  说明：    本仓库**没有修改**任何 ACL4SSR 文件；副本逐字节与上游一致。
+            按 CC BY-SA 4.0 再分发时须：署名 ACL4SSR、保持 CC BY-SA 4.0、
+            改编物亦按 CC BY-SA 4.0 发布。仓库根的 GPL-3.0 **不覆盖**
+            `third-party/ACL4SSR/` 下的文件（详见 `docs/UPSTREAM.md` §4.2）。
+
+------------------------------------------------------------------------------
+3. mihomo / Clash.Meta（MetaCubeX）
+------------------------------------------------------------------------------
+  来源 URL：https://github.com/MetaCubeX/mihomo
+  许可证：  MIT License（Copyright 2023 KT）—— 上游仓库根 `LICENSE` 文件实测
+  用途：    代理内核。本仓库的 `config.yaml` 字段语义（`proxy-groups`、`rule-providers`、
+            `sniffer`、`profile.store-selected` 等）、Redir 透明代理行为、
+            `SAFE_PATHS` 对配置写入路径的限制、以及「YAML 顶层 key 重复即拒载」的
+            行为均由它定义 —— 本仓库的规则与脚本都按这些语义写。
+  是否随仓分发：**否**
+            仓库内没有任何 mihomo 源码副本；内核在设备侧由 ShellCrash 安装，
+            或由其自带更新通道获取。仓库体积 13792 KB（GitHub API `size` 字段），
+            本仓库只是引用其语义、不复制其代码，不予 vendor。
+  勘误：    本文件此前把 mihomo 的许可证记为 GPL-3.0，**有误** ——
+            实测上游 `LICENSE` 为 MIT（Copyright 2023 KT），GitHub API
+            `license.spdx_id` 亦为 `MIT`。已更正。
+
+------------------------------------------------------------------------------
+4. MetaCubeX meta-rules-dat
+------------------------------------------------------------------------------
+  来源 URL：https://github.com/MetaCubeX/meta-rules-dat
+  许可证：  GNU General Public License v3.0（GPL-3.0）
+  用途：    geosite 分类与 ruleset 数据源。`config/generators/ai-rules-update.sh`
+            拉取其 geosite 分类 `category-ai-chat-!cn`（`meta` 分支）并生成
+            `config/generated/rules.yaml`；运行期还会下载 `cnip.mrs` 等 ruleset。
+  是否随仓分发：**否**
+            仓库内没有任何 meta-rules-dat 数据副本 —— 它是**数据源**而非代码，
+            数据文件体积巨大（仓库体积 80815 KB，GitHub API `size` 字段），
+            本仓库只在运行期按 URL 取用。
+            生成物 `config/generated/rules.yaml` 的模板规则部分派生自本项目的数据，
+            按 GPL-3.0 处理（随本仓库按 GPL-3.0 分发）。
+  备注：    该仓库本身是 `Loyalsoldier/v2ray-rules-dat` 的 fork。
+
+------------------------------------------------------------------------------
+5. OpenWrt
+------------------------------------------------------------------------------
+  来源 URL：https://openwrt.org
+  许可证：  GNU General Public License v2.0（GPL-2.0）
+  用途：    路由器固件与 nftables 子系统。本仓库 `firewall/tables/` 下三张表使用
+            `inet` family、`reject with icmpx type port-unreachable` 语法与
+            `priority` 语义，均按 OpenWrt 的 nftables 实现编写。
+  是否随仓分发：**否** —— 固件本身，不是可 vendor 的代码库。
+
+==============================================================================
+说明
+==============================================================================
+
+- 本仓库**不包含**任何机场订阅的原始内容、节点 UUID、路由器口令或
+  mihomo 控制台 secret；相关文件已列入 .gitignore，不随仓库分发。
+- 本仓库**随仓库分发**的第三方源码副本只有两处，均在 `third-party/` 下，
+  且每个项目都附有 `UPSTREAM.md` 来源凭证（上游 URL、vendored commit SHA、
+  license 全文位置、本仓怎么用它、怎么更新）：
+    - `third-party/ShellCrash/`（GPL-3.0，上游内容 148 913 字节 / 32 个文件）
+    - `third-party/ACL4SSR/`（CC BY-SA 4.0，上游内容 458 569 字节 / 17 个文件）
+  其余第三方组件（mihomo、meta-rules-dat、OpenWrt）**不随仓库分发**，
+  在设备侧由各自的安装包或更新通道提供。
+- vendored 副本**未做任何修改**（逐字节与上游一致）；本仓库自己的改动
+  一律落在 `config/` 下，其中 `config/starts/` 下 2 个文件是上游的
+  **打补丁派生件**。
+- 本仓库自身的许可证见仓库根 LICENSE（GPL-3.0）；
+  `third-party/ACL4SSR/` 下文件按 CC BY-SA 4.0，不被该 GPL-3.0 覆盖。
+
+==============================================================================
+致谢
+==============================================================================
+
+本仓库的规则分层（自定义 → 广告 → 服务专用 → CN 中间层 → 宽泛代理 → IP → MATCH）
+与「先具体后宽泛、先拒绝后直连后代理」的原则，来自 ShellCrash 社区与
+ACL4SSR 规则模板的公开实践；`config/hooks/rules-mid.sh` 插入 CN 直连中间层
+的做法是在其既有顺序上做的一次可控修正，不是替代上游模板。
+
+本仓库亦感谢以下公开项目与社区实践（仅参考 / 仅取用，未随仓分发）：
+mihomo / Clash.Meta（代理内核语义）、MetaCubeX meta-rules-dat（geosite 与
+ruleset 数据）、OpenWrt（固件与 nftables 子系统）、LM-Firefly/Rules（规则模板里
+Netflix 列表的来源，该仓库无明确许可证声明，故不 vendor）。

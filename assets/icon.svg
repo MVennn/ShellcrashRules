@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512" role="img" aria-label="ShellCrash / mihomo 分流规则与诊断">
+  <defs>
+    <linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="54" y1="0" x2="54" y2="108">
+      <stop offset="0" stop-color="#2B3242"/>
+      <stop offset="1" stop-color="#161A22"/>
+    </linearGradient>
+    <linearGradient id="line" gradientUnits="userSpaceOnUse" x1="33.08" y1="75.39" x2="67.4" y2="29.79">
+      <stop offset="0" stop-color="#FFC24A"/>
+      <stop offset="1" stop-color="#FF7A00"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="108" height="108" rx="24" ry="24" fill="url(#bg)"/>
+  <g stroke="url(#line)" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M24,54 L49,54" stroke-width="8.46"/>
+    <path d="M49.00,54.00 Q62.00,54.00 62.00,41.00" stroke-width="8.46"/>
+    <polygon points="62,26 52,41 72,41" fill="url(#line)" stroke="none"/>
+    <path d="M49.00,54.00 Q62.00,54.00 62.00,67.00" stroke-width="8.46"/>
+    <polygon points="62,82 52,67 72,67" fill="url(#line)" stroke="none"/>
+  </g>
+</svg>

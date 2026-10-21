@@ -1,0 +1,12 @@
+# 把 LAN 发往 Google 国内边缘段的 TCP 先重定向到 mihomo，让域名规则（AI 组/直连）生效。
+# 否则客户端一旦解析到真实 203.208.x/2401:3800:: 就会绕过代理直连国内边缘，触发地区限制。
+#
+# 部署前按自己的网络改：`10.0.0.0/24` 换成 LAN 网段；IPv6 默认只匹配
+# ULA / link-local，若 LAN 使用运营商 PD，把前缀加进下面的集合。
+table inet googlecn {
+	chain prerouting {
+		type nat hook prerouting priority -105; policy accept;
+		ip saddr 10.0.0.0/24 ip daddr 203.208.32.0/19 tcp dport { 80, 443 } redirect to :7892
+		ip6 saddr { fd00::/8, fe80::/10 } ip6 daddr 2401:3800::/32 tcp dport { 80, 443 } redirect to :7892
+	}
+}

@@ -1,0 +1,13 @@
+# ShellCrash 用户自定义配置（clash_modify.sh 自动合并，优先于内置 set.yaml）
+# 2026-10-19 优化：
+#   tcp-concurrent  - 多 IP 域名并发建连，降低首包延迟
+#   find-process-mode off - 路由器上 PROCESS-NAME 规则（安卓 Netflix/VIU）永不命中，关闭 /proc 进程匹配省 CPU
+#   store-fake-ip   - fake-ip 与域名映射写入 cache.db，重启后客户端缓存仍能正确按域名分流
+# 2026-10-20 新增：
+#   store-selected  - 策略组选择写入 cache.db。干净出口组的成员会随订阅变化，
+#                     没有它重启后会被重置成第一个成员（实测恰是那条不稳定的订阅入口）。
+tcp-concurrent: true
+find-process-mode: "off"
+profile:
+  store-fake-ip: true
+  store-selected: true

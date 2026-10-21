@@ -1,0 +1,61 @@
+# QUIC fast-fail for mihomo, with a domestic (CN) exemption.
+#
+# TEMPLATE - the file that runs on the router (/etc/quicguard.nft) is GENERATED
+# from this shape by firewall/quicguard-sync.sh, which also fills the two mirror
+# sets with elements copied from ShellCrash's inet shellcrash cn_ip / cn_ip6.
+# Deploying this template as-is is SAFE but gives no exemption (empty sets ->
+# every QUIC packet is rejected, i.e. the old behaviour).
+#
+# Why a mirror set instead of "@inet shellcrash cn_ip":
+#   nftables v1.1.6 on the AX3000T rejects every cross-table set reference
+#   syntax ("@inet shellcrash cn_ip" -> syntax error, "@cn_ip" -> "did you mean
+#   set 'cn_ip' in table inet 'shellcrash'?"). Verified 2026-10-21.
+#
+# Why the exemption exists:
+#   cn-rule-set domains resolve to REAL CDN IPs (mix DNS mode), and those
+#   targets are DIRECT anyway. Blocking their QUIC only makes Android apps
+#   (QQ/WeChat image CDNs) wait for the QUIC handshake timeout before falling
+#   back to TCP -> thumbnails stay blank for seconds.
+#   Foreign targets keep getting QUIC rejected, so no Chinese exit IP can
+#   reach them over HTTP/3.
+#   Google's China edge (203.208.32.0/19, 2401:3800::/32) is excluded from
+#   ShellCrash's cn_ip sets, so Google never matches the exemption below.
+#
+# Regenerate on the device with:  sh /etc/quicguard-sync.sh
+# Re-run it after a subscription update / ShellCrash restart (ShellCrash rebuilds
+# cn_ip and cn_ip6 at that point). rc.local and guardian.sh reload this file
+# as-is, so the exemption survives a missing-table reload.
+
+table inet quicguard {
+	set cn_ip_mirror {
+		type ipv4_addr
+		flags interval
+		auto-merge
+	}
+
+	set cn_ip6_mirror {
+		type ipv6_addr
+		flags interval
+		auto-merge
+	}
+
+	chain prerouting {
+		type filter hook prerouting priority -150; policy accept;
+
+		# 0) Domestic targets: DIRECT anyway -> QUIC may leave directly.
+		ip daddr @cn_ip_mirror return
+		ip6 daddr @cn_ip6_mirror return
+
+		# 1) fake IP ranges (mihomo fake IPv4 / fake IPv6) and Google's China edge
+		ip daddr 198.18.0.0/15 udp dport { 443, 8443 } counter reject with icmpx type port-unreachable
+		ip6 daddr fc00::/16 udp dport { 443, 8443 } counter reject with icmpx type port-unreachable
+		ip daddr 203.208.32.0/19 udp dport { 443, 8443 } counter reject with icmpx type port-unreachable
+		ip6 daddr 2401:3800::/32 udp dport { 443, 8443 } counter reject with icmpx type port-unreachable
+
+		# 2) other QUIC/DoQ ports (FCM 5228 / DoQ 19302 etc) - UDP cannot be proxied
+		udp dport { 4433, 5226, 5228, 8081, 8883, 19302 } counter reject with icmpx type port-unreachable
+
+		# 3) global QUIC block - only non-CN targets reach this point
+		udp dport { 443, 8443 } counter reject with icmpx type port-unreachable
+	}
+}
