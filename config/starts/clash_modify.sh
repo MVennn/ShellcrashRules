@@ -260,6 +260,9 @@ finalize_clash_yaml() {
 
 #修饰clash配置文件
 modify_yaml() {
+    # 订阅转换器（target=clash）会静默丢掉 hysteria2 节点，生成配置前先从
+    # 机场原始订阅同步一遍（脚本自带 6 小时节流，失败不影响构建）
+    [ -x "$CRASHDIR"/starts/hy2-sync.sh ] && "$CRASHDIR"/starts/hy2-sync.sh
     prepare_clash_base_config
     generate_set_and_hosts_yaml
     split_and_customize_yaml_parts

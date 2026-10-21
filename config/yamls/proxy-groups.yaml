@@ -29,7 +29,7 @@
 - name: 🤖 AI网页#🤖 人工智能
   type: select
   include-all-proxies: true
-  filter: "(印度|India|IN|台湾-优化3)"
+  filter: "(印度|India|IN|台湾-优化3|新加坡)"
   exclude-filter: "过滤|流量|到期|剩余|套餐|香港|HK|Hong Kong|公共"
 
 # ============================================================
@@ -70,10 +70,14 @@
 #   30 个节点里只有「🇹🇼 台湾-优化3」判为 TW（其余全 CN / 少数超时）。
 #   台湾-优化3 不在印度过滤条件内，所以显式加进 filter；
 #   guardian.sh 的 is_bad_node 也要给它开例外，否则每 5 分钟会被切回印度。
+# 2026-10-22 追加新加坡：vmess 池（含「新加坡-优化3」）实测整池 cc=CN，
+#   真正可用的是新出现的 Hysteria2 池（新加坡SG-HY2 等，cc=SG）。
+#   filter 放宽到「新加坡」是为了让 HY2 节点进得来；节点本身由
+#   starts/hy2-sync.sh 自动同步，见 proxies.example.yaml 的说明。
 - name: 🤖 干净出口#🤖 人工智能
   type: select
   include-all-proxies: true
-  filter: "(印度|India|IN|台湾-优化3)"
+  filter: "(印度|India|IN|台湾-优化3|新加坡)"
   exclude-filter: "过滤|流量|到期|剩余|套餐|香港|HK|Hong Kong|公共"
 
 # ============================================================

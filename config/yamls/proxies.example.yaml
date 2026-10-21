@@ -7,5 +7,9 @@
 #      # 然后把 <YOUR-...> / <REPLACE-...> 占位符替换成真实值
 #
 #    本文件由 starts/clash_modify.sh 合并进生成的 config.yaml（见 docs/ARCHITECTURE.md §3）。
+#
+#    Hysteria2 节点不需要手填：starts/hy2-sync.sh 会在每次生成配置前从机场
+#    原始订阅自动同步到 proxies.yaml 的 `# >>> HY2-AUTO` 块（订阅转换器会丢掉
+#    hysteria2 整类节点）。
 - {name: 🇮🇳 印度-备用m2, server: <YOUR-NODE-SERVER>, port: <YOUR-NODE-PORT>, type: vmess, uuid: <REPLACE-VMESS-UUID>, alterId: 0, cipher: auto, tls: false, skip-cert-verify: false, network: ws, ws-opts: {path: /, headers: {Host: <YOUR-WS-HOST>}}, udp: true}
 - {name: 🇮🇳 印度-备用ct2, server: <YOUR-NODE-SERVER>, port: <YOUR-NODE-PORT>, type: vmess, uuid: <REPLACE-VMESS-UUID>, alterId: 0, cipher: auto, tls: false, skip-cert-verify: false, network: ws, ws-opts: {path: /, headers: {Host: <YOUR-WS-HOST>}}, udp: true}
