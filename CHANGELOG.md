@@ -9,6 +9,28 @@
 
 ---
 
+## [0.2.1] — 2026-10-22
+
+把节点同步从「只补 hysteria2」泛化为「转换后缺什么补什么」，并修掉几个会反噬的边界。
+
+### 脚本
+
+- 调整 `config/starts/sub-sync.sh` —— 由 `hy2-sync.sh` 重命名并泛化：拿原始订阅与转换后的配置逐节点比对，只补「转换后没有的」；转换器将来支持某类节点时块会自动变空，不会与订阅重名
+- 修复 `config/starts/sub-sync.sh` —— 策略组也是 `- { name: X, type: select, proxies: [...] }` 形状且列表里含 HY2 名字，必须用 `server:` 过滤，否则整组会被当成节点写进 proxies
+- 新增 `config/starts/sub-sync.sh` —— 基准少于 10 个节点或待补超过 20 个时保留旧块，避免解析异常把订阅节点整批重复写入
+- 调整 `config/starts/clash_modify.sh` —— 调用点改为 `sub-sync.sh`
+- 调整 `config/yamls/proxy-groups.yaml` —— filter 追加 `HY2`：`日本JP-HY2` / `韩国KR-HY2` 之前根本不在组里，guardian 的候选有一半是空的
+- 调整 `config/yamls/proxies.example.yaml` —— 说明改为 SUB-SYNC 块
+
+### 部署验证（2026-10-22）
+
+- 备份：`/etc/ShellCrash/starts/clash_modify.sh.bak-subsync-20261022`、`/etc/ShellCrash/yamls/proxy-groups.yaml.bak-subsync-20261022`
+- 真实基准 28 个、待补 4 个；模拟「转换器已支持 HY2」时块变 0 个，恢复后回到 4 个
+- 组内成员：印度×3、日本JP-HY2、韩国KR-HY2、新加坡×4、台湾-优化3（香港HK-HY2 被 exclude-filter 挡掉）
+- `cc='SG'`；`gemini.google.com/app` 200 / 0.29s；可用内存 57MB
+
+---
+
 ## [0.2.0] — 2026-10-22
 
 新增订阅刷新后的 Hysteria2 节点自动同步；Gemini 干净出口从 vmess 池改到 HY2 池。

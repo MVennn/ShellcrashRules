@@ -39,7 +39,8 @@
 
 | 位置 | 一句话定位 |
 |---|---|
-| [release-notes/v0.2.0.md](release-notes/v0.2.0.md) | 本版 Release 说明（面向使用者：HY2 节点自动同步、z.ai 直连） |
+| [release-notes/v0.2.1.md](release-notes/v0.2.1.md) | 本版 Release 说明（面向使用者：节点同步泛化、防重名） |
+| [release-notes/v0.2.0.md](release-notes/v0.2.0.md) | 上一版 Release 说明（面向使用者：HY2 节点自动同步、z.ai 直连） |
 | [release-notes/v0.1.1.md](release-notes/v0.1.1.md) | 上一版 Release 说明（面向使用者：看门狗内存闸门、出口策略口径） |
 | [release-notes/v0.1.0.md](release-notes/v0.1.0.md) | 首版 Release 说明（面向使用者：你现在能拿到什么） |
 | 仓库根 [CHANGELOG.md](../CHANGELOG.md) | 开发者记录：按对象拆行的变更清单（**版本号本身**在这里维护） |
