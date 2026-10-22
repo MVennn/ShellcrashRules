@@ -47,6 +47,7 @@ ShellcrashRules/
 | `config/fakeip/fake_ip_filter` | `/etc/ShellCrash/configs/fake_ip_filter` | `starts/clash_modify.sh`（cat 进 fake-ip 排除清单） | 删文件 → Chrome LNA / Google 下载可能异常 |
 | `config/fakeip/fake_ip_filter.list` | `/etc/ShellCrash/configs/fake_ip_filter.list` | 同上 | 同上 |
 | `config/hooks/reorder-groups.sh` | `/etc/ShellCrash/reorder-groups.sh` | 同上 | 删文件 → 去重/重排失效（**会退回重复 key 拒载的老坑**） |
+| `config/hooks/rules-porn.sh` | `/etc/ShellCrash/rules-porn.sh` | `starts/clash_modify.sh`（merger_yaml 之后） | 删文件 → 不注入 `porn` provider，`RULE-SET,porn` 失效（手写大站名单仍在，小站回落默认出口） |
 | `config/archive/rules-dedup.sh` | **不部署（离线工具）** | 人工：在 PC 上对 scp 下来的 config.yaml 副本跑 | **禁止在路由器上跑** —— O(N²) 扫描会拖垮 CPU/内存（2026-10-22 实测断网） |
 | `config/starts/fw_nftables.sh` | `/etc/ShellCrash/starts/fw_nftables.sh` | ShellCrash 启动；`post-sc-update.sh` 恢复 | 从 `/etc/ShellCrash/local-patches/` 恢复；上游副本存为 `starts/*.upstream.*` |
 | `config/starts/start_legacy_wd.sh` | `/etc/ShellCrash/starts/start_legacy_wd.sh` | cron 每分钟 | 同上（local-patches 恢复） |

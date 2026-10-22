@@ -236,7 +236,9 @@ has_fallback=0
 grep -q "  - name: 🛟 主备自动" "$CFG" && has_fallback=1
 has_public=0
 grep -q "  - name: 🆓 公共备用" "$CFG" && has_public=1
-awk -v has_fallback="$has_fallback" -v has_public="$has_public" '
+has_bulk=0
+grep -q "  - name: 📺 大流量" "$CFG" && has_bulk=1
+awk -v has_fallback="$has_fallback" -v has_public="$has_public" -v has_bulk="$has_bulk" '
 function flush_members() {
 	if (cnt > 0) {
 		for (i = 1; i <= norder; i++)
@@ -268,13 +270,16 @@ BEGIN {
 	order[14] = "👍 高级节点"
 	order[15] = "🚀 手动切换"
 	order[16] = "🆓 公共备用"
-	order[17] = "DIRECT"
-	norder = 17
+	order[17] = "📺 大流量"
+	order[18] = "DIRECT"
+	norder = 18
 	want[1] = "🛟 主备自动"
 	want[2] = "🆓 公共备用"
-	nwant = 2
+	want[3] = "📺 大流量"
+	nwant = 3
 	has["🛟 主备自动"] = has_fallback
 	has["🆓 公共备用"] = has_public
+	has["📺 大流量"] = has_bulk
 }
 $0 == "  - name: 🚀 节点选择" { inblock = 1; print; next }
 inblock && $0 ~ /^  - name: / && $0 != "  - name: 🚀 节点选择" { inblock = 0 }

@@ -13,6 +13,7 @@
 
 ### 配置
 
+- 新增 `📺 大流量` 组 —— `select`：`🆓 公共备用` → `♻️ 自动选择`，只由规则 H 段的大文件下载域引用；默认走公共池省机场流量，吞吐低于阈值时由 `bulk-guard.sh` 切回机场。`reorder-groups.sh` 的成员顺序与兜底插入同步（`🚀 节点选择` 末尾、`DIRECT` 之前）
 - 调整 `config/yamls/proxies.example.yaml` —— 说明当前设备不再维护手工节点（节点全部来自订阅 + `sub-sync.sh` 自动补齐），模板只用于额外加备用入口；`cp` 重建时提醒保留 SUB-SYNC 块
 - 调整 `config/yamls/proxies.example.yaml` —— 明确设备上的 `proxies.yaml` 有 `SUB-SYNC` / `PUBLIC-NODES` 两个自动块，**禁止整文件覆盖**（2026-10-22 曾因整文件部署冲掉 4 个公开节点）
 
@@ -24,12 +25,19 @@
 
 ### 规则
 
+- 新增 `I. 视频站点 + Telegram` 段 —— 成人站（pornhub / xvideos / xnxx / xhamster / redtube / youporn / spankbang / eporner / hqporner / txxx / thumbzilla / tube8 / beeg / porntrex）与其自有 CDN（phncdn / xvideos-cdn / xnxx-cdn / xhcdn / rdcdn / ypcdn / spankbang.party），加 `RULE-SET,porn`（上游 MetaCubeX category-porn，6,520 个域名，日更）与 `DOMAIN-KEYWORD,porn` 兜底未列到的小站；Telegram 加 `cdn-telegram.org` 与两个 DC 段（`91.108.0.0/16` / `149.154.160.0/20`），全部指向 `📺 大流量`。不碰通用 CDN；Telegram 媒体与消息同连接，只能整段接
+- 新增 `H. 大流量` 段 —— `steamcontent.com` / `steamstatic.com` / `steamcdn-a.akamaihd.net` / `epicgames-download1.akamaized.net` / `download.epicgames.com` / `proof.ovh.net` 指向 `📺 大流量`。订阅流媒体刻意不进：YouTube 全族必须走 `🤖 干净出口`（Google cc 判定），Netflix/Disney 对公共节点几乎必然判代理。探测域用 `proof.ovh.net` 而不是 Cloudflare 的 `__down`：后者在公共节点上会被限流成 403，403 的「速度」会被误判成节点慢
 - 新增 Google 广告/追踪 carve-out —— `doubleclick.net` / `googlesyndication.com` / `googleadservices.com` / `google-analytics.com` / `googleadsserving.cn` / `ads.google.com` / `adservice.google.com` / `pagead.google.com` / `pagead.l.google.com` / `pagead-tpc.l.google.com` / `mobileads.google.com` / `afd.l.google.com` / `badad.googleplex.com` / `csi.gstatic.com` / `collector.githubapp.com` / `app-measurement.com` 改回 `🛑 广告拦截`：此前被自定义 `DOMAIN-KEYWORD,google` / `DOMAIN-SUFFIX,google.com` 整段遮蔽，实测走 `🤖 干净出口` 并真实下载 59–63 KB；`doubleclick.net` 同时挡住 `googleads.*` 子域
 - 调整 `googletagmanager.com` / `googletagservices.com` —— 从 `🤖 干净出口` 改到 `🚀 节点选择`，共享标签管理器不再与 Google 账号流量共用出口
 - 调整 AI 列表共享 SaaS 域 —— `envato.com` / `envato-static.com` / `envatousercontent.com` / `themeforest.net` / `liveperson.net` / `lpsnmedia.net` / `browser-intake-datadoghq.com` 从 `🤖 人工智能` 改到 `🚀 节点选择`：上游 geosite 误收，素材市场/客服聊天/RUM 不应占用 AI 出口
 
 ### 脚本
 
+- 新增 `config/hooks/rules-porn.sh` —— 幂等注入 `porn` rule-provider（MetaCubeX category-porn，`type: http` / `format: mrs` / 日更）；目标组不存在时跳过，写前校验行数、原子替换
+- 调整 `config/starts/clash_modify.sh` —— `merger_yaml` 之后调用 `rules-porn.sh`（在 rules-mid / rules-cnip 之前）
+- 调整 `config/generators/ai-rules-update.sh` —— 新增 H 段（大流量下载域）与 I 段（视频站点 + Telegram）；生成后逐条校验 H/I 段与 `RULE-SET,porn` 存在，防止每周更新被上游规则去重掉
+- 调整 `config/hooks/reorder-groups.sh` —— `🚀 节点选择` 成员顺序加入 `📺 大流量`（`🆓 公共备用` 之后、`DIRECT` 之前），并纳入兜底插入清单
+- 调整 `config/generated/rules.yaml` —— 由路由器重生成（357 条）
 - 调整 `config/generators/ai-rules-update.sh` —— 顶部加入共享 SaaS 覆盖；A 段加入 Google 广告 carve-out；生成后逐条校验 carve-out 与共享 SaaS 覆盖存在，防止每周更新被冲掉
 - 调整 `config/ai-api-check.sh` —— 新增第 18 段：逐条校验广告 carve-out / 共享 SaaS 覆盖存在，并断言 `doubleclick.net` 排在 `DOMAIN-SUFFIX,google.com` / `DOMAIN-KEYWORD,google` 之前
 - 调整 `config/ai-api-check.sh` —— 第 14/15 段干净出口期望从「印度」改为「HY2/印度/台湾-优化3」，与 guardian 的 HY2 候选对齐，消除重启后的两条误报 WARN
@@ -41,6 +49,9 @@
 
 ### 文档
 
+- 调整 `docs/ARCHITECTURE.md` —— §4 新增 `📺 大流量` 组与大流量守卫 cron；§4.1 成员顺序同步；配置链路图更新自定义组与 `proxies.yaml` 说明；§1.2 钩子从三个变四个（新增 `rules-porn.sh`）；文件归属表加 `bulk-guard.sh` 与 `porn` provider
+- 调整 `docs/PITFALLS.md` —— 新增第 26 条（url-test/fallback 只测首包，不测带宽，含 2/4/8/20MB 校准数据）、第 27 条（「主备自动」的兜底被守护进程复位绕过，实际不生效）、第 28 条（手写域名名单不可能穷举，改用上游类别规则集）
+- 调整 `docs/DEPLOY.md` —— 部署映射表加入 `config/hooks/rules-porn.sh`
 - 调整 `docs/RULE-AUDIT.md` —— 追加 2026-10-22 广告 carve-out 与 AI 共享 SaaS 清理的审计结论、实测证据与规则清单
 - 调整 `docs/PITFALLS.md` —— 新增第 23 条：宽泛 Google 规则遮蔽模板广告 REJECT；补目录缺失的第 22 条与锚点
 - 调整 `docs/TROUBLESHOOTING.md` —— 规则审计一节补「广告域走代理」的判据与 `ai-api-check.sh` 第 18 段入口

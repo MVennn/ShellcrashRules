@@ -53,6 +53,53 @@ fi
 	echo "- DOMAIN-SUFFIX,gvt1.com,🎯 全球直连"
 	echo "- DOMAIN-SUFFIX,gvt1-cn.com,🎯 全球直连"
 	echo "- DOMAIN-SUFFIX,jetbrains.com,🎯 全球直连"
+	echo "# ===== H. 大流量（公共池承载，2026-10-22）====="
+	echo "# 已知的大文件下载域走 📺 大流量：该组默认 🆓 公共备用，"
+	echo "# bulk-guard.sh 实测吞吐低于阈值时切回 ♻️ 自动选择（见 OpenwrtOpsToolkit）。"
+	echo "# 视频域刻意不进来：YouTube 全族必须走干净出口（Google cc 判定），"
+	echo "#   Netflix/Disney 对公共节点几乎必然判代理。"
+	echo "# proof.ovh.net 同时是 bulk-guard.sh 的探测域（Range 取前 4MB），必须固定在本组。"
+	echo "- DOMAIN-SUFFIX,steamcontent.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,steamstatic.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,steamcdn-a.akamaihd.net,📺 大流量"
+	echo "- DOMAIN-SUFFIX,epicgames-download1.akamaized.net,📺 大流量"
+	echo "- DOMAIN-SUFFIX,download.epicgames.com,📺 大流量"
+	echo "- DOMAIN,proof.ovh.net,📺 大流量"
+	echo "# ===== I. 视频站点 + Telegram（大流量，2026-10-22）====="
+	echo "# 纯下载型视频流量（成人站 + Telegram 媒体）走公共池："
+	echo "#   这些站不绑定账号/支付出口，HTTPS/MTProto 加密，公共节点看不到内容。"
+	echo "#   注意：只进大站与其自有 CDN，不碰通用 CDN（cdn77 等）—— 那会把无关流量拖进来。"
+	echo "#   未列到的小站由上游 category-porn 规则集兜底（provider 由 rules-porn.sh 注入）。"
+	echo "# Telegram 的媒体与消息走同一条 MTProto 连接，无法只挑视频；"
+	echo "#   要接就整段接（两个 DC 段）。若公共节点被 Telegram 限制，面板里切回即可。"
+	echo "- RULE-SET,porn,📺 大流量"
+	echo "- DOMAIN-KEYWORD,porn,📺 大流量"
+	echo "- DOMAIN-SUFFIX,pornhub.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,pornhubpremium.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,phncdn.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,xvideos.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,xvideos2.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,xvideos-cdn.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,xnxx.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,xnxx-cdn.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,xhamster.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,xhcdn.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,redtube.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,rdcdn.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,youporn.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,ypcdn.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,spankbang.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,spankbang.party,📺 大流量"
+	echo "- DOMAIN-SUFFIX,eporner.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,hqporner.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,txxx.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,thumbzilla.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,tube8.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,beeg.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,porntrex.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,cdn-telegram.org,📺 大流量"
+	echo "- IP-CIDR,91.108.0.0/16,📺 大流量,no-resolve"
+	echo "- IP-CIDR,149.154.160.0/20,📺 大流量,no-resolve"
 	echo "# 模型 API / 账号 Token（必须排在 geosite 规则之前）"
 	echo "- DOMAIN-SUFFIX,opencode.ai,${API_GROUP}"
 	echo "# ZCode 账号/项目 Token：直连，避免默认代理（香港出口）拖到 15s 超时"
@@ -273,6 +320,24 @@ if ! grep -q "DOMAIN,dl.google.com,🎯 全球直连" "$OUT.tmp" ||
 	echo "警告: 高带宽直连段丢失（可能被上游规则去重），请检查 $OUT.tmp"
 	exit 1
 fi
+for r in "DOMAIN-SUFFIX,steamcontent.com,📺 大流量" \
+         "DOMAIN-SUFFIX,steamstatic.com,📺 大流量" \
+         "DOMAIN-SUFFIX,steamcdn-a.akamaihd.net,📺 大流量" \
+         "DOMAIN-SUFFIX,epicgames-download1.akamaized.net,📺 大流量" \
+         "DOMAIN-SUFFIX,download.epicgames.com,📺 大流量" \
+         "DOMAIN,proof.ovh.net,📺 大流量" \
+         "DOMAIN-SUFFIX,pornhub.com,📺 大流量" \
+         "RULE-SET,porn,📺 大流量" \
+         "DOMAIN-KEYWORD,porn,📺 大流量" \
+         "DOMAIN-SUFFIX,xvideos-cdn.com,📺 大流量" \
+         "DOMAIN-SUFFIX,cdn-telegram.org,📺 大流量" \
+         "IP-CIDR,91.108.0.0/16,📺 大流量,no-resolve" \
+         "IP-CIDR,149.154.160.0/20,📺 大流量,no-resolve"; do
+	if ! grep -qF -- "- $r" "$OUT.tmp"; then
+		echo "警告: 大流量段丢失: $r"
+		exit 1
+	fi
+done
 for r in "DOMAIN-SUFFIX,doubleclick.net,🛑 广告拦截" \
          "DOMAIN-SUFFIX,googlesyndication.com,🛑 广告拦截" \
          "DOMAIN-SUFFIX,googleadservices.com,🛑 广告拦截" \

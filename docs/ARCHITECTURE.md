@@ -20,20 +20,23 @@
 starts/clash_modify.sh  ← 合并链路的入口（本仓待补，设备侧在跑）
    │  merger_yaml 合并四份来源：
    │    yamls/user.yaml          → 顶层内核参数（tcp-concurrent / find-process-mode / profile.*）
-   │    yamls/proxy-groups.yaml  → 自定义策略组（🤖 AI接口 / 🤖 AI网页 / 🤖 干净出口 + 地区组）
-   │    yamls/proxies.yaml       → 自定义节点（印度备用入口 m2 / ct2）
+   │    yamls/proxy-groups.yaml  → 自定义策略组（🤖 AI接口 / 🤖 AI网页 / 🤖 干净出口 / 📺 大流量 + 地区组）
+   │    yamls/proxies.yaml       → 自定义节点（HY2 池，由 sub-sync.sh 在生成配置前补齐）
    │    yamls/rules.yaml         → AI 分流规则（置顶，在所有模板规则之前）
    │  同时 cat 进 fake_ip_filter 与 fake_ip_filter.list 合成 fake-ip 排除清单
    ▼
-钩子 ① rules-mid.sh        插 - RULE-SET,cn,🎯 全球直连
+钩子 ① rules-porn.sh      注入 porn provider（MetaCubeX category-porn，6,520 域名 / 日更）
+   │                      RULE-SET,porn 规则本身由 rules.yaml 的 I 段提供
+   ▼
+钩子 ② rules-mid.sh        插 - RULE-SET,cn,🎯 全球直连
    │                      （最后一条「📲 电报消息」之后，第一条「🌍 国外媒体」之前）
    ▼
-钩子 ② rules-cnip.sh       把 8,980 条内联 CN IP-CIDR 折叠成一条 RULE-SET,cnip
+钩子 ③ rules-cnip.sh       把 8,980 条内联 CN IP-CIDR 折叠成一条 RULE-SET,cnip
    │                      （rule-providers.cnip：file / ipcidr / mrs；13k → 4.1k 条）
    ▼
-钩子 ③ reorder-groups.sh   ① proxy-groups 同名去重（保留首次出现）
+钩子 ④ reorder-groups.sh   ① proxy-groups 同名去重（保留首次出现）
    │                      ② 组内重复 key 清理
-   │                      ③ 成员重排（🛟 主备自动 → ♻️ 自动选择 → AI接口 → 地区组 → 手动切换 → DIRECT → 🆓 公共备用）
+   │                      ③ 成员重排（🛟 主备自动 → ♻️ 自动选择 → AI接口 → 地区组 → 手动切换 → 🆓 公共备用 → 📺 大流量 → DIRECT）
    │                      ④ mixed-port 归一（去掉重复的 host 前缀）
    ▼
 mihomo 校验（CrashCore -t）→ 加载
@@ -41,15 +44,16 @@ mihomo 校验（CrashCore -t）→ 加载
 运行期 config.yaml（/tmp/ShellCrash/config.yaml）
 ```
 
-### 1.2 三个钩子的分工
+### 1.2 四个钩子的分工
 
 | 钩子 | 解决什么 | 关键约束 |
 |---|---|---|
+| `rules-porn.sh` | 手写的成人站名单只覆盖大站，未列到的小站会静默回落默认出口。注入上游 `category-porn` provider（6,520 域名 / 日更）做系统性兜底 | **幂等**；provider 键不能变成顶层重复键（与 `cn:` 同缩进）；写前校验行数、原子替换；目标组不存在时跳过 |
 | `rules-mid.sh` | 模板把「宽泛代理」（ProxyMedia / ProxyLite）排在「CN 直连」之前 → `.hk`、Steam 中国等 CN 站点被绕路。插一行 CN 直连中间层即可一次性解决 | **幂等**；写前先在同目录写临时文件并做完整性校验，全部通过才 `mv` 原子替换；任何失败都不动原文件；预检 `rule-providers.cn` 必须存在且 `behavior: domain` / `format: mrs` |
 | `rules-cnip.sh` | 模板把约 9,631 条 IP-CIDR 内联在配置里，其中 8,980 条目标是 `🎯 全球直连` → 13k 行配置、内存和加载时间都高。折叠成 `cnip` provider 后 13,133 → 4,154 条 | **幂等**；provider 键不能变成顶层重复键；删除/插入前做行号、规则数、IP-CIDR 数、逐行重建四重校验；失败不 `mv` |
 | `reorder-groups.sh` | ShellCrash 的 `merger_yaml` 把用户自定义组**追加**进基础配置，而基础配置本身是上一次合并结果的快照 → 同名组重复出现 → YAML 重复 key → mihomo 拒载 | 同名组保留**第一次出现**（merger_yaml 把最新定义放在最前），丢弃后续陈旧副本；同一组块内重复 key 一并丢弃 |
 
-> **为什么这三个钩子必须放在 `merger_yaml` 之后、`test_yaml`（校验）之前** ——
+> **为什么这四个钩子必须放在 `merger_yaml` 之后、`test_yaml`（校验）之前** ——
 > 早了拿不到合并结果，晚了校验已经过了。位置写死在 `starts/clash_modify.sh` 里，
 > ShellCrash 官方更新会覆盖该文件，由 `post-sc-update.sh` 按标记串恢复。
 
@@ -148,6 +152,8 @@ mihomo 校验（CrashCore -t）→ 加载
 | `docs/**` | **本仓** | 人工维护 | — |
 | `rc.local` | **`AX3000TOpenwrt` 仓** | 那边 | 开机加载本仓三张 nft 表 |
 | `guardian.sh`（守护进程） | **`AX3000TOpenwrt` 仓** | 那边 | cron 每 5 分钟：补载三表、节点劣化复位、干净出口守护 |
+| `bulk-guard.sh`（大流量守卫） | **`OpenwrtOpsToolkit` 仓** | 那边 | cron 每 10 分钟：按真实吞吐切 `📺 大流量`（公共池 ↔ 机场） |
+| `rule-providers.porn`（`category-porn.mrs`） | **上游 MetaCubeX** | 本仓 `rules-porn.sh` 只注入 provider 条目；mihomo 按 `interval: 86400` 自行更新 | `RULE-SET,porn,📺 大流量`（规则由 `ai-rules-update.sh` I 段输出） |
 | `/etc/mixedport.nft`（7890 收口） | **`AX3000TOpenwrt` 仓** | 那边 | `rc.local` 引用 —— ⚠️ **该文件在本仓与设备上都需确认存在**（历史记录里被引用但缺失） |
 | `recover-now.sh` 等恢复脚本 | **`AX3000TOpenwrt` 仓** | 那边 | 人工 |
 | ShellCrash 本体（`/etc/ShellCrash` 其余部分） | **ShellCrash 官方** | 官方更新 | 官方脚本更新会覆盖 `starts/` → 由 `post-sc-update.sh` 恢复本仓的补丁 |
@@ -180,9 +186,11 @@ mihomo 校验（CrashCore -t）→ 加载
 | 🤖 干净出口 | `select` + 印度/台湾-优化3 过滤 | `config/yamls/proxy-groups.yaml` | 唯一经 Google 侧 `cc` 实测判为非 CN 的稳定出口 |
 | 🛟 主备自动 | `fallback`：`♻️ 自动选择` → `🆓 公共备用` | `config/yamls/proxy-groups.yaml` | `🚀 节点选择` 的默认项；机场节点正常时走 `♻️ 自动选择`，机场全挂时自动落到公共备用。**不放 DIRECT**，避免两边都挂时静默直连泄露真实 IP |
 | 🆓 公共备用 | `url-test` + `filter: 🆓 公共` | `config/yamls/proxy-groups.yaml` | AutoMergePublicNodes 公开节点的最后手段：作为 `🛟 主备自动` 的兜底成员，同时保留在 `🚀 节点选择` 末尾供手动选择。节点由 PC 侧 `tools/public-nodes/screen.py` 定期筛选后写入路由器本地 `yamls/proxies.yaml`（不入库）；2026-10-21 全量筛选池 208 条通常只有 4–6 条存活，**不可用于 AI / 网银 / 邮箱** |
+| 📺 大流量 | `select`：`🆓 公共备用` → `♻️ 自动选择` | `config/yamls/proxy-groups.yaml` | 只承载 `rules.yaml` H 段（Steam / Epic 内容 CDN + 探测域 `proof.ovh.net`）与 I 段（成人站及其自有 CDN + `RULE-SET,porn` 上游规则集兜底、Telegram 的 `91.108.0.0/16` + `149.154.160.0/20`）。默认走公共池省机场流量；`bulk-guard.sh`（`OpenwrtOpsToolkit` 仓）实测吞吐低于 800 KB/s 时切回机场并冷却 1 小时。**订阅流媒体刻意不进**：YouTube 全族必须走干净出口（Google cc），Netflix/Disney 对公共节点几乎必然判代理；成人站与 Telegram 不绑账号/支付出口、全程加密，所以接进来 |
 | 规则更新 cron | `30 4 * * 0` | 路由器 crontab | 每周跑 `auto-update.sh`（规则生成 + hotupdate） |
 | 看门狗 cron | `* * * * *` | 路由器 crontab | 每分钟拉起代理（`starts/start_legacy_wd.sh shellcrash`） |
 | 守护 cron | `*/5 * * * *` | 路由器 crontab | 每 5 分钟自愈（补载三表、节点劣化复位、干净出口守护）—— 脚本在 `AX3000TOpenwrt` 仓 |
+| 大流量守卫 cron | `*/10 * * * *` | 路由器 crontab | 每 10 分钟判定一次（空闲时每 2 小时实测一次吞吐）—— 脚本在 `OpenwrtOpsToolkit` 仓，组名来自 `/etc/openwrt-ops/device.conf` |
 | 自检段数 | 18 段 | `config/ai-api-check.sh` | 订阅更新后必跑；退出码 0/1 |
 
 ### 4.1 组名与规则目标的约定
@@ -195,7 +203,10 @@ mihomo 校验（CrashCore -t）→ 加载
 
 - `🚀 节点选择` 的成员顺序（由 `reorder-groups.sh` 维护）：
   `🛟 主备自动`（默认）→ `♻️ 自动选择` → `🤖 AI接口` → 地区组 →
-  `🚀 手动切换` → `🆓 公共备用` → `DIRECT`。
+  `🚀 手动切换` → `🆓 公共备用` → `📺 大流量` → `DIRECT`。
+  注意：`store-selected` 会记住面板里的最后一次手动选择；设备上的守护进程
+  在出口劣化时会把 `🚀 节点选择` 复位到 `♻️ 自动选择`，所以「默认项是主备自动」
+  并不等于运行期一直在主备自动上（见 [PITFALLS.md](PITFALLS.md)「主备自动的兜底实际不生效」）。
 - `🐟 漏网之鱼` 同样把 `DIRECT` 收尾。
 - 规则行尾的 `#自定义规则` / `#自定义代理` 是 `clash_modify.sh` 的标记，不是组名的一部分。
 - 地区组名来自机场模板（例如 `🇺🇲 美国节点` 的旗其实是美国本土外小岛屿），

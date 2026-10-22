@@ -268,6 +268,7 @@ modify_yaml() {
     split_and_customize_yaml_parts
     add_custom_inbounds_and_rules
     merger_yaml
+    [ -x "$CRASHDIR"/rules-porn.sh ] && "$CRASHDIR"/rules-porn.sh "$TMPDIR"/config.yaml
     [ -x "$CRASHDIR"/rules-mid.sh ] && "$CRASHDIR"/rules-mid.sh "$TMPDIR"/config.yaml
     [ -x "$CRASHDIR"/rules-cnip.sh ] && "$CRASHDIR"/rules-cnip.sh "$TMPDIR"/config.yaml
     [ -x "$CRASHDIR"/reorder-groups.sh ] && "$CRASHDIR"/reorder-groups.sh "$TMPDIR"/config.yaml
