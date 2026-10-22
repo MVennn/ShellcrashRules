@@ -197,7 +197,8 @@ BEGIN {
 	order[13]="🇬🇧 英国节点"
 	order[14]="🤖 人工智能"
 	order[15]="🎬 B站解锁"
-	norder=15
+	order[16]="🔗 GitHub 出口"
+	norder=16
 }
 /^proxy-groups:/ { inpg=1; print; next }
 inpg && /^[a-z]/ {
@@ -239,7 +240,9 @@ has_public=0
 grep -q "  - name: 🆓 公共备用" "$CFG" && has_public=1
 has_bulk=0
 grep -q "  - name: 📺 大流量" "$CFG" && has_bulk=1
-awk -v has_fallback="$has_fallback" -v has_public="$has_public" -v has_bulk="$has_bulk" '
+has_github=0
+grep -q "  - name: 🔗 GitHub 出口" "$CFG" && has_github=1
+awk -v has_fallback="$has_fallback" -v has_public="$has_public" -v has_bulk="$has_bulk" -v has_github="$has_github" '
 function flush_members() {
 	if (cnt > 0) {
 		for (i = 1; i <= norder; i++)
@@ -270,18 +273,21 @@ BEGIN {
 	order[13] = "📺 省流节点"
 	order[14] = "👍 高级节点"
 	order[15] = "🚀 手动切换"
-	order[16] = "🆓 公共备用"
-	order[17] = "🎬 B站解锁"
-	order[18] = "📺 大流量"
-	order[19] = "DIRECT"
-	norder = 19
+	order[16] = "🔗 GitHub 出口"
+	order[17] = "🆓 公共备用"
+	order[18] = "🎬 B站解锁"
+	order[19] = "📺 大流量"
+	order[20] = "DIRECT"
+	norder = 20
 	want[1] = "🛟 主备自动"
 	want[2] = "🆓 公共备用"
 	want[3] = "📺 大流量"
-	nwant = 3
+	want[4] = "🔗 GitHub 出口"
+	nwant = 4
 	has["🛟 主备自动"] = has_fallback
 	has["🆓 公共备用"] = has_public
 	has["📺 大流量"] = has_bulk
+	has["🔗 GitHub 出口"] = has_github
 }
 $0 == "  - name: 🚀 节点选择" { inblock = 1; print; next }
 inblock && $0 ~ /^  - name: / && $0 != "  - name: 🚀 节点选择" { inblock = 0 }

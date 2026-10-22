@@ -551,13 +551,26 @@ def get_secret() -> str:
     return _secret_cache
 
 
+def wait_api(timeout: int = 60) -> bool:
+    """等 mihomo 控制 API 起来。重启后配置已加载但 API 可能还没就绪。"""
+    secret = get_secret()
+    cmd = f"curl -s -m 3 -H {shlex.quote('Authorization: Bearer ' + secret)} {API}/version"
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        proc = ssh(cmd, timeout=20, check=False)
+        if proc.returncode == 0 and '"version"' in proc.stdout:
+            return True
+        time.sleep(3)
+    return False
+
+
 def api_proxies() -> dict:
     secret = get_secret()
     cmd = (
         f"curl -s -m 20 -H {shlex.quote('Authorization: Bearer ' + secret)} "
         f"{API}/proxies"
     )
-    for attempt in (1, 2):
+    for attempt in range(1, 5):
         proc = ssh(cmd, timeout=40, check=False)
         try:
             data = json.loads(proc.stdout)
@@ -566,7 +579,7 @@ def api_proxies() -> dict:
         except json.JSONDecodeError:
             pass
         log(f"读取 /proxies 失败（第 {attempt} 次）")
-        time.sleep(5)
+        time.sleep(10)
     raise RuntimeError("mihomo API /proxies 读取失败")
 
 
@@ -624,39 +637,53 @@ def test_batches(
 ) -> dict[str, dict]:
     results: dict[str, dict] = {}
     batches = [nodes[i : i + batch_size] for i in range(0, len(nodes), batch_size)]
-    for bi, batch in enumerate(batches, 1):
-        log(f"批次 {bi}/{len(batches)}：{len(batch)} 条")
-        block, kept = make_block(batch, "T")
-        if not kept:
-            continue
-        ok, detail = prevalidate(block)
-        if not ok:
-            log(f"批次 {bi} 预检失败，跳过：{detail}")
-            continue
-        content = read_remote(REMOTE_PROXIES)
-        write_remote(REMOTE_PROXIES, replace_block(content, block))
-        if not restart_core(settle):
-            log(f"批次 {bi} 重启/校验失败，跳过")
-            continue
-        loaded = runtime_public_count()
-        if loaded < max(1, len(kept) // 2):
-            log(f"批次 {bi} 运行配置只加载了 {loaded}/{len(kept)} 条，跳过")
-            continue
-        data = api_proxies()
-        now = int(time.time())
-        alive_n = 0
-        for idx, node in enumerate(kept, 1):
-            name = node["name"]
-            info = data.get(name) or {}
-            history = info.get("history") or []
-            delay = history[-1].get("delay") if history else None
-            alive = bool(info.get("alive")) and bool(delay)
-            results[fingerprint(node)] = {"alive": alive, "delay": delay if alive else None}
-            update_state(state, node, alive=alive, delay=delay if alive else None, now=now)
-            if alive:
-                alive_n += 1
-        save_state(state)
-        log(f"批次 {bi} 存活 {alive_n}/{len(kept)}")
+    try:
+        for bi, batch in enumerate(batches, 1):
+            log(f"批次 {bi}/{len(batches)}：{len(batch)} 条")
+            block, kept = make_block(batch, "T")
+            if not kept:
+                continue
+            ok, detail = prevalidate(block)
+            if not ok:
+                log(f"批次 {bi} 预检失败，跳过：{detail}")
+                continue
+            content = read_remote(REMOTE_PROXIES)
+            write_remote(REMOTE_PROXIES, replace_block(content, block))
+            if not restart_core(settle):
+                log(f"批次 {bi} 重启/校验失败，跳过")
+                continue
+            loaded = runtime_public_count()
+            if loaded < max(1, len(kept) // 2):
+                log(f"批次 {bi} 运行配置只加载了 {loaded}/{len(kept)} 条，跳过")
+                continue
+            if not wait_api():
+                log(f"批次 {bi} 控制 API 未就绪，跳过")
+                continue
+            data = api_proxies()
+            now = int(time.time())
+            alive_n = 0
+            for idx, node in enumerate(kept, 1):
+                name = node["name"]
+                info = data.get(name) or {}
+                history = info.get("history") or []
+                delay = history[-1].get("delay") if history else None
+                alive = bool(info.get("alive")) and bool(delay)
+                results[fingerprint(node)] = {"alive": alive, "delay": delay if alive else None}
+                update_state(state, node, alive=alive, delay=delay if alive else None, now=now)
+                if alive:
+                    alive_n += 1
+            save_state(state)
+            log(f"批次 {bi} 存活 {alive_n}/{len(kept)}")
+    except Exception as exc:  # noqa: BLE001 - 任何异常都必须把设备恢复原状
+        log(f"批次测试异常：{exc}")
+        log("回滚到本轮开始前的配置，避免把测试节点留在设备上")
+        try:
+            write_remote(REMOTE_PROXIES, old_content)
+            restart_core(settle)
+            log("回滚完成")
+        except Exception as exc2:  # noqa: BLE001 - 回滚失败只能报告
+            log(f"回滚失败，需人工检查：{exc2}")
+        raise
     return results
 
 
@@ -860,7 +887,15 @@ def run(args: argparse.Namespace) -> int:
         # 恢复到本轮开始前的块，避免留下最后一批测试节点。
         if read_remote(REMOTE_PROXIES) != old_content:
             write_remote(REMOTE_PROXIES, old_content)
-            restart_core(args.settle)
+            if not restart_core(args.settle):
+                # 网络抖动时配置生成可能被截断，ShellCrash 会静默回退基础配置。
+                # 等一会儿重试一次，别把设备留在回退状态。
+                log("恢复配置后重启失败，30 秒后重试一次")
+                time.sleep(30)
+                if not restart_core(args.settle):
+                    log("重试仍失败：设备可能回退到基础配置，需人工检查")
+                    return 1
+                log("重试成功")
         return 0
 
     block, kept = make_block(survivors, "")

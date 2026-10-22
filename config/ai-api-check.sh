@@ -251,17 +251,17 @@ if [ -f "$RCFG" ]; then
 		fail=1
 	fi
 	MISS=0
-	for d in gstatic.com googleusercontent.com googleapis.com google.com gemini.google.com generativelanguage.googleapis.com clients6.google.com accounts.google.com youtube.com googlevideo.com api.github.com; do
+	for d in gstatic.com googleusercontent.com googleapis.com google.com gemini.google.com generativelanguage.googleapis.com clients6.google.com accounts.google.com youtube.com googlevideo.com; do
 		grep -qF "$d,🤖 干净出口" "$RCFG" || MISS=$((MISS+1))
 	done
-	# GitHub 全族：2026-10-21 起与 Google 共用稳定出口（日本入口有 20% TLS 握手尖刺）
+	# GitHub 全族：2026-10-22 从干净出口拆到 🔗 GitHub 出口（独立 url-test，按 GitHub 可达性选路）
 	for d in github.com githubusercontent.com githubassets.com githubapp.com; do
-		grep -qF "DOMAIN-SUFFIX,$d,🤖 干净出口" "$RCFG" || MISS=$((MISS+1))
+		grep -qF "DOMAIN-SUFFIX,$d,🔗 GitHub 出口" "$RCFG" || MISS=$((MISS+1))
 	done
 	if [ "$MISS" -eq 0 ]; then
-		echo "OK: Google/YouTube 关键域名 + GitHub 全族全部指向 🤖 干净出口"
+		echo "OK: Google/YouTube 关键域名指向 🤖 干净出口，GitHub 全族指向 🔗 GitHub 出口"
 	else
-		echo "FAIL: 有 $MISS 个关键域名未指向干净出口"
+		echo "FAIL: 有 $MISS 个关键域名指向了错误的出口组"
 		fail=1
 	fi
 	if grep -qE "IP-CIDR,203\.208\.32\.0/19,🎯 全球直连,no-resolve" "$RCFG"; then

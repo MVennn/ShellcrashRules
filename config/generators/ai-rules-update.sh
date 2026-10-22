@@ -20,8 +20,13 @@ OUT=/etc/ShellCrash/yamls/rules.yaml
 GROUP="🤖 人工智能"
 API_GROUP="🤖 AI接口"
 GOOGLE_GROUP="🚀 节点选择"
-# 干净出口组：唯一经 Google cc 实测判为非 CN 的稳定出口（印度）
+# 干净出口组：只服务 Google 家族（cc≠CN + Gemini 吞吐都合格）
 CL="🤖 干净出口"
+# GitHub 组：只服务 GitHub 家族，url-test 拿 github.com/robots.txt 做健康检查，
+# 节点握手开始抖就自动换（见 config/yamls/proxy-groups.yaml）。
+# 2026-10-22 拆开的原因：干净出口按 Gemini 吞吐选到了到 GitHub 0/5 的 HY2 节点，
+# GitHub 全族跟着时通时断 —— 两者需要的能力不同，不能共用一个组。
+GH="🔗 GitHub 出口"
 # AI_GROUP：Google 全家桶（API 族 + googleapis.com 宽泛域）统一走 AI 组，
 # 保证同一个 Google 会话只有一个出口 IP，且该组不含被 Google 反滥用拦截的
 # 香港WAP/加拿大/英国出口（那三个会 302 到 google.com/sorry/index）
@@ -147,7 +152,7 @@ fi
 	echo "- DOMAIN-SUFFIX,cdn-lfs-eu-1.hf.co,📺 大流量"
 	echo "- DOMAIN-SUFFIX,cas-bridge.xethub.hf.co,📺 大流量"
 	echo "# GitHub 发布包：整族原本走干净出口（单条节点），几百 MB 的 release 会把它占死。"
-	echo "#   只摘下载域；api.github.com / github.com 必须留在干净出口（见 F 段）。"
+	echo "#   只摘下载域；api.github.com / github.com 必须留在 $GH（见 F 段）。"
 	echo "- DOMAIN-SUFFIX,objects.githubusercontent.com,📺 大流量"
 	echo "- DOMAIN-SUFFIX,release-assets.githubusercontent.com,📺 大流量"
 	echo "- DOMAIN-SUFFIX,codeload.github.com,📺 大流量"
@@ -291,16 +296,18 @@ fi
 	echo "- DOMAIN-SUFFIX,youtube-nocookie.com,$CL"
 	echo "- DOMAIN,youtubei.googleapis.com,$CL"
 	echo "- DOMAIN,yt3.ggpht.com,$CL"
-	echo "# ===== F. GitHub 统一出口（2026-10-21）====="
-	echo "# 日本入口对 github.com 有约 20% 的 TLS 握手尖刺（1.4–7s），印度入口 40 次 0 尖刺。"
+	echo "# ===== F. GitHub 统一出口（2026-10-21，2026-10-22 拆组）====="
 	echo "# 模板里这些域走 DOMAIN-KEYWORD,github / DOMAIN-SUFFIX,github.com（🚀 节点选择 → 🛟 主备自动 → ♻️ 自动选择），"
-	echo "# 会随机落到日本节点，必须在这里提前截走。"
+	echo "# 会随机落到日本节点（日本入口约 20% TLS 握手尖刺 1.4–7s），必须在这里提前截走。"
+	echo "# 2026-10-22：从 🤖 干净出口 拆到 $GH —— 干净出口按 Gemini 吞吐选节点，"
+	echo "#   曾选到到 GitHub 0/5 的 HY2 节点，GitHub 全族跟着断。"
+	echo "#   $GH 是 url-test，健康检查就是 github.com/robots.txt，节点抖了自动换。"
 	echo "# 例外：geosite AI 列里的 copilot-* 子域排在本段之前，仍走 🤖 人工智能。"
-	echo "- DOMAIN,api.github.com,$CL"
-	echo "- DOMAIN-SUFFIX,github.com,$CL"
-	echo "- DOMAIN-SUFFIX,githubusercontent.com,$CL"
-	echo "- DOMAIN-SUFFIX,githubassets.com,$CL"
-	echo "- DOMAIN-SUFFIX,githubapp.com,$CL"
+	echo "- DOMAIN,api.github.com,$GH"
+	echo "- DOMAIN-SUFFIX,github.com,$GH"
+	echo "- DOMAIN-SUFFIX,githubusercontent.com,$GH"
+	echo "- DOMAIN-SUFFIX,githubassets.com,$GH"
+	echo "- DOMAIN-SUFFIX,githubapp.com,$GH"
 	echo "# AI 关键字兜底：模板里这三条被更早的规则遮蔽，放到自定义块最前才生效"
 	echo "- DOMAIN-KEYWORD,claude,🤖 人工智能"
 	echo "- DOMAIN-KEYWORD,anthropic,🤖 人工智能"
@@ -378,7 +385,7 @@ if ! grep -q "googleapis.com,$CL" "$OUT.tmp" || ! grep -q "bing.com,Ⓜ️ 微�
 	echo "警告: 分类修正层丢失，请检查 $OUT.tmp"
 	exit 1
 fi
-if ! grep -q "DOMAIN-SUFFIX,github.com,$CL" "$OUT.tmp" || ! grep -q "DOMAIN-SUFFIX,githubusercontent.com,$CL" "$OUT.tmp"; then
+if ! grep -q "DOMAIN-SUFFIX,github.com,$GH" "$OUT.tmp" || ! grep -q "DOMAIN-SUFFIX,githubusercontent.com,$GH" "$OUT.tmp"; then
 	echo "警告: GitHub 出口覆盖规则丢失（可能被 geosite 同名规则去重掉），请检查 $OUT.tmp"
 	exit 1
 fi
@@ -416,6 +423,16 @@ for r in "DOMAIN-SUFFIX,cdn-lfs.huggingface.co,📺 大流量" \
          "DOMAIN-SUFFIX,repo1.maven.org,📺 大流量"; do
 	if ! grep -qF -- "- $r" "$OUT.tmp"; then
 		echo "警告: 大流量补充段丢失: $r"
+		exit 1
+	fi
+done
+for r in "DOMAIN,api.github.com,$GH" \
+         "DOMAIN-SUFFIX,github.com,$GH" \
+         "DOMAIN-SUFFIX,githubusercontent.com,$GH" \
+         "DOMAIN-SUFFIX,githubassets.com,$GH" \
+         "DOMAIN-SUFFIX,githubapp.com,$GH"; do
+	if ! grep -qF -- "- $r" "$OUT.tmp"; then
+		echo "警告: GitHub 段丢失: $r"
 		exit 1
 	fi
 done

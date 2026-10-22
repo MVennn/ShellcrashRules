@@ -24,6 +24,10 @@
 - 调整 `tools/public-nodes/screen.py` —— `--max-keep` 默认 8 → 16、`--max-new` 100 → 200、`--max-delay` 1500 → 800；`pick_survivors` 里「每协议最多 3 条 / 每网段最多 2 条」的硬编码上限改为参数 `--max-per-type` / `--max-per-base`（默认 8 / 5），此前 `--max-keep` 调大也不会生效
 - 调整 `tools/public-nodes/screen.py` —— 运行期间自动暂停路由器 `guardian.sh` / `start_legacy_wd.sh` 的 cron 并在结束时恢复：两者与 `start.sh restart` 并发会生成带重复 `proxies:` / `proxy-groups:` 键的坏配置，整轮作废
 - 调整 `tools/public-nodes/README.md` —— 补多源说明、新默认值，以及计划任务的「全自动」设置（错过补跑 / 电池也跑 / 失败重试）
+- 修复 `tools/public-nodes/screen.py` —— 批次测试异常时不回滚：`api_proxies` 抛错会把最后一批 50 条测试节点留在设备上，正式的兜底节点被顶掉（2026-10-22 实测发生一次）。现在 `test_batches` 用 try/except 包住，异常时写回 `old_content` 并重启再抛出
+- 修复 `tools/public-nodes/screen.py` —— 重启后先 `wait_api` 轮询 `/version`（最多 60s）再读 `/proxies`，`api_proxies` 重试 2 次 → 4 次、间隔 5s → 10s；这一轮就是「配置已加载但 API 未就绪」导致整轮崩掉的
+- 修复 `tools/public-nodes/screen.py` —— 「没有存活节点」时保留旧配置的重启失败没人管，现在失败会等 30 秒重试一次，仍失败则显式返回 1：网络抖动会让配置生成被截断，ShellCrash 静默回退基础配置
+- 修复 `tools/public-nodes/run-daily.cmd` —— **批处理文件里不能写中文注释**：本仓 `.gitattributes` 强制 `eol=lf`，计划任务用 OEM 代码页（936）解析 UTF-8 中文会直接退出整个脚本，表现为「任务返回 0 但 python 根本没启动」（2026-10-22 排查）。同时去掉多行 `if (...)` 块，改成单行 `if ... for ... do if ...`
 
 ### 设备侧（不入库）
 
@@ -33,6 +37,11 @@
 - 调整 `configs/ShellCrash.cfg` —— `ipv6_dns=OFF`（备份 `ShellCrash.cfg.bak-bili-ipv6-20261022*`）：B站 Akamai CDN 的 IPv6 边缘实测只有 22 KB/s，IPv4 有 1.4–2.1 MB/s；关掉 mihomo 的 AAAA 解析后视频不再缓冲。其他 IPv6 直连（路由器自身）不受影响
 
 ### 规则
+
+- 新增 `🔗 GitHub 出口` 组 —— `url-test`，健康检查直接用 `https://github.com/robots.txt`（200、几 KB、不重定向、无需鉴权），`interval: 60`，成员为全部机场节点（`include-all-proxies` + 排除「公共」）。`F. GitHub` 段的 5 条规则从 `🤖 干净出口` 改指本组。**根因**：2026-10-22 干净出口按 Gemini 吞吐选到了 `🇰🇷 韩国KR-HY2`，而该节点到 GitHub 实测 **0/5**（台湾-优化3 是 4/5），GitHub 全族跟着时通时断，PC 侧 `git`/`gh` 报 `schannel: failed to receive handshake`。Google 要求 cc≠CN、GitHub 只要求能稳定握手，两者不能共用一个出口组
+- 调整 `config/hooks/reorder-groups.sh` —— 组顺序与 `🚀 节点选择` 成员顺序加入 `🔗 GitHub 出口`（`🚀 手动切换` 之后、`🆓 公共备用` 之前），并纳入兜底插入清单
+- 调整 `config/ai-api-check.sh` —— Google 段不再要求 `api.github.com`；GitHub 全族改为校验指向 `🔗 GitHub 出口`
+- 调整 `guardian/guardian.sh`（`AX3000TOpenwrt`）的 `CL_ALIVE_URL` —— `https://github.com/` → `https://www.google.com/generate_204`：干净出口不再承载 GitHub，探针要和它实际服务的 Google 家族一致，否则守卫会按 GitHub 可达性把 Gemini 出口踢掉
 
 - 新增 `K. 大流量补充` 段 —— HuggingFace LFS（`cdn-lfs.huggingface.co`、`cdn.hf.co`、`cdn-lfs*.hf.co`、`cas-bridge.xethub.hf.co`）、GitHub 发布包（`objects.githubusercontent.com`、`release-assets.githubusercontent.com`、`codeload.github.com`）、NVIDIA/AMD 驱动（`us/international.download.nvidia.com`、`drivers/download.amd.com`）、游戏补丁（暴雪 `blzddist1-3-a.akamaihd.net`、`cdn.gog.com`、`gog-cdn-fastly.gog.com`、`origin-a.akamaihd.net`、`eaassets-a.akamaihd.net`、`ubistatic-a.akamaihd.net`）、Maven（`repo1.maven.org`、`repo.maven.apache.org`）全部指向 `📺 大流量`。实测公共池 1.56/1.45 MB/s、机场 0.83/1.27 MB/s；真实下载验证：HF 3.37 MB/s、GitHub release 3.06 MB/s，链路均为 `📺 大流量 → 🆓 公共备用 → 🆓 公共-03`。**刻意不收**：npm/PyPI/crates（小文件，公共节点延迟反而更慢）、Docker Hub（按 IP 限流，共享 IP 大概率 429）、Apple/Microsoft 更新（CDN 已解析到国内节点）、Netflix/Disney（DRM + 代理检测）、任何登录/上传/P2P。DNS 预检剔除了 NXDOMAIN 的 `delivery.mp.microsoft.com`、`blizzard.vo.llnwd.net`、`ubisoft-a.akamaihd.net`、`riotcdn.net`
 - 新增 `J. B站` 段 —— `api/app/cm.bilibili.com`、`api.live/api.vc.bilibili.com`、`biliapi.com/.net` 指向 `🎬 B站解锁`；`bilibili.com/.co`、`b23.tv`、`acg.tv`、`bilivideo.com/.cn`、`hdslb.com`、`biliimg.com`、`acgvideo.com`、`upos-hz-mirrorakam.akamaized.net` 显式直连（字面 `DIRECT`，不用 `🎯 全球直连` 组：`respect-rules` 的 DNS 只对字面 DIRECT 走 `direct-nameserver`）。目的：评论/主页 IP 属地显示节点所在国家，视频 CDN 不占机场流量；B站属地按请求源 IP 判定，没有独立检测接口。评论接口是 `cm.bilibili.com`，只加 `api.bilibili.com` 不够（2026-10-22 实测：手机端评论仍显示广东）

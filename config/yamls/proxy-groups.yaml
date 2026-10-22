@@ -105,6 +105,29 @@
   exclude-filter: "过滤|流量|到期|剩余|套餐|公共"
 
 # ============================================================
+# 🔗 GitHub 出口 —— 按 GitHub 真实可达性自动选路（2026-10-22）
+#
+# 2026-10-22 事故：干净出口按 Gemini 吞吐选到了 🇰🇷 韩国KR-HY2，
+#   而该节点到 GitHub 实测 0/5（台湾-优化3 是 4/5），结果是 GitHub 全族
+#   时通时断，PC 侧 git/gh 报 `schannel: failed to receive handshake`。
+# 结论：GitHub 与 Google 需要的能力不同，不能共用一个出口组 ——
+#   Google 要求 cc≠CN（只有 HY2 池 / 台湾-优化3 满足）；
+#   GitHub 只要求「能稳定握手」，几乎所有节点都满足，但单节点会抖。
+# 做法：url-test 直接拿 `github.com/robots.txt` 当健康检查（200、几 KB、
+#   不重定向、不需要鉴权），每 60 秒复测；某个节点握手开始抖就被判死、
+#   自动换下一个。这是内核级故障转移，比脚本轮询快，也不需要额外状态。
+# 不收公共节点：`git push` 带 token，不能过陌生人的机器。
+# ============================================================
+- name: 🔗 GitHub 出口#🚀 节点选择
+  type: url-test
+  url: https://github.com/robots.txt
+  interval: 60
+  timeout: 5000
+  tolerance: 50
+  include-all-proxies: true
+  exclude-filter: "过滤|流量|到期|剩余|套餐|公共"
+
+# ============================================================
 # 🆓 公共备用 —— AutoMergePublicNodes（NoMoreWalls fork）公开节点
 #
 # 定位：机场入口全挂时的网页保底通道，挂在 🚀 节点选择 末尾。
