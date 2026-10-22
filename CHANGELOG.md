@@ -11,6 +11,14 @@
 
 ## [未发布] — 2026-10-22
 
+### 仓库门面
+
+- 新增 `.github/ISSUE_TEMPLATE/` —— 问题反馈（Bug）与功能建议两套表单，外加 `config.yml`：
+  Bug 表单要求填设备与固件、ShellCrash / mihomo 版本、实际与期望走向、`ai-api-check.sh` 输出；
+  功能建议要求先写场景并确认范围
+- 新增 `CONTRIBUTING.md` —— 提 Issue / PR 的入口、提交前自检命令与硬规矩索引
+- 新增 `SECURITY.md` —— 私密报告渠道、支持版本、规则与 nft 表会改的设备状态与安全边界
+
 ### 配置
 
 - 新增 `🎬 B站解锁` 组 —— `select`：`香港WAP` / `台湾-优化3` / `日本-优化` / `新加坡-优化3`，默认 `🇭🇰 香港WAP-优化`；只由 `rules.yaml` J 段的 B站 API 域引用。实测 HY2 池到大陆方向不通（香港/韩国能连 gstatic，但百度/知乎/B站 TLS EOF/超时；日本/新加坡节点本身超时），vmess 的港/台/日/新节点在 B站 `x/web-interface/zone` 分别显示对应地区

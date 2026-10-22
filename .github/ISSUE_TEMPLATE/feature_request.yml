@@ -1,0 +1,51 @@
+name: 功能建议
+description: 想要新的分流规则、策略组或链路诊断方式
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提建议前可以先翻翻已有的 Issue，并确认
+        [docs/RULE-AUDIT.md](https://github.com/MVennn/ShellcrashRules/blob/main/docs/RULE-AUDIT.md)
+        与 [docs/PITFALLS.md](https://github.com/MVennn/ShellcrashRules/blob/main/docs/PITFALLS.md)
+        里没有现成的做法。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 什么场景不顺手
+      description: |
+        先说场景再说想法——「哪个域名 / 哪类服务走错了路，现在要手工改哪一段，
+        改完还容易在订阅更新时被冲掉」。
+      placeholder: |
+        例：
+        某个新出的 AI 服务被 CN 直连规则命中，每次订阅更新后都要手工加一条规则，
+        希望有稳定的分组和自检项。
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 期望的效果（可选）
+      description: 希望进哪个规则段、归哪个组，或者只补一条审计项？
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 范围确认
+      options:
+        - label: 这个建议只涉及分流规则、策略组或 nft 表，不涉及订阅内容、节点提供或 ShellCrash / mihomo 本体。
+          required: true
+        - label: 我知悉规则改动需要真机验证实际走向，并愿意在自己的设备上配合验证。
+          required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充信息（可选）
+      description: 域名清单、当前规则片段、实测走向等；敏感值先脱敏
+    validations:
+      required: false

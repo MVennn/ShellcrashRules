@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 排错手册
+    url: https://github.com/MVennn/ShellcrashRules/blob/main/docs/TROUBLESHOOTING.md
+    about: 先按现象查一遍，配置、自检与防火墙表的问题大多有现成答案。
+  - name: 踩坑总汇
+    url: https://github.com/MVennn/ShellcrashRules/blob/main/docs/PITFALLS.md
+    about: Redir 模式、订阅更新与规则顺序的已知坑。

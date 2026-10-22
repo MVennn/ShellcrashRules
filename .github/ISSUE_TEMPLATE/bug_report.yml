@@ -1,0 +1,93 @@
+name: 问题反馈（Bug）
+description: 域名走错路、规则没命中、自检报红、策略组或 nft 表异常
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请尽量把下面的信息填全，尤其是 **`ai-api-check.sh` 的输出**——
+        规则类问题没有实际走向与自检结果，很难定位是规则没命中还是链路没通。
+
+        反馈前先查 [docs/TROUBLESHOOTING.md](https://github.com/MVennn/ShellcrashRules/blob/main/docs/TROUBLESHOOTING.md)
+        与 [docs/PITFALLS.md](https://github.com/MVennn/ShellcrashRules/blob/main/docs/PITFALLS.md)。
+
+  - type: checkboxes
+    id: acknowledgment
+    attributes:
+      label: 反馈前确认
+      options:
+        - label: 我已知悉本仓的规则与 nft 表会改变路由器上的实际流量路径，修改前已备份并能回退。
+          required: true
+        - label: 我已把配置片段里的节点 UUID、订阅 token、控制 API secret 换成 `<REDACTED-...>` 占位符。
+          required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 出了什么问题
+      description: |
+        现象 + 复现步骤：哪个域名 / 哪个服务、期望走哪条路、实际走了哪条路。
+        能稳定复现就写步骤，时有时无就写出现频率。
+      placeholder: |
+        例：
+        1. 订阅更新后执行 ai-api-check.sh，J 段报「组不存在」
+        2. 访问 B站 API，实际走 DIRECT
+        3. 预期：走 🎬 B站解锁；实际：规则未命中
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: 设备与固件版本
+      description: 在路由器上执行 `cat /etc/openwrt_release`，把 DESCRIPTION 与 VERSION 贴在这里
+      placeholder: "例：Xiaomi AX3000T / OpenWrt 25.12.6"
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: ShellCrash 与 mihomo 内核版本
+      description: ShellCrash 主界面与 mihomo 控制 API `/version` 都能看到
+      placeholder: "例：ShellCrash 1.9.x / mihomo v1.19.32"
+    validations:
+      required: true
+
+  - type: input
+    id: domain
+    attributes:
+      label: 出问题的域名与实际 / 期望走向
+      placeholder: "例：api.bilibili.com，实际 DIRECT，期望 🎬 B站解锁"
+    validations:
+      required: true
+
+  - type: textarea
+    id: check-output
+    attributes:
+      label: ai-api-check.sh 输出
+      description: |
+        在路由器上执行，把完整输出贴进来（退出码也写上）：
+
+        ```
+        sh /etc/ShellCrash/ai-api-check.sh; echo "exit=$?"
+        ```
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: 相关配置片段（可选）
+      description: 规则、策略组或 nft 表片段；节点 UUID 与 secret 先替换成 `<REDACTED-...>`
+      render: yaml
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 截图或补充信息（可选）
+    validations:
+      required: false
