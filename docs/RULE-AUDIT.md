@@ -463,11 +463,9 @@ sentry/intercom/auth0/statsig 是同一类问题：
 [`config/archive/rules-dedup.sh`](../config/archive/rules-dedup.sh)，只允许在 PC 上
 对 scp 下来的 `config.yaml` 副本跑。
 
-**当前路由器状态**：`rules-cnip.sh` 在恢复时被临时 disable，运行配置是 13,133 条
-（可用内存 67 MB，稳定）。`rules-cnip` 已在副本上验证通过（13,133 → 4,154），
-可在维护窗口重新启用；启用前必须：暂停 `guardian.sh` / `start_legacy_wd.sh` 的 cron、
-确认只有一个 CrashCore、只跑一次 `start.sh start`。
-不要在路由器上跑去重扫描 —— 211 条规则的收益不值得再冒一次断网风险。
+**当前路由器状态（2026-10-22 维护窗口后）**：`rules-cnip` 已恢复，运行配置 4,154 条；
+单 CrashCore、可用内存 63 MB；`RULE-SET,cnip` / `RULE-SET,cn` 各 1 条；自检 18 段通过，
+广告域仍 REJECT。`rules-dedup` 仍未部署 —— 211 条规则的收益不值得在路由器上再冒一次断网风险。
 
 > 为什么不全删 444 条死规则：其中 222 条是「模板声明目标 vs 自定义覆盖」的
 > 审计证据（例如 `googlecommerce.com,REJECT` 被 `google` 关键词送去代理），

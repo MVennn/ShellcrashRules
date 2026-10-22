@@ -55,7 +55,7 @@
 - 根因 1：`init.d/shellcrash` 被启用，`start_old=ON` 下 procd 与 legacy 各拉一个实例；手动 `start.sh start` 与 `guardian.sh` / `start_legacy_wd.sh` 并发，两个启动同时写 `/tmp/ShellCrash/config.yaml`，`rules-cnip.sh` 行数校验失败中止（未 `mv`，原配置未损坏，但本次生成作废）
 - 根因 2：在路由器上跑 `rules-dedup.sh --check`（4,154 条规则，O(N²) 约 800 万次匹配），CPU/内存被拖垮，触发 OOM/看门狗重启
 - 处置：disable `init.d/shellcrash`；kill 掉不占端口的 CrashCore；暂停 cron 后只跑一次 `start.sh start`；把 `rules-dedup.sh` 归档到 `config/archive/` 并禁止部署；`rules-cnip.sh` 在恢复时临时 `.disabled`，当前 13,133 条配置稳定运行（可用内存 67 MB）
-- 待办：在维护窗口重新启用 `rules-cnip`（副本已验证 13,133 → 4,154）；启用前按 `MAINTENANCE.md` §2.4 暂停 cron、确认单实例
+- 已完成（2026-10-22 维护窗口）：暂停 cron、恢复 `rules-cnip`、单次 `start.sh start`，13,133 → 4,154；单 CrashCore，可用内存 63 MB；`RULE-SET,cnip` / `RULE-SET,cn` 各 1 条；18 段自检通过，广告域仍 REJECT
 
 ### 部署验证（2026-10-22）
 
@@ -65,7 +65,8 @@
 - 实测：`www.google.com` / `github.com` / `dl.google.com` / `chatgpt.com` 仍 exit=0；`googletagmanager.com` / `googletagservices.com` / `liveperson.net` 的 chains 为 `香港WAP → ♻️ 自动选择 → 🚀 节点选择`
 - `ai-api-check.sh` 全 18 段通过（exit 0）；CrashCore RSS 53 MB
 - 事故恢复后：单 CrashCore、端口 7890/7892/9999、可用内存 67 MB；运行配置 13,133 条（`rules-cnip.sh` 临时 disabled）
-- 副本验证：`rules-cnip` 13,133 → 4,154，`CrashCore -t` 通过；`rules-dedup` 4,154 → 3,943（保护 15 条后 -211），但**未部署**
+- 维护窗口完成后：4,154 条；单 CrashCore；可用内存 63 MB；`RULE-SET,cnip` / `RULE-SET,cn` 各 1 条；18 段自检通过；广告域 exit=35（REJECT），`google.com` / `github.com` / `baidu.com` exit=0
+- 副本验证：`rules-cnip` 副本验证后已在维护窗口部署（13,133 → 4,154）；`rules-dedup` 4,154 → 3,943（保护 15 条后 -211），**未部署**
 
 ---
 
