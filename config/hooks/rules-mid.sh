@@ -118,9 +118,12 @@ if [ -n "$OTHER" ]; then
 	exit 0
 fi
 
-# ---------- 7. 生成临时文件（同目录，保证 mv 原子），失败自动清理 ----------
+# cp -p 先把临时文件建出来，下面的重定向只截断内容，权限位/属主沿用原文件。
+# 不能用 `ls -l | substr($1,2,9)` 取 "rw-r--r--" 再 chmod：GNU chmod 不接受
+# 这种符号模式（busybox 碰巧接受），PC 上复现时会静默退回 umask 默认值。
 TMP="$CFG.rules-mid.$$"
 trap 'rm -f "$TMP"' EXIT HUP INT TERM
+cp -p "$CFG" "$TMP" || die "failed to create $TMP"
 awk -v at="$EDGE_LINE" -v ins="$RULE_LINE" '
 NR == at { print ins }
 { print }
@@ -152,10 +155,6 @@ END {
 RIN=$(awk '/^rules:[ ]*$/ { inr=1; next } inr && /^[^ ]/ { inr=0 } inr && /^[ ]+- / { n++ } END { print n+0 }' "$CFG")
 ROUT=$(awk '/^rules:[ ]*$/ { inr=1; next } inr && /^[^ ]/ { inr=0 } inr && /^[ ]+- / { n++ } END { print n+0 }' "$TMP")
 [ "$ROUT" -eq $((RIN + 1)) ] || die "rule count mismatch ($RIN -> $ROUT)"
-
-# 保持原权限位（ShellCrash 生成的配置通常是 644）
-PERM=$(ls -l "$CFG" | awk '{ print substr($1, 2, 9) }')
-chmod "$PERM" "$TMP" 2>/dev/null || true
 
 # ---------- 9. 原子替换 ----------
 mv -f "$TMP" "$CFG" || die "failed to replace $CFG"

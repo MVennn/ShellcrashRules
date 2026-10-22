@@ -11,6 +11,20 @@
 
 ## [未发布] — 2026-10-22 ~ 2026-10-23
 
+### 守卫与权限（2026-10-23）
+
+- 修复 `tools/check-secrets.py` —— `PLACEHOLDER` 命中后整行 `continue`：行内只要
+  出现 `example.com` / `<...>` / `YOUR-` 就把同一行的真值一起放过。改为只豁免
+  匹配片段本身（实测带 `<!-- see docs -->` 的真 `sk-` token 现在会报，
+  示例 URL 仍按预期放行）
+- 修复 `config/hooks/rules-mid.sh` —— 权限保持用 `ls -l` 取 `rw-r--r--` 再
+  `chmod`，GNU chmod 直接拒绝该模式（busybox 碰巧接受），PC 侧复现会静默退回
+  umask。改为 `cp -p` 先建临时文件、再截断写入，权限与属主沿用原文件
+- 验证 —— 7 个仓的同一份扫描脚本同步改完并各自跑通；`sh -n` ✓、
+  `check-vault-not-staged --all` ✓、`check-secrets.py` ✓（123 个文件）、
+  `check-docs.py` ✓（22 篇）
+
+
 ### 𝕏 媒体（2026-10-23）
 
 - 新增 `𝕏 媒体` 组 —— `url-test` + `filter: HY2`，只承载 `twimg.com`（X/Twitter 图片与视频 CDN）。修复 VMess+WS 并发建连被串行化：10 并发真实图片从 1.9–5.9s（偶发单张 5–6s）降到 0.35s、单张 0.21–0.25s；单请求延迟看不出差异（HY2 89ms vs VMess 65ms），所以组内只放 HY2，健康检查用 `pbs.twimg.com/robots.txt`（200、稳定）
