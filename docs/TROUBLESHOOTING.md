@@ -51,7 +51,7 @@ ssh root@10.0.0.1 "grep -nE '^(rule-providers|proxy-groups|proxies|rules|dns|sni
 # ④ 看是不是生成物写坏了（尾逗号 = 策略名为空）
 ssh root@10.0.0.1 "grep -nE ',\]' /tmp/ShellCrash/config.yaml | head"
 
-# ⑤ 巡检脚本（16 段，含自动修复）
+# ⑤ 巡检脚本（18 段，含自动修复）
 ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-api-check.sh'
 ```
 
@@ -303,6 +303,50 @@ python mihomo/mihomo_log.py 20 joox.com
 
 **根治**：[RULE-AUDIT.md](RULE-AUDIT.md) §4.4（CN 直连中间层）与
 [PITFALLS.md](PITFALLS.md) §15（先匹配先赢）。
+
+---
+
+<a id="ts-whole-net-down"></a>
+
+## 9. 改完规则后整网断 / 只有部分域名解析失败
+
+**现象**：PC 显示 WiFi 已连接但无法上网；`nslookup` 对部分域名（如 `search.bilibili.com`）
+失败，但 `ping 223.5.5.5` 通；或浏览器报「找不到 DNS 地址」。
+
+**排查步骤**（只读，不要跑全量规则扫描）：
+
+```bash
+# ① 代理进程与端口
+ssh root@10.0.0.1 "ps | grep CrashCore; netstat -lntp | grep -E ':7890|:7892'"
+
+# ② 内存与启动错误
+ssh root@10.0.0.1 "free -m; tail -30 /tmp/ShellCrash/ShellCrash.log"
+
+# ③ 配置生成失败的痕迹
+ssh root@10.0.0.1 "grep -n 'rules-cnip\|rules-dedup' /etc/ShellCrash/starts/clash_modify.sh; ls -la /etc/ShellCrash/rules-*.sh*"
+```
+
+**判据 / 解法**：
+
+| 看到什么 | 说明 | 怎么做 |
+|---|---|---|
+| `ps` 里没有 CrashCore，`rules-cnip: line count mismatch` | 并发 `start.sh start` 写坏了本次配置生成 | 按 [PITFALLS.md](PITFALLS.md) §25：disable init.d、killall、暂停 cron、只跑一次 `start.sh start` |
+| `ps` 里有两个 CrashCore | procd + legacy 双实例 | 按 [PITFALLS.md](PITFALLS.md) §12/§25：disable init.d、kill 掉不占端口的那个 |
+| 有 CrashCore 但可用内存 < 20 MB | 双实例 / 13k 配置 / 去重扫描挤爆内存 | 先杀多余实例；不要在路由器上跑 `rules-dedup.sh --check`（§24） |
+| `nslookup` 部分域名失败，`ping 223.5.5.5` 通 | dnsmasq 把部分域名转给 mihomo DNS，而 CrashCore 没起来 | 先恢复 CrashCore；不要改 dnsmasq 上游做临时绕过 |
+| `rules-dedup` 出现在 `clash_modify.sh` 里 | 去重钩子被挂到运行时 | 删掉该调用；去重只在 PC 对副本跑（§24） |
+
+**恢复顺序**（维护窗口，网络可能中断）：
+
+1. `pidof CrashCore` 确认没有实例；
+2. 暂停 `guardian.sh` / `start_legacy_wd.sh` 的 cron；
+3. `/etc/init.d/shellcrash disable`；
+4. 只跑一次 `/etc/ShellCrash/start.sh start`；
+5. 验证单实例 + 端口 + `free -m`；
+6. 恢复 cron，再跑 `ai-api-check.sh` 18 段。
+
+**根治**：[PITFALLS.md](PITFALLS.md) §24（O(N²) 不在路由器跑）、§25（并发启动）、
+[MAINTENANCE.md](MAINTENANCE.md) §2.4（变更纪律）。
 
 ---
 

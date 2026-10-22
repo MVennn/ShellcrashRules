@@ -31,6 +31,8 @@
 21. [凭据不再写在源码里：不设环境变量就报错退出](#p21)
 22. [urldecode 的八进制往返会静默变成空串](#p22)
 23. [宽泛 Google 规则遮蔽模板广告 REJECT](#p23)
+24. [在路由器上跑全量规则去重/审计会拖垮 CPU/内存](#p24)
+25. [init.d 与 legacy 双启 + 并发 start.sh：双 CrashCore / rules-cnip 校验失败](#p25)
 
 ---
 
@@ -325,6 +327,10 @@ fake-ip-filter 的精确 / 后缀匹配**全部失配** → 假 IP 没被排除 
 只留看门狗走 legacy 路径。实测：杀光实例后看门狗 5 秒拉起，**单实例**独占 4 个端口，
 内存回到 56 MB。
 
+**2026-10-22 复发**：`init.d/shellcrash` 被重新启用，叠加手动 `start.sh start` 与
+`guardian.sh` / `start_legacy_wd.sh` 并发，出现双实例，并连带 `rules-cnip` 行数校验失败；
+处置与恢复顺序见 §25。
+
 ---
 
 <a id="p13"></a>
@@ -596,3 +602,56 @@ BEGIN { for (i = 0; i < 256; i++) ord[sprintf("%c", i)] = i }
 
 **出处**：2026-10-22 广告 carve-out 批次，见仓库根 [CHANGELOG.md](../CHANGELOG.md)。
 审计结论与实测数字见 [RULE-AUDIT.md](RULE-AUDIT.md) §7。
+
+---
+
+<a id="p24"></a>
+
+## 24. 在路由器上跑全量规则去重/审计会拖垮 CPU/内存
+
+**现象**：在路由器上执行 `rules-dedup.sh --check /tmp/ShellCrash/config.yaml`（4,154 条规则）
+后，SSH 连接被重置、WiFi 有信号但整网断流；重新连上后 `CrashCore` 不在，
+日志显示看门狗/OOM 重启。
+
+**根因**：去重判定要对每条域名规则回扫之前的所有规则（`DOMAIN` / `DOMAIN-SUFFIX` /
+`DOMAIN-KEYWORD`，先匹配先赢），是 **O(N²)**：4,154 条规则约 800 万次匹配。
+路由器的 CPU 和 239 MB 内存扛不住这个峰值；当时只有一个 CrashCore（约 50 MB），
+可用内存只剩几十 MB，直接触发 OOM / `mtk-wdt` 看门狗重启。
+
+**解法**：
+
+- 规则级审计/去重**只在 PC 上跑**：`scp root@10.0.0.1:/tmp/ShellCrash/config.yaml ./`，
+  对副本跑 `config/archive/rules-dedup.sh` 或 `rule_audit.py`；
+- **不要**把 `rules-dedup.sh` 挂到 `starts/clash_modify.sh`，也不要部署到 `/etc/ShellCrash/`；
+- 211 条规则的收益（-5.1%）不值得在路由器上再冒一次断网风险。
+
+**出处**：2026-10-22 去重批次；事故经过见 [CHANGELOG.md](../CHANGELOG.md)「事故与结论」。
+
+---
+
+<a id="p25"></a>
+
+## 25. init.d 与 legacy 双启 + 并发 start.sh：双 CrashCore / rules-cnip 校验失败
+
+**现象**：`ps` 里出现两个 CrashCore；`start.sh start` 输出
+`rules-cnip: line count mismatch (expected ..., got ...)`；配置没有生效、CrashCore 起不来，
+PC 显示 WiFi 已连接但无法上网 / 部分域名 DNS 失败。
+
+**根因**：`start_old=ON` 时正确路径是 legacy `start.sh start`，但 `init.d/shellcrash` 处于
+enabled，procd 也会拉一个实例；再加上手动 `start.sh start`、`guardian.sh`、
+`start_legacy_wd.sh` 可能并发触发，两个启动同时写 `/tmp/ShellCrash/config.yaml`。
+`rules-cnip.sh` 的分析与写回看到的是被另一个进程改到一半的配置，行数校验失败并中止
+（它不会 `mv`，所以原文件没坏，但这次配置生成作废）。双实例还会白占约 50 MB，放大 OOM。
+
+**解法**：
+
+1. `/etc/init.d/shellcrash disable`（`post-sc-update.sh` 已自动做）；
+2. `killall CrashCore`，确认 `pidof CrashCore` 为空；
+3. 维护窗口内先暂停 `guardian.sh` / `start_legacy_wd.sh` 的 cron；
+4. 只跑一次 `/etc/ShellCrash/start.sh start`；
+5. 验证：`ps | grep CrashCore` 只有一个、`netstat -lntp | grep -E ':7890|:7892'` 有监听、
+   `free -m` 可用内存 > 30 MB；再恢复 cron；
+6. 如果 `rules-cnip.sh` 仍失败，先把它临时 `.disabled` 让 13k 配置跑起来（功能可用、
+   内存略高），再在维护窗口单独修/重跑，不要在断网状态下反复重启。
+
+**出处**：2026-10-22 去重批次事故；恢复命令见 [TROUBLESHOOTING.md](TROUBLESHOOTING.md) §9。

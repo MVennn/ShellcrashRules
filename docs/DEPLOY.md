@@ -44,6 +44,7 @@ ShellcrashRules/
 | `config/generators/auto-update.sh` | `/etc/ShellCrash/auto-update.sh` | cron `30 4 * * 0` | 删 `/etc/crontabs/root` 对应行 |
 | `config/hooks/rules-mid.sh` | `/etc/ShellCrash/rules-mid.sh` | `starts/clash_modify.sh`（merger_yaml 之后） | 删文件 → 钩子失效 → 配置里没有 CN 中间层 |
 | `config/hooks/reorder-groups.sh` | `/etc/ShellCrash/reorder-groups.sh` | 同上 | 删文件 → 去重/重排失效（**会退回重复 key 拒载的老坑**） |
+| `config/archive/rules-dedup.sh` | **不部署（离线工具）** | 人工：在 PC 上对 scp 下来的 config.yaml 副本跑 | **禁止在路由器上跑** —— O(N²) 扫描会拖垮 CPU/内存（2026-10-22 实测断网） |
 | `config/starts/fw_nftables.sh` | `/etc/ShellCrash/starts/fw_nftables.sh` | ShellCrash 启动；`post-sc-update.sh` 恢复 | 从 `/etc/ShellCrash/local-patches/` 恢复；上游副本存为 `starts/*.upstream.*` |
 | `config/starts/start_legacy_wd.sh` | `/etc/ShellCrash/starts/start_legacy_wd.sh` | cron 每分钟 | 同上（local-patches 恢复） |
 | `config/starts/clash_modify.sh` | `/etc/ShellCrash/starts/clash_modify.sh` | ShellCrash 启动 / 订阅更新 | **本仓待补**（见下方「待补」） |

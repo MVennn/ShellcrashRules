@@ -2,7 +2,7 @@
 # post-sc-update.sh - ShellCrash 脚本更新后的修复与验收
 # 官方 tarball 只覆盖 init.sh/menu.sh/start.sh/version/lang/menus/libs/starts + 默认列表，
 # 其中 starts/ 里有 3 个文件带本地补丁，更新后必须恢复：
-#   clash_modify.sh    -> rules-mid / reorder-groups 钩子 + sniffer skip-domain + TLS override
+#   clash_modify.sh    -> rules-mid / rules-cnip / reorder-groups 钩子 + sniffer skip-domain + TLS override
 #   fw_nftables.sh     -> FCM 5228/DoQ 19302 走代理 + 剔除 203.208.32.0/19 + QUIC reject
 #   start_legacy_wd.sh -> mkdir -p /tmp/ShellCrash + 陈旧锁自愈 + pidof 存活短路
 # 用法：sh /etc/ShellCrash/post-sc-update.sh
@@ -70,7 +70,8 @@ else
     log "!! guardian.sh 缺 cron lifeline"
 fi
 if /etc/init.d/shellcrash enabled 2>/dev/null; then
-    log "!! 警告：init.d/shellcrash 被启用了（start_old=ON 下会产生僵尸实例），建议 /etc/init.d/shellcrash disable"
+    log "FIX: init.d/shellcrash 被启用（start_old=ON 下会产生双实例），已 disable"
+    /etc/init.d/shellcrash disable
 else
     log "OK: init.d/shellcrash 保持 disabled（legacy 模式）"
 fi

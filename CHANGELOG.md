@@ -20,6 +20,7 @@
 
 - 删除 `yamls/proxies.yaml` 里的 `印度-备用m2` / `印度-备用ct2` —— 机场已不再发布这两个入口，且它们硬编码了共享 UUID，机场换凭据时会静默失效；两者都不在 guardian 候选与自动选路路径上，删除后 `proxies` 34 → 32
 - 恢复并重跑公开节点 —— 整文件部署冲掉的 `PUBLIC-NODES` 块已从 `.bak-hy2-20261022` 恢复，随后跑 `tools/public-nodes/screen.py` 换新：384 条原始 → 测 55 条 → 存活 12 → 保留 8 条
+- 调整 `starts/clash_modify.sh` / `local-patches/clash_modify.sh` —— **不挂** `rules-dedup.sh`；去重只保留为 PC 离线工具（`config/archive/`）。`post-sc-update.sh` 恢复时只带 `rules-mid` / `rules-cnip` / `reorder-groups`
 
 ### 规则
 
@@ -33,20 +34,38 @@
 - 调整 `config/ai-api-check.sh` —— 新增第 18 段：逐条校验广告 carve-out / 共享 SaaS 覆盖存在，并断言 `doubleclick.net` 排在 `DOMAIN-SUFFIX,google.com` / `DOMAIN-KEYWORD,google` 之前
 - 调整 `config/ai-api-check.sh` —— 第 14/15 段干净出口期望从「印度」改为「HY2/印度/台湾-优化3」，与 guardian 的 HY2 候选对齐，消除重启后的两条误报 WARN
 - 调整 `config/generated/rules.yaml` —— 由路由器重生成（323 条，+17）
+- 新增 `config/archive/rules-dedup.sh` —— 离线去重审计：4,154 条副本上找出 211 条可安全删除的同目标冗余 / PROCESS-NAME；**不部署到路由器**（O(N²) 扫描会拖垮 CPU/内存，2026-10-22 实测断网）
+- 调整 `config/post-sc-update.sh` —— 自动 disable `init.d/shellcrash`（避免 `start_old=ON` 下 procd + legacy 双实例）；不再检查 `rules-dedup.sh`
 
 ### 文档
 
 - 调整 `docs/RULE-AUDIT.md` —— 追加 2026-10-22 广告 carve-out 与 AI 共享 SaaS 清理的审计结论、实测证据与规则清单
 - 调整 `docs/PITFALLS.md` —— 新增第 23 条：宽泛 Google 规则遮蔽模板广告 REJECT；补目录缺失的第 22 条与锚点
 - 调整 `docs/TROUBLESHOOTING.md` —— 规则审计一节补「广告域走代理」的判据与 `ai-api-check.sh` 第 18 段入口
+- 调整 `docs/ARCHITECTURE.md` —— 生成链路保持两个钩子；补充「去重只做离线审计」的说明；自检段数 18
+- 调整 `docs/DEPLOY.md` —— `rules-dedup.sh` 标为归档、不部署；`clash_modify.sh` 仍为两个钩子
+- 调整 `docs/MAINTENANCE.md` —— 自检 18 段；新增 §2.4 变更纪律（O(N²) 只在 PC、单实例启动、`init.d` disabled）
+- 调整 `docs/RULE-AUDIT.md` —— §7.5 记录 211 条可删空间与「不部署」结论；补当前 13,133 条恢复状态
+- 调整 `docs/PITFALLS.md` —— 新增 §24/§25（O(N²) 断网、双实例/并发启动）；§12 补 2026-10-22 复发
+- 调整 `docs/TROUBLESHOOTING.md` —— 新增 §9 整网断/部分 DNS 的排查与恢复顺序
+
+### 事故与结论（2026-10-22）
+
+- 现象：双 CrashCore；`start.sh start` 报 `rules-cnip: line count mismatch`；PC WiFi 已连接但无网，部分域名 DNS 失败
+- 根因 1：`init.d/shellcrash` 被启用，`start_old=ON` 下 procd 与 legacy 各拉一个实例；手动 `start.sh start` 与 `guardian.sh` / `start_legacy_wd.sh` 并发，两个启动同时写 `/tmp/ShellCrash/config.yaml`，`rules-cnip.sh` 行数校验失败中止（未 `mv`，原配置未损坏，但本次生成作废）
+- 根因 2：在路由器上跑 `rules-dedup.sh --check`（4,154 条规则，O(N²) 约 800 万次匹配），CPU/内存被拖垮，触发 OOM/看门狗重启
+- 处置：disable `init.d/shellcrash`；kill 掉不占端口的 CrashCore；暂停 cron 后只跑一次 `start.sh start`；把 `rules-dedup.sh` 归档到 `config/archive/` 并禁止部署；`rules-cnip.sh` 在恢复时临时 `.disabled`，当前 13,133 条配置稳定运行（可用内存 67 MB）
+- 待办：在维护窗口重新启用 `rules-cnip`（副本已验证 13,133 → 4,154）；启用前按 `MAINTENANCE.md` §2.4 暂停 cron、确认单实例
 
 ### 部署验证（2026-10-22）
 
 - 备份：`/etc/ShellCrash/ai-rules-update.sh.bak-adcarve-20261022`、`/etc/ShellCrash/ai-api-check.sh.bak-adcarve-20261022`、`/etc/ShellCrash/yamls/rules.yaml.bak-adcarve-20261022`
-- 重生成：323 条规则；运行配置 4,154 条；`RULE-SET,cn` 在 #3227，仍在 ProxyMedia 之前
+- 广告 carve-out 部署时：323 条生成物；运行配置 4,154 条；`RULE-SET,cn` 在 #3227，仍在 ProxyMedia 之前
 - 实测：`pagead2.googlesyndication.com` / `www.google-analytics.com` / `googleads.g.doubleclick.net` / `collector.githubapp.com` / `csi.gstatic.com` / `app-measurement.com` 经 `127.0.0.1:7890` 全部 exit=35（REJECT），此前为 200 并下载 59–63 KB
 - 实测：`www.google.com` / `github.com` / `dl.google.com` / `chatgpt.com` 仍 exit=0；`googletagmanager.com` / `googletagservices.com` / `liveperson.net` 的 chains 为 `香港WAP → ♻️ 自动选择 → 🚀 节点选择`
 - `ai-api-check.sh` 全 18 段通过（exit 0）；CrashCore RSS 53 MB
+- 事故恢复后：单 CrashCore、端口 7890/7892/9999、可用内存 67 MB；运行配置 13,133 条（`rules-cnip.sh` 临时 disabled）
+- 副本验证：`rules-cnip` 13,133 → 4,154，`CrashCore -t` 通过；`rules-dedup` 4,154 → 3,943（保护 15 条后 -211），但**未部署**
 
 ---
 

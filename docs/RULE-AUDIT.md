@@ -437,8 +437,38 @@ sentry/intercom/auth0/statsig 是同一类问题：
 - `www.google.com` / `github.com` / `dl.google.com` / `chatgpt.com` 仍 `exit=0`
 - `googletagmanager.com` / `googletagservices.com` / `liveperson.net` 的 chains 为
   `🇭🇰 香港WAP → ♻️ 自动选择 → 🚀 节点选择`
-- `ai-api-check.sh` 全 18 段通过；新增第 18 段断言 carve-out 在
+- `ai-api-check.sh` 全 18 段通过；第 18 段断言 carve-out 在
   `DOMAIN-SUFFIX,google.com` / `DOMAIN-KEYWORD,google` 之前
 
 > 未改：`gstatic.cn` / `googleapis.cn` 仍走干净出口；`baidustatic.com` / `xdrig.com` 仍是
 > BanAD REJECT（可能是误伤，未验证到实际使用场景，暂不动）。
+
+### 7.5 可删减空间与「不部署」结论（2026-10-22）
+
+对 4,154 条运行配置做同目标遮蔽扫描（`DOMAIN` / `DOMAIN-SUFFIX` / `DOMAIN-KEYWORD`，
+先匹配先赢）：
+
+| 类别 | 数量 | 处理 |
+|---|---:|---|
+| 同目标冗余（前面已有同目标规则命中） | 222 | 离线工具可删 207（15 条保护规则除外） |
+| 完全重复（type + domain + target 相同） | 90 | 含在上面 222 条里（73 条）；另 17 条被不同目标先命中，保留作意图 |
+| `find-process-mode: off` 下永不命中的 `PROCESS-NAME` | 4 | 离线工具可删 |
+| 不同目标遮蔽（模板意图/审计痕迹） | 222 | **保留**；删了不改行为，但会丢审计依据 |
+| CN 直连「文本列表看似冗余」 | 528（505 在 `RULE-SET,cn` 之后） | **保留**；运行态 `cn.mrs` 可能滞后，`joox.com` 先例 |
+| `cnip` 之后的 DIRECT IP-CIDR | 10 | **保留**；Apple/Akamai 段，不是 CN IP |
+
+**副本测试**：4,154 → 3,943 条（-211，-5.1%）；同目标冗余归零，不同目标遮蔽保持 222 条。
+**但未部署到路由器** —— 2026-10-22 在路由器上跑 `rules-dedup.sh --check`（O(N²) 两两匹配）
+把 CPU/内存拖垮，导致整网断流。脚本已归档到
+[`config/archive/rules-dedup.sh`](../config/archive/rules-dedup.sh)，只允许在 PC 上
+对 scp 下来的 `config.yaml` 副本跑。
+
+**当前路由器状态**：`rules-cnip.sh` 在恢复时被临时 disable，运行配置是 13,133 条
+（可用内存 67 MB，稳定）。`rules-cnip` 已在副本上验证通过（13,133 → 4,154），
+可在维护窗口重新启用；启用前必须：暂停 `guardian.sh` / `start_legacy_wd.sh` 的 cron、
+确认只有一个 CrashCore、只跑一次 `start.sh start`。
+不要在路由器上跑去重扫描 —— 211 条规则的收益不值得再冒一次断网风险。
+
+> 为什么不全删 444 条死规则：其中 222 条是「模板声明目标 vs 自定义覆盖」的
+> 审计证据（例如 `googlecommerce.com,REJECT` 被 `google` 关键词送去代理），
+> 删掉行为不变，但下次审计会看不出模板原本想怎么分。

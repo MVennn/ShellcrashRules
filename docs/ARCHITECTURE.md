@@ -59,6 +59,12 @@ mihomo 校验（CrashCore -t）→ 加载
 - 写后校验：检查前若干行（历史上只查前 3 行 → 每周误报「覆盖规则丢失」，已修）；
 - 末尾追加「分类修正层」（广告优先 → AI 语义修正 → Bing/Copilot → OneDrive/SharePoint →
   Sentry/Disney → CN 例外），必须保持在模板规则**之前**；
+- 分类修正层顶部另有 **Google 广告/追踪 carve-out**（2026-10-22）：`doubleclick.net` /
+  `googlesyndication.com` / `googleadservices.com` / `google-analytics.com` / `csi.gstatic.com` /
+  `collector.githubapp.com` / `app-measurement.com` 等必须在 `DOMAIN-SUFFIX,google.com` /
+  `DOMAIN-KEYWORD,google` 之前，否则模板 BanAD 的广告 REJECT 会被整段遮蔽；
+- geosite 之前另有**共享 SaaS 覆盖**（`envato*` / `liveperson` / `datadoghq`），
+  避免上游误收把素材市场、客服聊天、RUM 流量带进 AI 出口；
 - 生成时按 `(类型, 域名)` 去重，**保留首次出现**：顶部 Google 服务覆盖优先，
   后续 geosite / 修正层里的同键规则会被丢弃（修复 `generativelanguage.googleapis.com`
   被 geosite AI 规则抢走的问题）；
@@ -173,7 +179,7 @@ mihomo 校验（CrashCore -t）→ 加载
 | 规则更新 cron | `30 4 * * 0` | 路由器 crontab | 每周跑 `auto-update.sh`（规则生成 + hotupdate） |
 | 看门狗 cron | `* * * * *` | 路由器 crontab | 每分钟拉起代理（`starts/start_legacy_wd.sh shellcrash`） |
 | 守护 cron | `*/5 * * * *` | 路由器 crontab | 每 5 分钟自愈（补载三表、节点劣化复位、干净出口守护）—— 脚本在 `AX3000TOpenwrt` 仓 |
-| 自检段数 | 17 段 | `config/ai-api-check.sh` | 订阅更新后必跑；退出码 0/1 |
+| 自检段数 | 18 段 | `config/ai-api-check.sh` | 订阅更新后必跑；退出码 0/1 |
 
 ### 4.1 组名与规则目标的约定
 

@@ -32,7 +32,7 @@
 ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-rules-update.sh'
 #    失败 = 什么都不该改（脚本设计上不会写半成品）→ 停在这里，不要 hotupdate
 
-# ② 自检 17 段（最重要的一条命令）
+# ② 自检 18 段（最重要的一条命令）
 ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-api-check.sh'
 #    退出码 0 = 全过；1 = 有失败项
 #    注意：部分段带**自动修复**（改 log-level、sed 修 task.sh 路径、重载 nft 表）
@@ -56,7 +56,7 @@ python mihomo/rule_audit.py config.yaml proxies.json third-party/ACL4SSR/Clash R
 
 ### 2.2 自检覆盖了什么（为什么它是唯一必跑的一条）
 
-`ai-api-check.sh` 的 17 段，按顺序：
+`ai-api-check.sh` 的 18 段，按顺序：
 
 1. 策略组状态 · 2. 组到 opencode.ai 的延迟 · 3. opencode.ai 可达性 ·
 4. 三种协议最小 token 测试 · 5. 分组排序钩子 · 6. hotupdate 重载路径 ·
@@ -64,7 +64,8 @@ python mihomo/rule_audit.py config.yaml proxies.json third-party/ACL4SSR/Clash R
 9. 境外 QUIC 拦截 + TLS 重新解析 · 10. Google 家族统一出口 ·
 11. 夜间加固项（cn_ip 剔除 / sniffer 跳过 CDN / 组出口）· 12. 规则文件完整性（空组名 / 原子写）·
 13. IPv6 fake-IP 旁路防护 · 14. 干净出口组 · 15. 出口组与守护进程 · 16. 全局 QUIC 阻断 ·
-17. 高带宽直连（Google 下载 / Chrome 更新 / JetBrains 直连，省机场流量）
+17. 高带宽直连（Google 下载 / Chrome 更新 / JetBrains 直连，省机场流量）·
+18. 广告/追踪 carve-out（广告 REJECT 必须在 google.com / google 关键词之前）
 
 **任何一段 FAIL 都必须处理完再往下走** —— 这些段覆盖的正是「更新后悄悄坏掉」的部位。
 
@@ -74,9 +75,25 @@ python mihomo/rule_audit.py config.yaml proxies.json third-party/ACL4SSR/Clash R
 
 - 日期与主题
 - 订阅更新前后的关键差异（规则条数、策略组成员、出口 IP）
-- 17 段自检的结果（过 / 不过 + 失败项）
+- 18 段自检的结果（过 / 不过 + 失败项）
 - 做了什么修复
 - 状态
+
+### 2.4 变更纪律（2026-10-22 事故后）
+
+三条硬规矩，违反任何一条都可能整网断流：
+
+1. **规则级审计/去重只在 PC 上跑** —— 先把 `config.yaml` scp 下来，对副本跑
+   `config/archive/rules-dedup.sh`、`rule_audit.py` 等；**禁止在路由器上跑 O(N²) 两两匹配**。
+   2026-10-22 实测：4,154 条规则上跑 `rules-dedup.sh --check`，CPU/内存被拖垮，整网断流。
+2. **同一时间只允许一个 `start.sh start`** —— 手动重启前先 `pidof CrashCore`；
+   重启期间暂停 `guardian.sh` 与 `start_legacy_wd.sh` 的 cron。
+   两个启动并发会同时写 `/tmp/ShellCrash/config.yaml`，`rules-cnip.sh` 会因行数校验失败中止，
+   配置不生效、CrashCore 起不来。
+3. **`init.d/shellcrash` 必须保持 disabled** —— `start_old=ON` 下 procd 与 legacy 各拉一个实例；
+   双实例白占 ~50 MB，并放大 OOM。`post-sc-update.sh` 已改为自动 disable。
+
+> 事故经过与恢复命令见 [PITFALLS.md](PITFALLS.md) §24/§25 与 [TROUBLESHOOTING.md](TROUBLESHOOTING.md) §9。
 
 ---
 
@@ -100,7 +117,7 @@ ssh root@10.0.0.1 "mkdir -p /root/backup/pre-yamls-$TS && \
 | `config/yamls/proxy-groups.yaml` | 拷回；或删文件 → 自定义组消失、回到模板组（**会连带丢掉 AI 分组，记得一起回退规则**） |
 | `config/yamls/proxies.yaml` | 拷回；或删文件 → 备用入口消失（干净出口少两条冗余）。**该文件含节点凭据、不入库**，模板见 `proxies.example.yaml`（见 [SECRETS.md](SECRETS.md)） |
 | `config/generated/rules.yaml` | **不要手改回退** —— 重跑生成器（`ai-rules-update.sh`）即可回到上游内容；但如果你改的是生成器，回退生成器文件后重跑 |
-| `config/hooks/*.sh` | 删文件 → 钩子失效（`clash_modify.sh` 里有 `[ -x ]` 判断，不存在就跳过）。**注意**：删 `reorder-groups.sh` 会退回「同名组重复 → 拒载回退」的老坑 |
+| `config/hooks/*.sh` | 删文件 → 钩子失效（`clash_modify.sh` 里有 `[ -x ]` 判断，不存在就跳过）。**注意**：删 `reorder-groups.sh` 会退回「同名组重复 → 拒载回退」的老坑。`rules-dedup.sh` 已归档到 `config/archive/`，**不部署** |
 | `config/starts/*.sh` | 从 `/etc/ShellCrash/local-patches/` 恢复；上游原版存为 `starts/*.upstream.*` |
 | `firewall/tables/*.nft` | `nft delete table inet <表名>` 立即生效；文件层回退 = 删文件 + 重载 `rc.local` 那几行（`AX3000TOpenwrt` 仓） |
 | `config/ai-api-check.sh` | 拷回（只读脚本，删掉即不巡检） |
