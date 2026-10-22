@@ -2,8 +2,10 @@
 # 那几秒里 LAN 的 53 端口查询会漏到 dnsmasq → 拿到被污染的解析结果 → 站点超时）。
 # 本表由 rc.local 加载、守护进程补载，不受 ShellCrash 重建影响。
 #
-# 部署前按自己的网络改：`10.0.0.0/24` 换成 LAN 网段；IPv6 默认只匹配
-# ULA / link-local，若 LAN 使用运营商 PD，把前缀加进下面的集合。
+# 部署前按自己的网络改：`10.0.0.0/24` 换成 LAN 网段，`br-lan` 换成 LAN 接口名。
+# IPv6 按入接口匹配，不写运营商 PD 前缀 —— 前缀变化（重拨 / 换局向）后规则不会失效，
+# 也不要求客户端一定使用 ULA / link-local 源地址。新增 guest / VPN 网桥时把接口名
+# 加进 iifname 集合。
 table inet googleroute {
 	chain prerouting {
 		type nat hook prerouting priority dstnat - 4; policy accept;
@@ -11,16 +13,16 @@ table inet googleroute {
 		# 1) LAN 的 DNS 查询一律送 mihomo（与 ShellCrash 的 prerouting_dns 同目标，优先命中）
 		ip saddr 10.0.0.0/24 udp dport 53 redirect to :1053
 		ip saddr 10.0.0.0/24 tcp dport 53 redirect to :1053
-		ip6 saddr { fd00::/8, fe80::/10 } udp dport 53 redirect to :1053
-		ip6 saddr { fd00::/8, fe80::/10 } tcp dport 53 redirect to :1053
+		iifname "br-lan" meta nfproto ipv6 udp dport 53 redirect to :1053
+		iifname "br-lan" meta nfproto ipv6 tcp dport 53 redirect to :1053
 
 		# 2) Google 推送/Play 端口送进 mihomo
 		ip saddr 10.0.0.0/24 tcp dport { 5222, 5223, 5224, 5226, 5228, 8081, 8883 } redirect to :7892
-		ip6 saddr { fd00::/8, fe80::/10 } tcp dport { 5222, 5223, 5224, 5226, 5228, 8081, 8883 } redirect to :7892
+		iifname "br-lan" meta nfproto ipv6 tcp dport { 5222, 5223, 5224, 5226, 5228, 8081, 8883 } redirect to :7892
 
 		# 3) fake-IPv6 段（fc00::/16）必须先送进代理：
 		#    ShellCrash 链里 `ip6 daddr {..., fd00::/8, ...} return` 排在 redirect 之前，
 		#    会把 fc00::/16 一起放行 → IPv6 优先的客户端连假 IPv6 时绕过代理（直连黑洞/超时）
-		ip6 saddr { fd00::/8, fe80::/10 } ip6 daddr fc00::/16 tcp dport { 22, 80, 443, 8080, 8443 } counter redirect to :7892
+		iifname "br-lan" ip6 daddr fc00::/16 tcp dport { 22, 80, 443, 8080, 8443 } counter redirect to :7892
 	}
 }

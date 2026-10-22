@@ -116,8 +116,8 @@ mihomo 校验（CrashCore -t）→ 加载
 | 表 | family / hook / priority | 作用 | 加载时机 |
 |---|---|---|---|
 | `inet quicguard` | filter / prerouting / **-150** | 全局拒绝 QUIC/DoQ：UDP `{443, 8443, 4433, 5226, 5228, 8081, 8883, 19302}`；另单独覆盖假 IP 段 `198.18.0.0/15`、假 IPv6 `fc00::/16`、Google 国内边缘段 `203.208.32.0/19`、国内 IPv6 段 `2401:3800::/32`；B站 API 段 `157.148.134.0/24` / `27.37.206.0/24`（**仅 IPv4**；`api.bilibili.com` 无公开 AAAA，`2408:8756::/31` 是联通大段、含腾讯 CDN，2026-10-22 已撤回）在 CN 豁免**之前**单独 reject UDP 443/8443（强制回落 TCP，评论属地才能被域名规则接管） | `rc.local` 开机加载；守护进程每 5 分钟补载 |
-| `inet googlecn` | nat / prerouting / **-105** | LAN 发往 Google 国内边缘段（`203.208.32.0/19`、`2401:3800::/32`）的 TCP `{80,443}` 重定向到 **7892**，让域名规则（AI 组 / 直连）有机会生效 | 同上 |
-| `inet googleroute` | nat / prerouting / **dstnat - 4** | ① LAN 的 53 端口一律重定向到 mihomo DNS **1053**（避免 ShellCrash 重建表那几秒 DNS 漏到 dnsmasq 拿到污染结果）；② Google 推送/Play 端口 `{5222,5223,5224,5226,5228,8081,8883}` → 7892；③ fake-IPv6 段 `fc00::/16` → 7892 | **必须等 1053 端口就绪（最多 90s）再加载** —— 等不到就不加载，否则重启后出现「连上没网」死窗口 |
+| `inet googlecn` | nat / prerouting / **-105** | LAN 发往 Google 国内边缘段（`203.208.32.0/19`、`2401:3800::/32`）的 TCP `{80,443}` 重定向到 **7892**，让域名规则（AI 组 / 直连）有机会生效；IPv6 按 `iifname "br-lan"` 匹配（不写死运营商 PD 前缀） | 同上 |
+| `inet googleroute` | nat / prerouting / **dstnat - 4** | ① LAN 的 53 端口一律重定向到 mihomo DNS **1053**（避免 ShellCrash 重建表那几秒 DNS 漏到 dnsmasq 拿到污染结果）；② Google 推送/Play 端口 `{5222,5223,5224,5226,5228,8081,8883}` → 7892；③ fake-IPv6 段 `fc00::/16` → 7892；IPv6 同理按 `iifname "br-lan"` 匹配 | **必须等 1053 端口就绪（最多 90s）再加载** —— 等不到就不加载，否则重启后出现「连上没网」死窗口 |
 
 ### 2.4 flow offload 与 Redir 的冲突面
 

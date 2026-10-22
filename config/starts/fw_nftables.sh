@@ -9,10 +9,6 @@ add_ip6_route(){
     nft add rule inet shellcrash $1 ip6 daddr {$RESERVED_IP6} return
     #仅代理本机局域网网段流量
     nft add rule inet shellcrash $1 ip6 saddr != {$HOST_IP6} return
-    #BILI_V6_MARKER B站 API 的 IPv6 段在 cn_ip6 里，会被下面的 CN 绕过规则直接放行；
-    #  手机端走 IPv6 时评论/主页属地仍是国内。先在 CN return 之前重定向到 mihomo，
-    #  由 rules.yaml J 段的域名规则（api/cm.bilibili.com → 🎬 B站解锁）接管。
-    [ "$redir_mod" = "Redir" ] && nft add rule inet shellcrash $1 ip6 daddr 2408:8756::/31 tcp dport 443 redirect to $redir_port
     #绕过CN_IPV6
     [ "$dns_mod" != "fake-ip" -a "$cn_ip_route" = "ON" -a -f "$BINDIR"/cn_ipv6.txt ] && {
         CN_IP6=$(awk '{printf "%s, ",$1}' "$BINDIR"/cn_ipv6.txt)
