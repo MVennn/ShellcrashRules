@@ -104,6 +104,9 @@ fi
 	echo "# 目的：评论 / 主页的 IP 属地显示节点所在国家，视频仍走国内直连。"
 	echo "# 属地由「发请求那一刻的源 IP」决定，没有独立检测接口 —— 只有让 API 真出国才改得了；"
 	echo "#   页面 / 登录 / 静态 / 视频 CDN 必须直连，否则视频流量会绕到机场。"
+	echo "# CDN 规则用字面 DIRECT，不用 🎯 全球直连 组：respect-rules 的 DNS 只有"
+	echo "#   对字面 DIRECT 才走 direct-nameserver（AliDNS/DoH.pub）；用组会落到默认"
+	echo "#   nameserver（Cloudflare/Google DoH），解析到海外 Akamai 边缘，实测 28 KB/s。"
 	echo "# API → 🎬 B站解锁。HY2 池到大陆方向不通（香港/韩国能连 gstatic，"
 	echo "#   但百度/知乎/B站全部 TLS EOF/超时）；vmess 池的 香港WAP/台湾-优化3/"
 	echo "#   日本-优化/新加坡-优化3 可正常访问，B站 zone 分别显示对应地区。"
@@ -115,16 +118,16 @@ fi
 	echo "- DOMAIN-SUFFIX,api.vc.bilibili.com,🎬 B站解锁"
 	echo "- DOMAIN-SUFFIX,biliapi.com,🎬 B站解锁"
 	echo "- DOMAIN-SUFFIX,biliapi.net,🎬 B站解锁"
-	echo "- DOMAIN-SUFFIX,bilibili.com,🎯 全球直连"
-	echo "- DOMAIN-SUFFIX,bilibili.co,🎯 全球直连"
-	echo "- DOMAIN-SUFFIX,bilivideo.com,🎯 全球直连"
-	echo "- DOMAIN-SUFFIX,bilivideo.cn,🎯 全球直连"
-	echo "- DOMAIN-SUFFIX,hdslb.com,🎯 全球直连"
-	echo "- DOMAIN-SUFFIX,biliimg.com,🎯 全球直连"
-	echo "- DOMAIN-SUFFIX,acgvideo.com,🎯 全球直连"
-	echo "- DOMAIN-SUFFIX,acg.tv,🎯 全球直连"
-	echo "- DOMAIN-SUFFIX,b23.tv,🎯 全球直连"
-	echo "- DOMAIN,upos-hz-mirrorakam.akamaized.net,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,bilibili.com,DIRECT"
+	echo "- DOMAIN-SUFFIX,bilibili.co,DIRECT"
+	echo "- DOMAIN-SUFFIX,bilivideo.com,DIRECT"
+	echo "- DOMAIN-SUFFIX,bilivideo.cn,DIRECT"
+	echo "- DOMAIN-SUFFIX,hdslb.com,DIRECT"
+	echo "- DOMAIN-SUFFIX,biliimg.com,DIRECT"
+	echo "- DOMAIN-SUFFIX,acgvideo.com,DIRECT"
+	echo "- DOMAIN-SUFFIX,acg.tv,DIRECT"
+	echo "- DOMAIN-SUFFIX,b23.tv,DIRECT"
+	echo "- DOMAIN,upos-hz-mirrorakam.akamaized.net,DIRECT"
 	echo "# ===== K. 大流量补充：模型 / 发布包 / 驱动 / 游戏补丁（2026-10-22）====="
 	echo "# 实测（路由器 → proof.ovh.net Range 4MB）：公共池 1.56 / 1.45 MB/s，"
 	echo "#   机场 0.83 / 1.27 MB/s —— 公共池不慢于机场，适合大文件。"
@@ -419,9 +422,9 @@ done
 for r in "DOMAIN-SUFFIX,api.bilibili.com,🎬 B站解锁" \
          "DOMAIN-SUFFIX,cm.bilibili.com,🎬 B站解锁" \
          "DOMAIN-SUFFIX,biliapi.net,🎬 B站解锁" \
-         "DOMAIN-SUFFIX,bilibili.com,🎯 全球直连" \
-         "DOMAIN-SUFFIX,bilivideo.com,🎯 全球直连" \
-         "DOMAIN-SUFFIX,hdslb.com,🎯 全球直连"; do
+         "DOMAIN-SUFFIX,bilibili.com,DIRECT" \
+         "DOMAIN-SUFFIX,bilivideo.com,DIRECT" \
+         "DOMAIN-SUFFIX,hdslb.com,DIRECT"; do
 	if ! grep -qF -- "- $r" "$OUT.tmp"; then
 		echo "警告: B站段丢失: $r"
 		exit 1

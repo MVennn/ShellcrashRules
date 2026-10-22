@@ -1,5 +1,5 @@
 # AI 服务分流规则 — 由 MetaCubeX/meta-rules-dat geosite category-ai-chat-!cn 生成
-# 更新于 2026-10-22 15:31:59
+# 更新于 2026-10-22 16:02:55
 # 同键规则已去重（保留首次出现；顶部覆盖优先）
 # ===== G. 高带宽直连（省机场流量，2026-10-21）=====
 # 模板把这些域名送进代理组，但它们在国内有可用 CDN，实测直连更快：
@@ -66,6 +66,9 @@
 # 目的：评论 / 主页的 IP 属地显示节点所在国家，视频仍走国内直连。
 # 属地由「发请求那一刻的源 IP」决定，没有独立检测接口 —— 只有让 API 真出国才改得了；
 #   页面 / 登录 / 静态 / 视频 CDN 必须直连，否则视频流量会绕到机场。
+# CDN 规则用字面 DIRECT，不用 🎯 全球直连 组：respect-rules 的 DNS 只有
+#   对字面 DIRECT 才走 direct-nameserver（AliDNS/DoH.pub）；用组会落到默认
+#   nameserver（Cloudflare/Google DoH），解析到海外 Akamai 边缘，实测 28 KB/s。
 # API → 🎬 B站解锁。HY2 池到大陆方向不通（香港/韩国能连 gstatic，
 #   但百度/知乎/B站全部 TLS EOF/超时）；vmess 池的 香港WAP/台湾-优化3/
 #   日本-优化/新加坡-优化3 可正常访问，B站 zone 分别显示对应地区。
@@ -77,16 +80,16 @@
 - DOMAIN-SUFFIX,api.vc.bilibili.com,🎬 B站解锁
 - DOMAIN-SUFFIX,biliapi.com,🎬 B站解锁
 - DOMAIN-SUFFIX,biliapi.net,🎬 B站解锁
-- DOMAIN-SUFFIX,bilibili.com,🎯 全球直连
-- DOMAIN-SUFFIX,bilibili.co,🎯 全球直连
-- DOMAIN-SUFFIX,bilivideo.com,🎯 全球直连
-- DOMAIN-SUFFIX,bilivideo.cn,🎯 全球直连
-- DOMAIN-SUFFIX,hdslb.com,🎯 全球直连
-- DOMAIN-SUFFIX,biliimg.com,🎯 全球直连
-- DOMAIN-SUFFIX,acgvideo.com,🎯 全球直连
-- DOMAIN-SUFFIX,acg.tv,🎯 全球直连
-- DOMAIN-SUFFIX,b23.tv,🎯 全球直连
-- DOMAIN,upos-hz-mirrorakam.akamaized.net,🎯 全球直连
+- DOMAIN-SUFFIX,bilibili.com,DIRECT
+- DOMAIN-SUFFIX,bilibili.co,DIRECT
+- DOMAIN-SUFFIX,bilivideo.com,DIRECT
+- DOMAIN-SUFFIX,bilivideo.cn,DIRECT
+- DOMAIN-SUFFIX,hdslb.com,DIRECT
+- DOMAIN-SUFFIX,biliimg.com,DIRECT
+- DOMAIN-SUFFIX,acgvideo.com,DIRECT
+- DOMAIN-SUFFIX,acg.tv,DIRECT
+- DOMAIN-SUFFIX,b23.tv,DIRECT
+- DOMAIN,upos-hz-mirrorakam.akamaized.net,DIRECT
 # ===== K. 大流量补充：模型 / 发布包 / 驱动 / 游戏补丁（2026-10-22）=====
 # 实测（路由器 → proof.ovh.net Range 4MB）：公共池 1.56 / 1.45 MB/s，
 #   机场 0.83 / 1.27 MB/s —— 公共池不慢于机场，适合大文件。

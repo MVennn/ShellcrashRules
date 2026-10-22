@@ -51,9 +51,14 @@ EOF
         #mix模式和route模式插入分流设置
         if [ "$dns_mod" = "mix" ] || [ "$dns_mod" = "route" ]; then
             [ "$dns_protect" != "OFF" ] && dns_final="$dns_fallback" || dns_final="$dns_nameserver"
+            #BILI_DNS_MARKER B站 CDN 的 Akamai 边缘按 ISP DNS 解析才快：
+            #  AliDNS/DoH.pub 返回 23.49.104.x（实测 12–689 KB/s），
+            #  上游光猫 DNS 返回 2.16.62.x（实测 1.48 MB/s）。
+            BILI_DNS=$(sed -n 's/^nameserver //p' /tmp/resolv.conf.d/resolv.conf.auto 2>/dev/null | grep -v ':' | head -1)
+            [ -z "$BILI_DNS" ] && BILI_DNS=$(echo "$dns_nameserver" | cut -d, -f1 | sed 's/^ *//')
             cat >>"$TMPDIR"/dns.yaml <<EOF
   respect-rules: true
-  nameserver-policy: {'rule-set:cn': [ $dns_nameserver ]}
+  nameserver-policy: {'rule-set:cn': [ $dns_nameserver ], '+.bilivideo.com': [ $BILI_DNS ], '+.bilivideo.cn': [ $BILI_DNS ], '+.hdslb.com': [ $BILI_DNS ], '+.biliimg.com': [ $BILI_DNS ], '+.acgvideo.com': [ $BILI_DNS ], 'upos-hz-mirrorakam.akamaized.net': [ $BILI_DNS ]}
   proxy-server-nameserver : [ $dns_proxy_server ]
   nameserver: [ $dns_final ]
 EOF

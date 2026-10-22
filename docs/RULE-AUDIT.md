@@ -488,11 +488,24 @@ sentry/intercom/auth0/statsig 是同一类问题：
 - `firewall/quicguard-sync.sh` / `firewall/tables/quicguard.nft`：在 CN QUIC 豁免
   **之前** reject 这些网段的 UDP 443/8443，强制 App 回落 TCP。
 
+**DNS / IPv6 层（2026-10-22 追加）**：直连不等于快，CDN 边缘会被 DNS 选错：
+
+- `dns.ipv6: true` 时 Akamai 的 AAAA（`2600:140e:3:e::…`）实测只有 22 KB/s，
+  IPv4 有 1.4–2.1 MB/s；设备侧把 `ipv6_dns=OFF`（备份 `ShellCrash.cfg.bak-bili-ipv6-*`），
+  mihomo 只返回 A。
+- `respect-rules` 只对**字面 `DIRECT`** 走 `direct-nameserver`；用 `🎯 全球直连` 组会落到默认
+  `nameserver`（Cloudflare/Google DoH），解析到 `23.193.186.11`，实测 28 KB/s。
+- `direct-nameserver`（AliDNS/DoH.pub）返回 `23.49.104.x`，10MB 实测仅 12 KB/s；
+  上游光猫 DNS（`192.168.1.1`）返回 `2.16.62.x` / `23.57.75.x`，实测 1.4–2.1 MB/s。
+- `config/starts/clash_modify.sh` 因此给 `+.bilivideo.com` / `+.bilivideo.cn` / `+.hdslb.com` /
+  `+.biliimg.com` / `+.acgvideo.com` / `upos-hz-mirrorakam.akamaized.net` 单独设
+  `nameserver-policy` → 上游 DNS（从 `/tmp/resolv.conf.d/resolv.conf.auto` 读取）。
+
 | 类别 | 域名 | 目标 |
 |---|---|---|
 | API | `api.bilibili.com` / `app.bilibili.com` / `cm.bilibili.com` / `api.live.bilibili.com` / `api.vc.bilibili.com` / `biliapi.com` / `biliapi.net` | 🎬 B站解锁 |
 | 页面/登录/静态 | `bilibili.com` / `bilibili.co` / `b23.tv` / `acg.tv` | 🎯 全球直连 |
-| 视频 CDN | `bilivideo.com` / `bilivideo.cn` / `hdslb.com` / `biliimg.com` / `acgvideo.com` / `upos-hz-mirrorakam.akamaized.net` | 🎯 全球直连 |
+| 视频 CDN | `bilivideo.com` / `bilivideo.cn` / `hdslb.com` / `biliimg.com` / `acgvideo.com` / `upos-hz-mirrorakam.akamaized.net` | DIRECT |
 
 **节点选择（2026-10-22 实测）**：
 

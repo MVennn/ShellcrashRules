@@ -760,6 +760,9 @@ enabled，procd 也会拉一个实例；再加上手动 `start.sh start`、`guar
 另：只加域名规则也不够 —— 手机 App 会用 HTTPDNS 拿真实 CN IP 或走 QUIC（UDP 443），
 两者都被 `cn_ip`/`cn_ip6` 的直连豁免放行；必须同时在 nft 层把 B站 IP 段 TCP 443
 重定向到 mihomo，并在 quicguard 里 reject 这些段的 QUIC。
+CDN 直连也不等于快：DNS 选错边缘或 IPv6 绕路都会缓冲（B站实测 Akamai IPv6 22 KB/s、
+AliDNS 边缘 12 KB/s；上游光猫 DNS 的 IPv4 边缘 1.4–2.1 MB/s）。CDN 规则要用字面 `DIRECT`，
+并对 CDN 域单独指定上游 DNS；必要时 `ipv6_dns=OFF`。
 抖音对境外 IP 有内容/风控限制，小红书相对可用。另：机场的 HY2 池到大陆方向可能不通，
 选节点前先用 B站 `x/web-interface/zone` 实测属地，别只看节点名字。
 
