@@ -103,6 +103,12 @@ use-system-hosts: true
 hosts:
   'time.android.com': 203.107.6.88
   'time.facebook.com': 203.107.6.88
+  #MCDN 关掉：播放器优先从 mcdn.bilivideo.cn:8082 / edge.mountaintoys.cn:4483 取流，
+  #  节点质量参差（2026-10-22 实测 9 个 PCDN 节点里 2 个只有 6–11 KB/s），
+  #  卡住要等超时才换下一个分段。指到 127.0.0.1 让连接立即失败，
+  #  播放器回落 playurl 的 upos-* 常规 CDN（实测 6.5–20 MB/s）。
+  '*.mcdn.bilivideo.cn': 127.0.0.1
+  '*.edge.mountaintoys.cn': 127.0.0.1
 EOF
         if [ "$crashcore" = "meta" ]; then
             echo "  'services.googleapis.cn': services.googleapis.com" >>"$TMPDIR"/hosts.yaml

@@ -481,12 +481,16 @@ sentry/intercom/auth0/statsig 是同一类问题：
 
 **网络层（2026-10-22 追加）**：只加域名规则不够 —— 手机端 App 会用 HTTPDNS 拿到
 真实 CN IP（`157.148.134.0/24`、`27.37.206.0/24`）或走 QUIC（UDP 443），
-两者都会被 `cn_ip`/`cn_ip6` 的直连豁免放行，根本到不了 mihomo。因此：
+两者都会被 `cn_ip` 的直连豁免放行，根本到不了 mihomo。因此：
 
-- `config/starts/fw_nftables.sh`：在 `cn_ip`/`cn_ip6` return **之前**把 B站 API 的
-  IPv4/IPv6 段 TCP 443 重定向到 7892（`BILI_IP_MARKER` / `BILI_V6_MARKER`）；
+- `config/starts/fw_nftables.sh`：在 `cn_ip` return **之前**把 B站 API 的
+  IPv4 段 TCP 443 重定向到 7892（`BILI_IP_MARKER`）；
 - `firewall/quicguard-sync.sh` / `firewall/tables/quicguard.nft`：在 CN QUIC 豁免
   **之前** reject 这些网段的 UDP 443/8443，强制 App 回落 TCP。
+
+**IPv6 不做**（2026-10-22 撤回 `BILI_V6_MARKER`）：`api.bilibili.com` 没有公开
+AAAA；原先使用的 `2408:8756::/31` 是整个联通 IPv6 大段，腾讯（QQ/微信）的 CDN
+大量落在里面，reject 其 QUIC、并把 443 重定向进 mihomo，会直接打断 QQ/微信视频播放。
 
 **DNS / IPv6 层（2026-10-22 追加）**：直连不等于快，CDN 边缘会被 DNS 选错：
 
@@ -501,11 +505,25 @@ sentry/intercom/auth0/statsig 是同一类问题：
   `+.biliimg.com` / `+.acgvideo.com` / `upos-hz-mirrorakam.akamaized.net` 单独设
   `nameserver-policy` → 上游 DNS（从 `/tmp/resolv.conf.d/resolv.conf.auto` 读取）。
 
+**MCDN / PCDN 层（2026-10-22 追加）**：播放器还会用 `bvc.bilivideo.com`（直连、按 CN IP）
+拿 MCDN 列表，媒体分段优先走 `xy<ip>xy.mcdn.bilivideo.cn:8082`（P2P 节点）和
+`*.edge.mountaintoys.cn:4483`（MCDN 边缘），而不是 `playurl` 的 `upos-*`：
+
+- 实测 9 个 PCDN 节点：7 个 2.5–5.4 MB/s，**2 个只有 6–11 KB/s**；踩中慢节点时分段卡住，
+  等超时才切下一个，表现为「看一会儿转圈一下」。
+- 8082/4483 **不在** 7892 重定向端口集合（`22/80/443/5228/8080/8443/19302`）里，
+  流量不进 mihomo，`/connections` 看不到，域名规则也拦不到，只能在 DNS 层处理。
+- 解法：`clash_modify.sh` 生成的 `hosts:` 把 `'*.mcdn.bilivideo.cn'` / `'*.edge.mountaintoys.cn'`
+  指到 `127.0.0.1`；播放器回落 `upos-*`（实测 6.5–20 MB/s）。API 仍走香港，属地不变。
+- **验证陷阱**：mihomo 的 `/dns/query` API 不读 `hosts`，仍返回真实 IP；要在 LAN 客户端用
+  `nslookup <peerhost> 10.0.0.1` 验证，返回 `127.0.0.1` 才算生效。
+
 | 类别 | 域名 | 目标 |
 |---|---|---|
 | API | `api.bilibili.com` / `app.bilibili.com` / `cm.bilibili.com` / `api.live.bilibili.com` / `api.vc.bilibili.com` / `biliapi.com` / `biliapi.net` | 🎬 B站解锁 |
 | 页面/登录/静态 | `bilibili.com` / `bilibili.co` / `b23.tv` / `acg.tv` | 🎯 全球直连 |
 | 视频 CDN | `bilivideo.com` / `bilivideo.cn` / `hdslb.com` / `biliimg.com` / `acgvideo.com` / `upos-hz-mirrorakam.akamaized.net` | DIRECT |
+| MCDN / PCDN | `*.mcdn.bilivideo.cn` / `*.edge.mountaintoys.cn` | `hosts:` → `127.0.0.1`（强制回落常规 CDN） |
 
 **节点选择（2026-10-22 实测）**：
 

@@ -767,3 +767,29 @@ AliDNS 边缘 12 KB/s；上游光猫 DNS 的 IPv4 边缘 1.4–2.1 MB/s）。CDN
 选节点前先用 B站 `x/web-interface/zone` 实测属地，别只看节点名字。
 
 **出处**：2026-10-22 B站批次；实测见 [RULE-AUDIT.md](RULE-AUDIT.md) §7.6。
+
+---
+
+<a id="p30"></a>
+
+## 30. B站「看一会儿转圈一下」是 MCDN/PCDN 节点劣化，不是 API 走香港
+
+**现象**：B站视频播放中途偶尔转圈几秒又恢复；`api.bilibili.com` 已按 §7.6 走香港、
+CDN 规则是字面 `DIRECT`，问题依旧。
+
+**根因**：播放器的媒体分段不是从 `playurl` 的 `upos-*` 取的，而是优先走 MCDN/PCDN：
+`xy<ip>xy.mcdn.bilivideo.cn:8082`（P2P 节点）和 `*.edge.mountaintoys.cn:4483`（MCDN 边缘）。
+节点质量参差（2026-10-22 实测 9 个 PCDN 节点：7 个 2.5–5.4 MB/s、2 个只有 6–11 KB/s），
+踩到慢节点时分段卡住，等超时才切下一个 → 表现为「转圈一下」。
+这两个端口**不在** ShellCrash 的 7892 重定向集合（22/80/443/5228/8080/8443/19302）里，
+流量根本不进 mihomo，`/connections` 看不到，域名规则也拦不到。
+
+**解法**：在 `clash_modify.sh` 生成的 `hosts:` 里把两个域名指到 `127.0.0.1`，让连接立即失败，
+播放器回落 `playurl` 里的 `upos-*`（实测 6.5–20 MB/s）。不要为此把 API 改回直连 ——
+属地会跟着变回国内。
+
+**验证陷阱**：mihomo 的 `/dns/query` API **不读 `hosts`**，改写后它仍返回真实 IP；
+要用 LAN 客户端 `nslookup <peerhost> 10.0.0.1` 查，返回 `127.0.0.1` 才算生效。
+`hosts` 的 `*.` 通配与 `fake_ip_filter.list` 的写法一致，mihomo 1.19.28 实测可用。
+
+**出处**：2026-10-22 B站播放卡顿排查；实测见 [RULE-AUDIT.md](RULE-AUDIT.md) §7.6。

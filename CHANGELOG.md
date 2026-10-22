@@ -65,6 +65,7 @@
 - 调整 `config/generated/rules.yaml` —— 由路由器重生成（396 条；J 段 +17，K 段由并行批次加入）
 - 新增 `config/hooks/rules-porn.sh` —— 幂等注入 `porn` rule-provider（MetaCubeX category-porn，`type: http` / `format: mrs` / 日更）；目标组不存在时跳过，写前校验行数、原子替换
 - 调整 `config/starts/clash_modify.sh` —— `merger_yaml` 之后调用 `rules-porn.sh`（在 rules-mid / rules-cnip 之前）
+- 调整 `config/starts/clash_modify.sh` —— 生成的 `hosts:` 新增 `'*.mcdn.bilivideo.cn'` / `'*.edge.mountaintoys.cn'` → `127.0.0.1`：B站播放器优先从 MCDN/PCDN（`xy*.mcdn.bilivideo.cn:8082`、`*.edge.mountaintoys.cn:4483`）取流，实测 9 个节点里 2 个只有 6–11 KB/s，卡住要等超时才换分段（现象是「看一会儿转圈一下」）。这两个端口不在 7892 重定向集合里，mihomo 规则拦不到，只能在 DNS 层指到本地；播放器随后回落 `upos-*` 常规 CDN（实测 6.5–20 MB/s）。API 走香港、CDN 直连的 J 段设计不变
 - 调整 `config/generators/ai-rules-update.sh` —— 新增 H 段（大流量下载域）与 I 段（视频站点 + Telegram）；生成后逐条校验 H/I 段与 `RULE-SET,porn` 存在，防止每周更新被上游规则去重掉
 - 调整 `config/hooks/reorder-groups.sh` —— `🚀 节点选择` 成员顺序加入 `📺 大流量`（`🆓 公共备用` 之后、`DIRECT` 之前），并纳入兜底插入清单
 - 调整 `config/generated/rules.yaml` —— 由路由器重生成（357 条）
