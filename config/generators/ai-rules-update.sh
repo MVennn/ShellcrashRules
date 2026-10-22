@@ -100,6 +100,72 @@ fi
 	echo "- DOMAIN-SUFFIX,cdn-telegram.org,📺 大流量"
 	echo "- IP-CIDR,91.108.0.0/16,📺 大流量,no-resolve"
 	echo "- IP-CIDR,149.154.160.0/20,📺 大流量,no-resolve"
+	echo "# ===== J. B站（API 出国、CDN 直连，2026-10-22）====="
+	echo "# 目的：评论 / 主页的 IP 属地显示节点所在国家，视频仍走国内直连。"
+	echo "# 属地由「发请求那一刻的源 IP」决定，没有独立检测接口 —— 只有让 API 真出国才改得了；"
+	echo "#   页面 / 登录 / 静态 / 视频 CDN 必须直连，否则视频流量会绕到机场。"
+	echo "# API → 🎬 B站解锁。HY2 池到大陆方向不通（香港/韩国能连 gstatic，"
+	echo "#   但百度/知乎/B站全部 TLS EOF/超时）；vmess 池的 香港WAP/台湾-优化3/"
+	echo "#   日本-优化/新加坡-优化3 可正常访问，B站 zone 分别显示对应地区。"
+	echo "# 模板本来就把 bilibili 全族直连，这里显式写一遍，避免模板更新后落到 MATCH。"
+	echo "- DOMAIN-SUFFIX,api.bilibili.com,🎬 B站解锁"
+	echo "- DOMAIN-SUFFIX,app.bilibili.com,🎬 B站解锁"
+	echo "- DOMAIN-SUFFIX,cm.bilibili.com,🎬 B站解锁"
+	echo "- DOMAIN-SUFFIX,api.live.bilibili.com,🎬 B站解锁"
+	echo "- DOMAIN-SUFFIX,api.vc.bilibili.com,🎬 B站解锁"
+	echo "- DOMAIN-SUFFIX,biliapi.com,🎬 B站解锁"
+	echo "- DOMAIN-SUFFIX,biliapi.net,🎬 B站解锁"
+	echo "- DOMAIN-SUFFIX,bilibili.com,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,bilibili.co,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,bilivideo.com,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,bilivideo.cn,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,hdslb.com,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,biliimg.com,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,acgvideo.com,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,acg.tv,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,b23.tv,🎯 全球直连"
+	echo "- DOMAIN,upos-hz-mirrorakam.akamaized.net,🎯 全球直连"
+	echo "# ===== K. 大流量补充：模型 / 发布包 / 驱动 / 游戏补丁（2026-10-22）====="
+	echo "# 实测（路由器 → proof.ovh.net Range 4MB）：公共池 1.56 / 1.45 MB/s，"
+	echo "#   机场 0.83 / 1.27 MB/s —— 公共池不慢于机场，适合大文件。"
+	echo "# 入选标准：无登录态、内容有签名或哈希、可断点续传。"
+	echo "# 刻意不收："
+	echo "#   npm / PyPI / crates —— 大量小文件，公共节点 200-600ms 延迟反而更慢；"
+	echo "#   Docker Hub —— 按 IP 限流，公共节点共享 IP 大概率 429；"
+	echo "#   Apple / Microsoft 更新 —— 这两家的 CDN 已解析到国内节点，走代理只会更慢；"
+	echo "#   Netflix / Disney —— DRM + 代理检测；"
+	echo "#   任何登录、上传、P2P 流量。"
+	echo "# 模型权重：huggingface.co 整族在 AI 组，GB 级 LFS 下载会占满 AI 出口；只摘 CDN。"
+	echo "#   实测 resolve 后落到 us.aws.cdn.hf.co（不是 cdn-lfs.*），所以 cdn.hf.co 必须整段收。"
+	echo "- DOMAIN-SUFFIX,cdn-lfs.huggingface.co,📺 大流量"
+	echo "- DOMAIN-SUFFIX,cdn-lfs.hf.co,📺 大流量"
+	echo "- DOMAIN-SUFFIX,cdn.hf.co,📺 大流量"
+	echo "- DOMAIN-SUFFIX,cdn-lfs-us-1.hf.co,📺 大流量"
+	echo "- DOMAIN-SUFFIX,cdn-lfs-eu-1.hf.co,📺 大流量"
+	echo "- DOMAIN-SUFFIX,cas-bridge.xethub.hf.co,📺 大流量"
+	echo "# GitHub 发布包：整族原本走干净出口（单条节点），几百 MB 的 release 会把它占死。"
+	echo "#   只摘下载域；api.github.com / github.com 必须留在干净出口（见 F 段）。"
+	echo "- DOMAIN-SUFFIX,objects.githubusercontent.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,release-assets.githubusercontent.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,codeload.github.com,📺 大流量"
+	echo "# 驱动：NVIDIA / AMD 都是 Akamai 海外节点；AMD 直链国内被 EdgeOne 拦 567。"
+	echo "- DOMAIN-SUFFIX,us.download.nvidia.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,international.download.nvidia.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,drivers.amd.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,download.amd.com,📺 大流量"
+	echo "# 游戏平台补丁（Steam / Epic 见 H 段）：补丁几十 GB，全部签名。"
+	echo "#   已剔除 NXDOMAIN 的 blizzard.vo.llnwd.net / ubisoft-a.akamaihd.net / riotcdn.net。"
+	echo "- DOMAIN-SUFFIX,blzddist1-a.akamaihd.net,📺 大流量"
+	echo "- DOMAIN-SUFFIX,blzddist2-a.akamaihd.net,📺 大流量"
+	echo "- DOMAIN-SUFFIX,blzddist3-a.akamaihd.net,📺 大流量"
+	echo "- DOMAIN-SUFFIX,cdn.gog.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,gog-cdn-fastly.gog.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,origin-a.akamaihd.net,📺 大流量"
+	echo "- DOMAIN-SUFFIX,eaassets-a.akamaihd.net,📺 大流量"
+	echo "- DOMAIN-SUFFIX,ubistatic-a.akamaihd.net,📺 大流量"
+	echo "# Maven 中央仓库：单个 jar 几十 MB，无 IP 限流。"
+	echo "- DOMAIN-SUFFIX,repo1.maven.org,📺 大流量"
+	echo "- DOMAIN-SUFFIX,repo.maven.apache.org,📺 大流量"
 	echo "# 模型 API / 账号 Token（必须排在 geosite 规则之前）"
 	echo "- DOMAIN-SUFFIX,opencode.ai,${API_GROUP}"
 	echo "# ZCode 账号/项目 Token：直连，避免默认代理（香港出口）拖到 15s 超时"
@@ -335,6 +401,29 @@ for r in "DOMAIN-SUFFIX,steamcontent.com,📺 大流量" \
          "IP-CIDR,149.154.160.0/20,📺 大流量,no-resolve"; do
 	if ! grep -qF -- "- $r" "$OUT.tmp"; then
 		echo "警告: 大流量段丢失: $r"
+		exit 1
+	fi
+done
+for r in "DOMAIN-SUFFIX,cdn-lfs.huggingface.co,📺 大流量" \
+         "DOMAIN-SUFFIX,cdn.hf.co,📺 大流量" \
+         "DOMAIN-SUFFIX,objects.githubusercontent.com,📺 大流量" \
+         "DOMAIN-SUFFIX,codeload.github.com,📺 大流量" \
+         "DOMAIN-SUFFIX,us.download.nvidia.com,📺 大流量" \
+         "DOMAIN-SUFFIX,blzddist1-a.akamaihd.net,📺 大流量" \
+         "DOMAIN-SUFFIX,repo1.maven.org,📺 大流量"; do
+	if ! grep -qF -- "- $r" "$OUT.tmp"; then
+		echo "警告: 大流量补充段丢失: $r"
+		exit 1
+	fi
+done
+for r in "DOMAIN-SUFFIX,api.bilibili.com,🎬 B站解锁" \
+         "DOMAIN-SUFFIX,cm.bilibili.com,🎬 B站解锁" \
+         "DOMAIN-SUFFIX,biliapi.net,🎬 B站解锁" \
+         "DOMAIN-SUFFIX,bilibili.com,🎯 全球直连" \
+         "DOMAIN-SUFFIX,bilivideo.com,🎯 全球直连" \
+         "DOMAIN-SUFFIX,hdslb.com,🎯 全球直连"; do
+	if ! grep -qF -- "- $r" "$OUT.tmp"; then
+		echo "警告: B站段丢失: $r"
 		exit 1
 	fi
 done

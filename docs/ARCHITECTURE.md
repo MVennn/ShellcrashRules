@@ -20,7 +20,7 @@
 starts/clash_modify.sh  ← 合并链路的入口（本仓待补，设备侧在跑）
    │  merger_yaml 合并四份来源：
    │    yamls/user.yaml          → 顶层内核参数（tcp-concurrent / find-process-mode / profile.*）
-   │    yamls/proxy-groups.yaml  → 自定义策略组（🤖 AI接口 / 🤖 AI网页 / 🤖 干净出口 / 📺 大流量 + 地区组）
+   │    yamls/proxy-groups.yaml  → 自定义策略组（🤖 AI接口 / 🤖 AI网页 / 🤖 干净出口 / 🎬 B站解锁 / 📺 大流量 + 地区组）
    │    yamls/proxies.yaml       → 自定义节点（HY2 池，由 sub-sync.sh 在生成配置前补齐）
    │    yamls/rules.yaml         → AI 分流规则（置顶，在所有模板规则之前）
    │  同时 cat 进 fake_ip_filter 与 fake_ip_filter.list 合成 fake-ip 排除清单
@@ -184,6 +184,7 @@ mihomo 校验（CrashCore -t）→ 加载
 | `exclude-filter` | 含 `香港\|HK\|Hong Kong\|公共` | `config/yamls/proxy-groups.yaml` | 排除香港出口（OpenAI 上游会返回 `unsupported_country_region_territory`）与公开节点（陌生人的出口不可用于 AI 流量） |
 | 🤖 AI网页 类型 | `select` + `filter: (印度\|India\|IN\|台湾-优化3)` | `config/yamls/proxy-groups.yaml` | **不能用 url-test** —— 按延迟会漂到被 Google 判为 CN 的节点 |
 | 🤖 干净出口 | `select` + 印度/台湾-优化3 过滤 | `config/yamls/proxy-groups.yaml` | 唯一经 Google 侧 `cc` 实测判为非 CN 的稳定出口 |
+| 🎬 B站解锁 | `select` + `filter: (香港WAP\|台湾-优化3\|日本-优化\|新加坡-优化3)` | `config/yamls/proxy-groups.yaml` | B站 API 域（`api/app/cm.bilibili.com`、`biliapi.com/.net`）的出口，规则见 `rules.yaml` J 段。**HY2 池到大陆方向不通**（香港/韩国能连 gstatic，但百度/知乎/B站 TLS EOF/超时；日本/新加坡节点本身超时）；实测 vmess 的香港WAP/台湾-优化3/日本-优化/新加坡-优化3 在 B站 `x/web-interface/zone` 分别显示对应地区，默认 `🇭🇰 香港WAP-优化`。CDN（bilivideo/hdslb/biliimg/acgvideo）直连，视频不占机场流量。属地按请求源 IP 判定，没有独立检测接口；评论接口是 `cm.bilibili.com`，只加 `api` 不够 |
 | 🛟 主备自动 | `fallback`：`♻️ 自动选择` → `🆓 公共备用` | `config/yamls/proxy-groups.yaml` | `🚀 节点选择` 的默认项；机场节点正常时走 `♻️ 自动选择`，机场全挂时自动落到公共备用。**不放 DIRECT**，避免两边都挂时静默直连泄露真实 IP |
 | 🆓 公共备用 | `url-test` + `filter: 🆓 公共` | `config/yamls/proxy-groups.yaml` | AutoMergePublicNodes 公开节点的最后手段：作为 `🛟 主备自动` 的兜底成员，同时保留在 `🚀 节点选择` 末尾供手动选择。节点由 PC 侧 `tools/public-nodes/screen.py` 定期筛选后写入路由器本地 `yamls/proxies.yaml`（不入库）；2026-10-21 全量筛选池 208 条通常只有 4–6 条存活，**不可用于 AI / 网银 / 邮箱** |
 | 📺 大流量 | `select`：`🆓 公共备用` → `♻️ 自动选择` | `config/yamls/proxy-groups.yaml` | 只承载 `rules.yaml` H 段（Steam / Epic 内容 CDN + 探测域 `proof.ovh.net`）与 I 段（成人站及其自有 CDN + `RULE-SET,porn` 上游规则集兜底、Telegram 的 `91.108.0.0/16` + `149.154.160.0/20`）。默认走公共池省机场流量；`bulk-guard.sh`（`OpenwrtOpsToolkit` 仓）实测吞吐低于 800 KB/s 时切回机场并冷却 1 小时。**订阅流媒体刻意不进**：YouTube 全族必须走干净出口（Google cc），Netflix/Disney 对公共节点几乎必然判代理；成人站与 Telegram 不绑账号/支付出口、全程加密，所以接进来 |
@@ -203,7 +204,7 @@ mihomo 校验（CrashCore -t）→ 加载
 
 - `🚀 节点选择` 的成员顺序（由 `reorder-groups.sh` 维护）：
   `🛟 主备自动`（默认）→ `♻️ 自动选择` → `🤖 AI接口` → 地区组 →
-  `🚀 手动切换` → `🆓 公共备用` → `📺 大流量` → `DIRECT`。
+  `🚀 手动切换` → `🆓 公共备用` → `🎬 B站解锁` → `📺 大流量` → `DIRECT`。
   注意：`store-selected` 会记住面板里的最后一次手动选择；设备上的守护进程
   在出口劣化时会把 `🚀 节点选择` 复位到 `♻️ 自动选择`，所以「默认项是主备自动」
   并不等于运行期一直在主备自动上（见 [PITFALLS.md](PITFALLS.md)「主备自动的兜底实际不生效」）。

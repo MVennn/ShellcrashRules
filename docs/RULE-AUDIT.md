@@ -470,3 +470,36 @@ sentry/intercom/auth0/statsig 是同一类问题：
 > 为什么不全删 444 条死规则：其中 222 条是「模板声明目标 vs 自定义覆盖」的
 > 审计证据（例如 `googlecommerce.com,REJECT` 被 `google` 关键词送去代理），
 > 删掉行为不变，但下次审计会看不出模板原本想怎么分。
+
+### 7.6 B站属地拆分（2026-10-22）
+
+**目标**：评论 / 主页的 IP 属地显示国外，视频仍走国内直连。
+
+**机制**：B站属地由「发请求那一刻的源 IP」判定，没有独立的「IP 检测」接口；
+路由器层只能按域名拆，发评论和刷首页走同一批 API 域名。所以要让属地变国外，
+必须把 API 域名整体指向国外组，CDN 保持直连。
+
+| 类别 | 域名 | 目标 |
+|---|---|---|
+| API | `api.bilibili.com` / `app.bilibili.com` / `cm.bilibili.com` / `api.live.bilibili.com` / `api.vc.bilibili.com` / `biliapi.com` / `biliapi.net` | 🎬 B站解锁 |
+| 页面/登录/静态 | `bilibili.com` / `bilibili.co` / `b23.tv` / `acg.tv` | 🎯 全球直连 |
+| 视频 CDN | `bilivideo.com` / `bilivideo.cn` / `hdslb.com` / `biliimg.com` / `acgvideo.com` / `upos-hz-mirrorakam.akamaized.net` | 🎯 全球直连 |
+
+**节点选择（2026-10-22 实测）**：
+
+- HY2 池到大陆方向不通：香港/韩国节点能连 `gstatic.com`，但 `baidu.com` / `zhihu.com` /
+  `www/api.bilibili.com` 全部 TLS EOF 或超时；日本/新加坡节点本身超时。
+- vmess 池可用：`香港WAP-优化` / `台湾-优化3` / `日本-优化` / `新加坡-优化3`。
+  B站 `x/web-interface/zone` 实测分别返回 香港 / 台湾 / 日本 / 新加坡。
+- 默认选 `香港WAP-优化`（延迟最低，且能解锁港澳台番剧）。
+
+**验证**：
+
+- `curl -x http://127.0.0.1:7890 https://api.bilibili.com/x/web-interface/zone`
+  → `country=香港`，`addr=45.149.92.7`；
+- `www.bilibili.com` 直连 200（0.24s）；
+- playurl 返回的 CDN（`upos-hz-mirrorakam.akamaized.net` / `upos-sz-mirrorcosov.bilivideo.com`）
+  Range 请求 206，`/connections` 链路 `["DIRECT","🎯 全球直连"]`，rule `DomainSuffix,bilivideo.com`。
+
+**注意**：这是「API 出国、CDN 直连」，不是「所有流量走国内」；抖音对境外 IP
+有内容与风控限制，小红书相对可用，但同一套拆法无法让「全部流量国内 + 属地国外」成立。

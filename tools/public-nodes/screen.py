@@ -2,12 +2,16 @@
 """公开节点筛选器（PC 侧执行）。
 
 流程：
-  1. 拉取 AutoMergePublicNodes 的 list.meta.yml（多个镜像兜底）；
-  2. 本地过滤：协议白名单、去诱饵、去重、按协议/网段限流；
+  1. 拉取多个公开节点源（AutoMergePublicNodes / Epodonios / ermaozi，各自多镜像兜底）；
+  2. 按源轮转合并后本地过滤：协议白名单、去诱饵、去重、按协议/网段限流；
   3. 分批推到路由器 /etc/ShellCrash/yamls/proxies.yaml，重启 ShellCrash
      让 mihomo 的健康检查实测每条节点；
   4. 只保留本轮存活的节点，其余记为 dead，进入冷却期；
   5. 下次只测「存活 + 从未见过 + 冷却期已过」的节点，避免重复测死节点。
+
+多源轮转的意义：单源池只有约 200 条、其中大半是测过的死节点；三个源轮转
+可以把候选池扩到 600+ 条，每天都有足够的新节点可测。轮转而不是顺序拼接，
+是为了让每个源都能拿到协议配额，不会被第一个源占满。
 
 路由器上没有 Python，所以本脚本在 PC 上跑；只通过 ssh/scp 读写
 /etc/ShellCrash/yamls/proxies.yaml，不改动仓库里的任何文件。
@@ -15,8 +19,11 @@
 用法：
   python tools/public-nodes/screen.py --dry-run      # 只看会测哪些，不碰路由器
   python tools/public-nodes/screen.py --full         # 首次全量扫（约 3-5 分钟）
-  python tools/public-nodes/screen.py                # 日常增量（默认最多 100 条）
-  python tools/public-nodes/screen.py --max-keep 6 --batch-size 40
+  python tools/public-nodes/screen.py                # 日常增量（默认最多 200 条）
+  python tools/public-nodes/screen.py --max-keep 12 --batch-size 40
+  python tools/public-nodes/screen.py --max-delay 600   # 只要低延迟节点
+
+延迟超过 --max-delay（默认 800ms）的节点不会写进配置，宁可少几条也不要拖慢兜底。
 
 状态与日志在 .work/public-nodes/（已 gitignore）。
 """
@@ -38,6 +45,11 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+HERE = Path(__file__).resolve().parent
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+import uri_parse  # noqa: E402 - 与本文件同目录，负责 Base64/URI 订阅解析
+
 WORK = ROOT / ".work" / "public-nodes"
 STATE_FILE = WORK / "state.json"
 LOG_FILE = WORK / "screen.log"
@@ -47,16 +59,38 @@ REMOTE_YAMLS = "/etc/ShellCrash/yamls"
 REMOTE_PROXIES = f"{REMOTE_YAMLS}/proxies.yaml"
 REMOTE_RUNTIME = "/tmp/ShellCrash/config.yaml"
 REMOTE_SECRET_CFG = "/etc/ShellCrash/configs/ShellCrash.cfg"
+CRON_FILE = "/etc/crontabs/root"
+CRON_BACKUP = "/tmp/ShellCrash/.crontab.public-screen"
 API = "http://127.0.0.1:9999"
 
 MARK_START = "# >>> PUBLIC-NODES"
 MARK_END = "# <<< PUBLIC-NODES <<<"
 NAME_PREFIX = "🆓 公共"
 
-SOURCES = [
-    "https://raw.githubusercontent.com/chengaopan/AutoMergePublicNodes/master/list.meta.yml",
-    "https://cdn.jsdelivr.net/gh/chengaopan/AutoMergePublicNodes@master/list.meta.yml",
-    "https://ghproxy.cn/https://raw.githubusercontent.com/chengaopan/AutoMergePublicNodes/master/list.meta.yml",
+# 每个源一组镜像，组内按顺序兜底；组之间轮转合并。
+SOURCES: list[tuple[str, list[str]]] = [
+    (
+        "automergenodes",
+        [
+            "https://raw.githubusercontent.com/chengaopan/AutoMergePublicNodes/master/list.meta.yml",
+            "https://cdn.jsdelivr.net/gh/chengaopan/AutoMergePublicNodes@master/list.meta.yml",
+            "https://ghproxy.cn/https://raw.githubusercontent.com/chengaopan/AutoMergePublicNodes/master/list.meta.yml",
+        ],
+    ),
+    (
+        "epodonios",
+        [
+            "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_base64_Sub.txt",
+            "https://ghproxy.net/https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_base64_Sub.txt",
+        ],
+    ),
+    (
+        "ermaozi",
+        [
+            "https://raw.githubusercontent.com/ermaozi/get_subscribe/main/subscribe/clash.yml",
+            "https://ghproxy.net/https://raw.githubusercontent.com/ermaozi/get_subscribe/main/subscribe/clash.yml",
+        ],
+    ),
 ]
 
 WHITELIST = {"vless", "vmess", "trojan", "ss", "hysteria2"}
@@ -64,6 +98,9 @@ PLACEHOLDER_UUID_PREFIX = "88888888-"
 
 DEAD_COOLDOWN = 3 * 86400       # 死节点 3 天内不再测
 STATE_TTL = 45 * 86400          # 45 天没在源里出现就清掉状态
+
+POOL_PER_TYPE = 500             # 每个协议最多取多少条进候选池
+POOL_PER_BASE = 5               # 同一 /24 或根域最多取多少条
 
 _secret_cache: str | None = None
 
@@ -75,6 +112,11 @@ def log(msg: str) -> None:
     line = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
     print(line, flush=True)
     WORK.mkdir(parents=True, exist_ok=True)
+    try:
+        if LOG_FILE.exists() and LOG_FILE.stat().st_size > 1_000_000:
+            LOG_FILE.replace(LOG_FILE.with_suffix(".log.1"))
+    except OSError:
+        pass
     with LOG_FILE.open("a", encoding="utf-8") as fh:
         fh.write(line + "\n")
 
@@ -103,26 +145,73 @@ def write_remote(path: str, content: str) -> None:
     ssh(f"cat > {tmp} && mv {tmp} {shlex.quote(path)}", stdin=content, timeout=60)
 
 
-def fetch_source() -> tuple[str, str]:
-    WORK.mkdir(parents=True, exist_ok=True)
+def fetch_text(urls: list[str], *, min_bytes: int = 1000) -> tuple[str, str]:
+    """按顺序试镜像，返回 (命中的 url, 正文)；全部失败返回 ("", "")。"""
     last_err = ""
-    for url in SOURCES:
+    for url in urls:
         try:
             proc = subprocess.run(
-                ["curl", "-fsSL", "-m", "60", url],
+                ["curl", "-fsSL", "-m", "90", url],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=90,
+                timeout=120,
             )
-            if proc.returncode == 0 and len(proc.stdout) > 10_000:
+            if proc.returncode == 0 and len(proc.stdout) >= min_bytes:
                 return url, proc.stdout
             last_err = f"{url}: rc={proc.returncode} bytes={len(proc.stdout)}"
         except Exception as exc:  # noqa: BLE001 - 逐个镜像兜底
             last_err = f"{url}: {exc}"
         log(f"镜像失败：{last_err}")
-    raise RuntimeError(f"所有源都拉取失败：{last_err}")
+    return "", ""
+
+
+def fetch_source() -> tuple[str, str]:
+    """兼容单源调用：返回第一个源的 (url, 正文)。"""
+    WORK.mkdir(parents=True, exist_ok=True)
+    name, mirrors = SOURCES[0]
+    url, text = fetch_text(mirrors, min_bytes=10_000)
+    if not text:
+        raise RuntimeError(f"源 {name} 全部镜像失败")
+    return url, text
+
+
+def fetch_all_sources() -> list[tuple[str, list]]:
+    """拉取全部源并解析成原始节点列表（Clash YAML 或 Base64/URI 订阅）。"""
+    WORK.mkdir(parents=True, exist_ok=True)
+    out: list[tuple[str, list]] = []
+    for name, mirrors in SOURCES:
+        url, text = fetch_text(mirrors)
+        if not text:
+            log(f"源 {name}：全部镜像失败，跳过")
+            continue
+        try:
+            nodes = uri_parse.parse_subscription(text)
+        except Exception as exc:  # noqa: BLE001 - 单源解析失败不该拖垮整轮
+            log(f"源 {name}：解析失败 {exc}")
+            continue
+        if not nodes:
+            log(f"源 {name}：解析结果为空，跳过")
+            continue
+        log(f"源 {name}：{len(nodes)} 条（{url}）")
+        out.append((name, nodes))
+    return out
+
+
+def interleave(groups: list[list]) -> list:
+    """按源轮转合并，避免第一个源把协议配额吃满。"""
+    merged: list = []
+    idx = 0
+    while True:
+        added = False
+        for group in groups:
+            if idx < len(group):
+                merged.append(group[idx])
+                added = True
+        if not added:
+            return merged
+        idx += 1
 
 
 # --------------------------------------------------------------------------
@@ -575,7 +664,9 @@ def pick_survivors(
     nodes: list[dict],
     results: dict[str, dict],
     max_keep: int,
-    max_delay: int = 1500,
+    max_delay: int = 800,
+    per_type: int = 8,
+    per_base: int = 5,
 ) -> list[dict]:
     alive = [
         n
@@ -594,9 +685,9 @@ def pick_survivors(
         endpoint = (str(node.get("server", "")).lower(), int(node.get("port", 0)))
         if endpoint in seen_endpoint:
             continue
-        if type_count.get(typ, 0) >= 3:
+        if type_count.get(typ, 0) >= per_type:
             continue
-        if bk and seen_base.get(bk, 0) >= 2:
+        if bk and seen_base.get(bk, 0) >= per_base:
             continue
         seen_endpoint.add(endpoint)
         type_count[typ] = type_count.get(typ, 0) + 1
@@ -611,38 +702,43 @@ def pick_survivors(
 # --------------------------------------------------------------------------
 # 主流程
 # --------------------------------------------------------------------------
-def main() -> int:
-    # Windows 下 stdout 被重定向到日志时默认用 GBK，统一成 UTF-8。
-    for stream in (sys.stdout, sys.stderr):
-        if hasattr(stream, "reconfigure"):
-            stream.reconfigure(encoding="utf-8", errors="replace")
+def pause_watchdogs() -> bool:
+    """测试期间停掉 guardian / legacy 看门狗，避免和 start.sh restart 抢。
 
-    parser = argparse.ArgumentParser(description="公开节点本地筛选器（PC 侧）")
-    parser.add_argument("--full", action="store_true", help="全量扫描（默认增量 100 条）")
-    parser.add_argument("--max-new", type=int, default=100, help="单轮最多测试多少条新节点")
-    parser.add_argument("--max-keep", type=int, default=8, help="最终保留多少条存活节点")
-    parser.add_argument("--max-delay", type=int, default=1500, help="延迟超过多少毫秒不保留（默认 1500）")
-    parser.add_argument("--batch-size", type=int, default=50, help="每批加载多少条（内存友好）")
-    parser.add_argument("--settle", type=int, default=25, help="重启后等待健康检查的秒数")
-    parser.add_argument("--dry-run", action="store_true", help="只拉取和筛选，不碰路由器")
-    args = parser.parse_args()
+    历史事故：两者并发时会出现双实例，两个启动同时写 /tmp/ShellCrash/config.yaml，
+    生成出的配置带重复的 proxies:/proxy-groups: 键，校验失败后静默回退基础配置。
+    上次异常退出留下的备份先恢复，避免把「已暂停」的 crontab 当成正常状态再备份一次。
+    """
+    ssh(f"test -f {CRON_BACKUP} && cp {CRON_BACKUP} {CRON_FILE} && /etc/init.d/cron restart", check=False)
+    proc = ssh(
+        f"cp {CRON_FILE} {CRON_BACKUP} && "
+        f"grep -vE 'guardian\\.sh|start_legacy_wd\\.sh' {CRON_FILE} > /tmp/.cron.public-screen && "
+        f"cat /tmp/.cron.public-screen > {CRON_FILE} && /etc/init.d/cron restart",
+        check=False,
+    )
+    ok = proc.returncode == 0
+    log("已暂停 guardian / legacy 看门狗" if ok else "暂停看门狗失败，继续（可能与重启竞争）")
+    return ok
 
+
+def resume_watchdogs() -> None:
+    ssh(
+        f"test -f {CRON_BACKUP} && cp {CRON_BACKUP} {CRON_FILE} && /etc/init.d/cron restart",
+        check=False,
+    )
+    log("已恢复 guardian / legacy 看门狗")
+
+
+def run(args: argparse.Namespace) -> int:
     WORK.mkdir(parents=True, exist_ok=True)
     log("=" * 60)
     log(f"开始：full={args.full} max_new={args.max_new} max_keep={args.max_keep} batch={args.batch_size}")
 
-    url, text = fetch_source()
-    log(f"源：{url}（{len(text)} bytes）")
-    try:
-        raw = yaml.safe_load(text) or {}
-    except yaml.YAMLError as exc:
-        log(f"YAML 解析失败：{exc}")
+    sources = fetch_all_sources()
+    if not sources:
+        log("所有源都拉取失败")
         return 1
-    raw_nodes = raw.get("proxies") if isinstance(raw, dict) else None
-    if not isinstance(raw_nodes, list):
-        log("源里没有 proxies 列表")
-        return 1
-
+    raw_nodes = interleave([nodes for _, nodes in sources])
     valid = [n for n in (normalize_node(x) for x in raw_nodes) if n]
 
     state = load_state()
@@ -652,8 +748,11 @@ def main() -> int:
     # 固定按源顺序取池，保证每轮的 pool 稳定；未测过的新节点会自然进入
     # fresh 列表，不需要靠重排抢配额。per_type/per_base 只做上限，防止
     # 单一协议或单一服务商刷屏。
-    pool = select_pool(valid, per_type=100, per_base=2)
-    log(f"原始 {len(raw_nodes)} 条 → 合格 {len(valid)} 条 → 多样性池 {len(pool)} 条")
+    pool = select_pool(valid, per_type=POOL_PER_TYPE, per_base=POOL_PER_BASE)
+    log(
+        f"原始 {len(raw_nodes)} 条（{len(sources)} 个源）→ 合格 {len(valid)} 条 → "
+        f"多样性池 {len(pool)} 条"
+    )
 
     old_content = "" if args.dry_run else read_remote(REMOTE_PROXIES)
     existing = parse_existing(old_content) if old_content else []
@@ -700,7 +799,14 @@ def main() -> int:
         direct = test_existing_direct(existing, state)
         if direct is not None:
             results = direct
-            survivors = pick_survivors(existing, results, args.max_keep, args.max_delay)
+            survivors = pick_survivors(
+                existing,
+                results,
+                args.max_keep,
+                args.max_delay,
+                args.max_per_type,
+                args.max_per_base,
+            )
             if len(survivors) == len(existing) and all(r.get("alive") for r in results.values()):
                 log("现有节点全部存活，配置不变")
                 return 0
@@ -718,7 +824,14 @@ def main() -> int:
                 backup=backup,
                 old_content=old_content,
             )
-            survivors = pick_survivors(test_list, results, args.max_keep, args.max_delay)
+            survivors = pick_survivors(
+                test_list,
+                results,
+                args.max_keep,
+                args.max_delay,
+                args.max_per_type,
+                args.max_per_base,
+            )
     else:
         backup = backup_remote()
         log(f"已备份路由器 proxies.yaml → {backup}")
@@ -730,7 +843,14 @@ def main() -> int:
             backup=backup,
             old_content=old_content,
         )
-        survivors = pick_survivors(test_list, results, args.max_keep, args.max_delay)
+        survivors = pick_survivors(
+            test_list,
+            results,
+            args.max_keep,
+            args.max_delay,
+            args.max_per_type,
+            args.max_per_base,
+        )
     log(f"本轮存活 {sum(1 for r in results.values() if r.get('alive'))} 条；最终保留 {len(survivors)} 条")
     for n in survivors:
         log(f"  保留 {n.get('type'):8} {n.get('server')}:{n.get('port')} {results[fingerprint(n)]['delay']}ms")
@@ -771,6 +891,35 @@ def main() -> int:
     log(f"验证：组 {NAME_PREFIX}备用 成员 {len(members)}，当前存活 {alive_now}，now={group.get('now')}")
     log("完成")
     return 0
+
+
+def main() -> int:
+    # Windows 下 stdout 被重定向到日志时默认用 GBK，统一成 UTF-8。
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+    parser = argparse.ArgumentParser(description="公开节点本地筛选器（PC 侧）")
+    parser.add_argument("--full", action="store_true", help="全量扫描（默认增量 200 条）")
+    parser.add_argument("--max-new", type=int, default=200, help="单轮最多测试多少条新节点")
+    parser.add_argument("--max-keep", type=int, default=16, help="最终保留多少条存活节点")
+    parser.add_argument("--max-delay", type=int, default=800, help="延迟超过多少毫秒不保留（默认 800）")
+    parser.add_argument("--max-per-type", type=int, default=8, help="同一协议最多保留几条（默认 8）")
+    parser.add_argument("--max-per-base", type=int, default=5, help="同一 /24 或根域最多保留几条（默认 5）")
+    parser.add_argument("--batch-size", type=int, default=50, help="每批加载多少条（内存友好）")
+    parser.add_argument("--settle", type=int, default=25, help="重启后等待健康检查的秒数")
+    parser.add_argument("--dry-run", action="store_true", help="只拉取和筛选，不碰路由器")
+    args = parser.parse_args()
+
+    if args.dry_run:
+        return run(args)
+
+    paused = pause_watchdogs()
+    try:
+        return run(args)
+    finally:
+        if paused:
+            resume_watchdogs()
 
 
 if __name__ == "__main__":

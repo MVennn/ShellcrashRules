@@ -405,7 +405,7 @@ else
 fi
 NOWG=$(curl -s -m 5 -H "Authorization: Bearer $ASEC" "http://127.0.0.1:9999/proxies/$AWE" 2>/dev/null | grep -oE "\"now\":\"[^\"]*\"" | head -1 | sed "s/\"now\":\"//;s/\"$//")
 case "$NOWG" in
-	*HY2*|*印度*|*台湾-优化3*) echo "OK: 🤖 AI网页 出口 = $NOWG" ;;
+	*HY2*|*台湾-优化3*|*台湾-优化2-GPT*) echo "OK: 🤖 AI网页 出口 = $NOWG" ;;
 	*) echo "WARN: 🤖 AI网页 出口 = ${NOWG:-空}" ;;
 esac
 if [ -x /etc/ShellCrash/guardian.sh ] && grep -q "CLEAN" /etc/ShellCrash/guardian.sh; then

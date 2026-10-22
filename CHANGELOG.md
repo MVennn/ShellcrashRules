@@ -13,9 +13,17 @@
 
 ### 配置
 
+- 新增 `🎬 B站解锁` 组 —— `select`：`香港WAP` / `台湾-优化3` / `日本-优化` / `新加坡-优化3`，默认 `🇭🇰 香港WAP-优化`；只由 `rules.yaml` J 段的 B站 API 域引用。实测 HY2 池到大陆方向不通（香港/韩国能连 gstatic，但百度/知乎/B站 TLS EOF/超时；日本/新加坡节点本身超时），vmess 的港/台/日/新节点在 B站 `x/web-interface/zone` 分别显示对应地区
 - 新增 `📺 大流量` 组 —— `select`：`🆓 公共备用` → `♻️ 自动选择`，只由规则 H 段的大文件下载域引用；默认走公共池省机场流量，吞吐低于阈值时由 `bulk-guard.sh` 切回机场。`reorder-groups.sh` 的成员顺序与兜底插入同步（`🚀 节点选择` 末尾、`DIRECT` 之前）
 - 调整 `config/yamls/proxies.example.yaml` —— 说明当前设备不再维护手工节点（节点全部来自订阅 + `sub-sync.sh` 自动补齐），模板只用于额外加备用入口；`cp` 重建时提醒保留 SUB-SYNC 块
 - 调整 `config/yamls/proxies.example.yaml` —— 明确设备上的 `proxies.yaml` 有 `SUB-SYNC` / `PUBLIC-NODES` 两个自动块，**禁止整文件覆盖**（2026-10-22 曾因整文件部署冲掉 4 个公开节点）
+
+### 工具
+
+- 调整 `tools/public-nodes/screen.py` —— 数据源从单一 AutoMergePublicNodes 扩到三个（新增 Epodonios、ermaozi），按源轮转合并后再进多样性池；候选池 200 → 1192 条
+- 调整 `tools/public-nodes/screen.py` —— `--max-keep` 默认 8 → 16、`--max-new` 100 → 200、`--max-delay` 1500 → 800；`pick_survivors` 里「每协议最多 3 条 / 每网段最多 2 条」的硬编码上限改为参数 `--max-per-type` / `--max-per-base`（默认 8 / 5），此前 `--max-keep` 调大也不会生效
+- 调整 `tools/public-nodes/screen.py` —— 运行期间自动暂停路由器 `guardian.sh` / `start_legacy_wd.sh` 的 cron 并在结束时恢复：两者与 `start.sh restart` 并发会生成带重复 `proxies:` / `proxy-groups:` 键的坏配置，整轮作废
+- 调整 `tools/public-nodes/README.md` —— 补多源说明、新默认值，以及计划任务的「全自动」设置（错过补跑 / 电池也跑 / 失败重试）
 
 ### 设备侧（不入库）
 
@@ -25,6 +33,8 @@
 
 ### 规则
 
+- 新增 `K. 大流量补充` 段 —— HuggingFace LFS（`cdn-lfs.huggingface.co`、`cdn.hf.co`、`cdn-lfs*.hf.co`、`cas-bridge.xethub.hf.co`）、GitHub 发布包（`objects.githubusercontent.com`、`release-assets.githubusercontent.com`、`codeload.github.com`）、NVIDIA/AMD 驱动（`us/international.download.nvidia.com`、`drivers/download.amd.com`）、游戏补丁（暴雪 `blzddist1-3-a.akamaihd.net`、`cdn.gog.com`、`gog-cdn-fastly.gog.com`、`origin-a.akamaihd.net`、`eaassets-a.akamaihd.net`、`ubistatic-a.akamaihd.net`）、Maven（`repo1.maven.org`、`repo.maven.apache.org`）全部指向 `📺 大流量`。实测公共池 1.56/1.45 MB/s、机场 0.83/1.27 MB/s；真实下载验证：HF 3.37 MB/s、GitHub release 3.06 MB/s，链路均为 `📺 大流量 → 🆓 公共备用 → 🆓 公共-03`。**刻意不收**：npm/PyPI/crates（小文件，公共节点延迟反而更慢）、Docker Hub（按 IP 限流，共享 IP 大概率 429）、Apple/Microsoft 更新（CDN 已解析到国内节点）、Netflix/Disney（DRM + 代理检测）、任何登录/上传/P2P。DNS 预检剔除了 NXDOMAIN 的 `delivery.mp.microsoft.com`、`blizzard.vo.llnwd.net`、`ubisoft-a.akamaihd.net`、`riotcdn.net`
+- 新增 `J. B站` 段 —— `api/app/cm.bilibili.com`、`api.live/api.vc.bilibili.com`、`biliapi.com/.net` 指向 `🎬 B站解锁`；`bilibili.com/.co`、`b23.tv`、`acg.tv`、`bilivideo.com/.cn`、`hdslb.com`、`biliimg.com`、`acgvideo.com`、`upos-hz-mirrorakam.akamaized.net` 显式直连。目的：评论/主页 IP 属地显示节点所在国家，视频 CDN 不占机场流量；B站属地按请求源 IP 判定，没有独立检测接口。评论接口是 `cm.bilibili.com`，只加 `api.bilibili.com` 不够（2026-10-22 实测：手机端评论仍显示广东）
 - 新增 `I. 视频站点 + Telegram` 段 —— 成人站（pornhub / xvideos / xnxx / xhamster / redtube / youporn / spankbang / eporner / hqporner / txxx / thumbzilla / tube8 / beeg / porntrex）与其自有 CDN（phncdn / xvideos-cdn / xnxx-cdn / xhcdn / rdcdn / ypcdn / spankbang.party），加 `RULE-SET,porn`（上游 MetaCubeX category-porn，6,520 个域名，日更）与 `DOMAIN-KEYWORD,porn` 兜底未列到的小站；Telegram 加 `cdn-telegram.org` 与两个 DC 段（`91.108.0.0/16` / `149.154.160.0/20`），全部指向 `📺 大流量`。不碰通用 CDN；Telegram 媒体与消息同连接，只能整段接
 - 新增 `H. 大流量` 段 —— `steamcontent.com` / `steamstatic.com` / `steamcdn-a.akamaihd.net` / `epicgames-download1.akamaized.net` / `download.epicgames.com` / `proof.ovh.net` 指向 `📺 大流量`。订阅流媒体刻意不进：YouTube 全族必须走 `🤖 干净出口`（Google cc 判定），Netflix/Disney 对公共节点几乎必然判代理。探测域用 `proof.ovh.net` 而不是 Cloudflare 的 `__down`：后者在公共节点上会被限流成 403，403 的「速度」会被误判成节点慢
 - 新增 Google 广告/追踪 carve-out —— `doubleclick.net` / `googlesyndication.com` / `googleadservices.com` / `google-analytics.com` / `googleadsserving.cn` / `ads.google.com` / `adservice.google.com` / `pagead.google.com` / `pagead.l.google.com` / `pagead-tpc.l.google.com` / `mobileads.google.com` / `afd.l.google.com` / `badad.googleplex.com` / `csi.gstatic.com` / `collector.githubapp.com` / `app-measurement.com` 改回 `🛑 广告拦截`：此前被自定义 `DOMAIN-KEYWORD,google` / `DOMAIN-SUFFIX,google.com` 整段遮蔽，实测走 `🤖 干净出口` 并真实下载 59–63 KB；`doubleclick.net` 同时挡住 `googleads.*` 子域
@@ -33,6 +43,9 @@
 
 ### 脚本
 
+- 调整 `config/generators/ai-rules-update.sh` —— 新增 J 段（B站 API 出国 / CDN 直连）并逐条校验，防止每周更新被上游规则去重掉
+- 调整 `config/hooks/reorder-groups.sh` —— 组定义顺序与 `🚀 节点选择` 成员顺序加入 `🎬 B站解锁`（`🆓 公共备用` 之后、`📺 大流量` 之前）
+- 调整 `config/generated/rules.yaml` —— 由路由器重生成（396 条；J 段 +17，K 段由并行批次加入）
 - 新增 `config/hooks/rules-porn.sh` —— 幂等注入 `porn` rule-provider（MetaCubeX category-porn，`type: http` / `format: mrs` / 日更）；目标组不存在时跳过，写前校验行数、原子替换
 - 调整 `config/starts/clash_modify.sh` —— `merger_yaml` 之后调用 `rules-porn.sh`（在 rules-mid / rules-cnip 之前）
 - 调整 `config/generators/ai-rules-update.sh` —— 新增 H 段（大流量下载域）与 I 段（视频站点 + Telegram）；生成后逐条校验 H/I 段与 `RULE-SET,porn` 存在，防止每周更新被上游规则去重掉
@@ -49,6 +62,9 @@
 
 ### 文档
 
+- 调整 `docs/ARCHITECTURE.md` —— §1.1 组清单、§4 参数表、§4.1 成员顺序加入 `🎬 B站解锁`
+- 调整 `docs/RULE-AUDIT.md` —— 新增 §7.6：B站属地拆分的机制、API/CDN 域清单、HY2 与 vmess 节点实测、验证命令
+- 调整 `docs/PITFALLS.md` —— 新增第 29 条：「IP 属地」不是独立检测接口，改不了显示只能改出口
 - 调整 `docs/ARCHITECTURE.md` —— §4 新增 `📺 大流量` 组与大流量守卫 cron；§4.1 成员顺序同步；配置链路图更新自定义组与 `proxies.yaml` 说明；§1.2 钩子从三个变四个（新增 `rules-porn.sh`）；文件归属表加 `bulk-guard.sh` 与 `porn` provider
 - 调整 `docs/PITFALLS.md` —— 新增第 26 条（url-test/fallback 只测首包，不测带宽，含 2/4/8/20MB 校准数据）、第 27 条（「主备自动」的兜底被守护进程复位绕过，实际不生效）、第 28 条（手写域名名单不可能穷举，改用上游类别规则集）
 - 调整 `docs/DEPLOY.md` —— 部署映射表加入 `config/hooks/rules-porn.sh`

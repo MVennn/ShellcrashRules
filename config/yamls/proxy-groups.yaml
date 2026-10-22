@@ -81,6 +81,30 @@
   exclude-filter: "过滤|流量|到期|剩余|套餐|香港|HK|Hong Kong|公共"
 
 # ============================================================
+# 🎬 B站 —— API 出国、CDN 直连
+#
+# 目的：让评论 / 主页的「IP 属地」显示为节点所在国家，同时视频流量仍走国内直连。
+# B站属地由「发请求那一刻的源 IP」决定，没有独立的检测接口：
+#   API 域名（api/app/cm.bilibili.com、biliapi.com/.net）必须真的从国外出去；
+#   CDN（bilivideo/hdslb/biliimg/acgvideo）保持直连，视频不占机场流量。
+# 规则见 rules.yaml 的 J 段。
+#
+# 为什么不用 HY2 池（2026-10-22 实测）：
+#   HY2 的香港/韩国节点能连 gstatic，但百度、知乎、www/api.bilibili.com 全部
+#   TLS EOF / 超时；日本/新加坡节点本身超时。HY2 池到大陆方向不通。
+#   vmess 池的 香港WAP / 台湾-优化3 / 日本-优化 / 新加坡-优化3 可正常访问 B站，
+#   B站 zone 实测分别显示 香港 / 台湾 / 日本 / 新加坡。
+#   （Google 把 vmess 池判 cc=CN 是 Google 侧的反滥用口径，与 B站属地无关。）
+# 用 select 不用 url-test：属地要稳定，url-test 会在港/台/日/新之间漂。
+# 默认 香港WAP-优化：实测延迟最低（152ms）且能解锁港澳台番剧；要换地区在面板里切。
+# ============================================================
+- name: 🎬 B站解锁#🚀 节点选择
+  type: select
+  include-all-proxies: true
+  filter: "(香港WAP|台湾-优化3|日本-优化|新加坡-优化3)"
+  exclude-filter: "过滤|流量|到期|剩余|套餐|公共"
+
+# ============================================================
 # 🆓 公共备用 —— AutoMergePublicNodes（NoMoreWalls fork）公开节点
 #
 # 定位：机场入口全挂时的网页保底通道，挂在 🚀 节点选择 末尾。
@@ -104,10 +128,13 @@
 # ============================================================
 # 📺 大流量 —— 已知的大文件下载走公共池，省机场流量
 #
-# 由 rules.yaml 的两段指进来：
+# 由 rules.yaml 的三段指进来：
 #   H. 大流量：Steam / Epic 下载 CDN、proof.ovh.net（守卫探测域，Range 取前 4MB）
 #   I. 视频站点 + Telegram：成人站与其自有 CDN、Telegram 的两个 DC 段
 #      （媒体与消息走同一条 MTProto 连接，没法只挑视频，只能整段接）
+#   K. 大流量补充：HuggingFace LFS / GitHub 发布包 / NVIDIA+AMD 驱动 /
+#      暴雪·GOG·EA·育碧补丁 / Maven 中央仓库
+#      （实测公共池 1.5 MB/s 不慢于机场，见 K 段注释）
 #
 # 订阅流媒体刻意不进来：
 #   - YouTube 全族必须走 🤖 干净出口 —— 通用池出口被 Google 判 CN，会限流/报错；

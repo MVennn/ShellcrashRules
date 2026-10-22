@@ -196,7 +196,8 @@ BEGIN {
 	order[12]="🇩🇪 德国节点"
 	order[13]="🇬🇧 英国节点"
 	order[14]="🤖 人工智能"
-	norder=14
+	order[15]="🎬 B站解锁"
+	norder=15
 }
 /^proxy-groups:/ { inpg=1; print; next }
 inpg && /^[a-z]/ {
@@ -270,9 +271,10 @@ BEGIN {
 	order[14] = "👍 高级节点"
 	order[15] = "🚀 手动切换"
 	order[16] = "🆓 公共备用"
-	order[17] = "📺 大流量"
-	order[18] = "DIRECT"
-	norder = 18
+	order[17] = "🎬 B站解锁"
+	order[18] = "📺 大流量"
+	order[19] = "DIRECT"
+	norder = 19
 	want[1] = "🛟 主备自动"
 	want[2] = "🆓 公共备用"
 	want[3] = "📺 大流量"
