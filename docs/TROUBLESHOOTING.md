@@ -263,7 +263,8 @@ python -c "import json;d=json.load(open('findings.json',encoding='utf-8'));print
 | **审计输入是旧快照** | `config.yaml` 的时间戳早于最近一次订阅更新 | 重新 `scp` 运行配置 |
 | 上游 lists 与运行配置不是同一版 | `lists/` 里的上游列表和配置里的分段对不上 | 重新下载上游列表；或改用 `third-party/ACL4SSR/Clash/` 里与该配置配套的那份 |
 | 模板顺序本身冲突（ProxyLite 宽泛 TLD 早于 ChinaDomain） | 冲突条目集中在 `.hk` / Steam / Bing / googleapis | 「分类修正层」+ CN 中间层；见 [RULE-AUDIT.md](RULE-AUDIT.md) §4 |
-| 有意覆盖被当成冲突 | 剩余 severe 集中在 9 条 FCM、2 条 flashtalking 广告、app-measurement 直连、2mdn 广告 | **这些是有意的**，登记在白名单里，不要「修」掉 |
+| **Google 广告域被宽泛 `google` 规则遮蔽** | `pagead2.googlesyndication.com` / `www.google-analytics.com` 的命中规则是 `DomainKeyword,google`，出口是 `🤖 干净出口`；模板 BanAD 的 REJECT 在更后面 | 在 Google 块之前加广告 carve-out；`ai-api-check.sh` 第 18 段逐条断言 |
+| 有意覆盖被当成冲突 | 剩余 severe 集中在 9 条 FCM、2 条 flashtalking 广告、2mdn 广告；`app-measurement.com` 已于 2026-10-22 改 REJECT | **这些是有意的**，登记在白名单里，不要「修」掉 |
 
 **预期基线**：Phase 1/2 实施后是「139 个代表域名 **0 异常**」，
 剩余 13 条 severe **全部是有意覆盖**。突然变多 = 输入或配置出了问题，不是规则退化。
@@ -307,7 +308,7 @@ python mihomo/mihomo_log.py 20 joox.com
 
 ## 还没找到？
 
-1. 先跑 `ai-api-check.sh` —— 16 段覆盖了本仓最容易悄悄坏掉的十几个点。
+1. 先跑 `ai-api-check.sh` —— 18 段覆盖了本仓最容易悄悄坏掉的十几个点。
 2. 再看仓库根 [CHANGELOG.md](../CHANGELOG.md) —— 过去的每一次故障都记了现象与根因。
 3. 还不行 → 往 [PITFALLS.md](PITFALLS.md) 加一条（格式见该篇末尾），
    并在 [TROUBLESHOOTING.md](TROUBLESHOOTING.md) 补一个检索入口。

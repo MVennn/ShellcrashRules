@@ -29,6 +29,8 @@
 19. [策略名为空会写出尾逗号规则，mihomo 起不来](#p19)
 20. [改完 nft 规则不清 conntrack，等于没改](#p20)
 21. [凭据不再写在源码里：不设环境变量就报错退出](#p21)
+22. [urldecode 的八进制往返会静默变成空串](#p22)
+23. [宽泛 Google 规则遮蔽模板广告 REJECT](#p23)
 
 ---
 
@@ -538,6 +540,8 @@ export MIHOMO_SECRET="$(ssh root@10.0.0.1 'grep -m1 "^secret=" /etc/ShellCrash/c
 
 ---
 
+<a id="p22"></a>
+
 ## 22. urldecode 的八进制往返会静默变成空串
 
 **现象**：在路由器上（uhttpd 环境）用 shell 脚本做 URL 解码，**所有组名查找都失败** ——
@@ -564,3 +568,31 @@ BEGIN { for (i = 0; i < 256; i++) ord[sprintf("%c", i)] = i }
 
 **下次怎么避**：凡是"编码 → 字符串 → 再解码"的两步流程，先问一句**中间那层格式是谁消费的** ——
 多一次转义就多一次静默失败的机会。
+
+---
+
+<a id="p23"></a>
+
+## 23. 宽泛 Google 规则遮蔽模板广告 REJECT
+
+**现象**：Google 广告/追踪域名没有被拦截，反而走 `🤖 干净出口` 并真实下载数据 ——
+`pagead2.googlesyndication.com` 单次 63 KB、`www.google-analytics.com` 59 KB。
+模板 BanAD 里明明有这些域名的 REJECT 规则。
+
+**根因**：自定义层为了「一次 Google 会话一个出口 IP」，在模板规则之前放了
+`DOMAIN-SUFFIX,google.com,🤖 干净出口` 和 `DOMAIN-KEYWORD,google,🤖 干净出口`。
+模板 BanAD 的 `DOMAIN-SUFFIX,googlesyndication.com,🛑 广告拦截` 等规则排在后面，
+先匹配先赢，永远轮不到。`doubleclick.net` 更隐蔽：父域规则本身不含 `google`，
+按规则值做遮蔽审计不会报；但真实广告主机 `googleads.g.doubleclick.net` 含 `google`，
+仍被关键词抢走。
+
+**解法**：在 Google 块之前加广告 carve-out（`doubleclick.net`、`googlesyndication.com`、
+`googleadservices.com`、`google-analytics.com`、`googleadsserving.cn`、
+`ads/adservice/pagead*.google.com`、`mobileads.google.com`、`afd.l.google.com`、
+`badad.googleplex.com`、`csi.gstatic.com`、`collector.githubapp.com`、`app-measurement.com`），
+并让 `ai-api-check.sh` 第 18 段断言 carve-out 在 `google.com` / `google` 关键词之前。
+`googletagmanager.com` / `googletagservices.com` 改走 `🚀 节点选择`；
+`googlecommerce.com` 保留代理（Google Shopping/Merchant，不一定是广告）。
+
+**出处**：2026-10-22 广告 carve-out 批次，见仓库根 [CHANGELOG.md](../CHANGELOG.md)。
+审计结论与实测数字见 [RULE-AUDIT.md](RULE-AUDIT.md) §7。

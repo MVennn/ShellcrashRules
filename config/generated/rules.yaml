@@ -1,5 +1,5 @@
 # AI 服务分流规则 — 由 MetaCubeX/meta-rules-dat geosite category-ai-chat-!cn 生成
-# 更新于 2026-10-22 02:05:17
+# 更新于 2026-10-22 02:47:03
 # 同键规则已去重（保留首次出现；顶部覆盖优先）
 # ===== G. 高带宽直连（省机场流量，2026-10-21）=====
 # 模板把这些域名送进代理组，但它们在国内有可用 CDN，实测直连更快：
@@ -36,6 +36,15 @@
 - DOMAIN,geminiweb-pa.clients.google.com,🤖 干净出口
 - DOMAIN,geminiweb-pa.clients6.google.com,🤖 干净出口
 - DOMAIN-SUFFIX,generativelanguage.googleapis.com,🤖 干净出口
+# 共享 SaaS / 非 AI 域（上游 geosite 误收；必须早于 geosite 同名规则）
+# Envato/ThemeForest 是素材市场，LivePerson 是客服聊天，Datadog 是 RUM —— 都不绑定 AI 出口
+- DOMAIN-SUFFIX,envato.com,🚀 节点选择
+- DOMAIN-SUFFIX,envato-static.com,🚀 节点选择
+- DOMAIN-SUFFIX,envatousercontent.com,🚀 节点选择
+- DOMAIN-SUFFIX,themeforest.net,🚀 节点选择
+- DOMAIN-SUFFIX,liveperson.net,🚀 节点选择
+- DOMAIN-SUFFIX,lpsnmedia.net,🚀 节点选择
+- DOMAIN,browser-intake-datadoghq.com,🚀 节点选择
 - DOMAIN,ai.google.dev,🤖 人工智能
 - DOMAIN,alkalicore-pa.clients6.google.com,🤖 人工智能
 - DOMAIN,alkalimakersuite-pa.clients6.google.com,🤖 人工智能
@@ -187,12 +196,6 @@
 - DOMAIN-SUFFIX,claudepages.dev,🤖 人工智能
 - DOMAIN-SUFFIX,claudestudio.com,🤖 人工智能
 - DOMAIN-SUFFIX,claudeusercontent.com,🤖 人工智能
-- DOMAIN-SUFFIX,envato-static.com,🤖 人工智能
-- DOMAIN-SUFFIX,envato.com,🤖 人工智能
-- DOMAIN-SUFFIX,envatousercontent.com,🤖 人工智能
-- DOMAIN-SUFFIX,themeforest.net,🤖 人工智能
-- DOMAIN-SUFFIX,liveperson.net,🤖 人工智能
-- DOMAIN-SUFFIX,lpsnmedia.net,🤖 人工智能
 - DOMAIN-SUFFIX,stitch.withgoogle.com,🤖 人工智能
 - DOMAIN-SUFFIX,bard.google.com,🤖 人工智能
 - DOMAIN-SUFFIX,geller-pa.googleapis.com,🤖 人工智能
@@ -222,7 +225,6 @@
 - DOMAIN-SUFFIX,openai.com.cdn.cloudflare.net,🤖 人工智能
 - DOMAIN,copilot-telemetry-service.githubusercontent.com,🤖 人工智能
 - DOMAIN,copilot-telemetry.githubusercontent.com,🤖 人工智能
-- DOMAIN,browser-intake-datadoghq.com,🤖 人工智能
 - DOMAIN,o33249.ingest.sentry.io,🤖 人工智能
 - DOMAIN,o33249.ingest.us.sentry.io,🤖 人工智能
 - DOMAIN,openai.qualtrics.com,🤖 人工智能
@@ -240,6 +242,29 @@
 - DOMAIN-SUFFIX,2mdn.net,🛑 广告拦截
 - DOMAIN-SUFFIX,clickserve.dartsearch.net,🛑 广告拦截
 - DOMAIN-SUFFIX,connect.facebook.net,🛑 广告拦截
+# A2. Google 广告/追踪 carve-out（必须在 google.com / DOMAIN-KEYWORD,google 之前）
+# 宽泛 google 规则会把这些模板 REJECT 整段抢走；实测 pagead2/google-analytics
+# 曾走 🤖 干净出口并真实下载 59–63 KB。doubleclick.net 同时挡住 googleads.* 子域。
+- DOMAIN-SUFFIX,doubleclick.net,🛑 广告拦截
+- DOMAIN-SUFFIX,googlesyndication.com,🛑 广告拦截
+- DOMAIN-SUFFIX,googleadservices.com,🛑 广告拦截
+- DOMAIN-SUFFIX,google-analytics.com,🛑 广告拦截
+- DOMAIN-SUFFIX,googleadsserving.cn,🛑 广告拦截
+- DOMAIN-SUFFIX,ads.google.com,🛑 广告拦截
+- DOMAIN-SUFFIX,adservice.google.com,🛑 广告拦截
+- DOMAIN-SUFFIX,pagead.google.com,🛑 广告拦截
+- DOMAIN-SUFFIX,pagead.l.google.com,🛑 广告拦截
+- DOMAIN-SUFFIX,pagead-tpc.l.google.com,🛑 广告拦截
+- DOMAIN-SUFFIX,mobileads.google.com,🛑 广告拦截
+- DOMAIN-SUFFIX,afd.l.google.com,🛑 广告拦截
+- DOMAIN-SUFFIX,badad.googleplex.com,🛑 广告拦截
+- DOMAIN-SUFFIX,csi.gstatic.com,🛑 广告拦截
+- DOMAIN-SUFFIX,collector.githubapp.com,🛑 广告拦截
+- DOMAIN-SUFFIX,app-measurement.com,🛑 广告拦截
+# GTM/GTS 是共享标签管理器：不绑 Google 账号出口，走通用代理
+- DOMAIN-SUFFIX,googletagmanager.com,🚀 节点选择
+- DOMAIN-SUFFIX,googletagservices.com,🚀 节点选择
+# googlecommerce.com 保留代理（Google Shopping/Merchant，不一定是广告）
 #GEMINI_E_BLOCK_MARKER Gemini/Google 关键端点统一出口（必须早于 IP-CIDR 与模板 DOMAIN-KEYWORD,google）
 # 这些端点若落到 IP-CIDR 203.208.32.0/19 或 DOMAIN-KEYWORD,google，会以中国出口 IP 访问，Google 即判定为中国区
 - DOMAIN-SUFFIX,gstatic.com,🤖 干净出口
@@ -260,7 +285,6 @@
 - DOMAIN-SUFFIX,google.com,🤖 干净出口
 - DOMAIN-KEYWORD,google,🤖 干净出口
 - DOMAIN-SUFFIX,googleapis.com,🤖 干净出口
-- DOMAIN-SUFFIX,googletagmanager.com,🤖 干净出口
 #CLEAN_EXIT_BLOCK_MARKER 2026-10-20: Google 残留域族 / GFE 段 / YouTube 全族 → 干净出口（印度）
 # ===== E. 干净出口（Google 残留域族 / GFE 段 / YouTube 全族）=====
 # 这些域在模板里会落到通用池（🚀 节点选择 / 🌍 国外媒体），而通用池的出口被 Google 判为 CN。

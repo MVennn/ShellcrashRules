@@ -74,6 +74,15 @@ fi
 	echo "- DOMAIN,geminiweb-pa.clients.google.com,$CL"
 	echo "- DOMAIN,geminiweb-pa.clients6.google.com,$CL"
 	echo "- DOMAIN-SUFFIX,generativelanguage.googleapis.com,$CL"
+	echo "# 共享 SaaS / 非 AI 域（上游 geosite 误收；必须早于 geosite 同名规则）"
+	echo "# Envato/ThemeForest 是素材市场，LivePerson 是客服聊天，Datadog 是 RUM —— 都不绑定 AI 出口"
+	echo "- DOMAIN-SUFFIX,envato.com,$GOOGLE_GROUP"
+	echo "- DOMAIN-SUFFIX,envato-static.com,$GOOGLE_GROUP"
+	echo "- DOMAIN-SUFFIX,envatousercontent.com,$GOOGLE_GROUP"
+	echo "- DOMAIN-SUFFIX,themeforest.net,$GOOGLE_GROUP"
+	echo "- DOMAIN-SUFFIX,liveperson.net,$GOOGLE_GROUP"
+	echo "- DOMAIN-SUFFIX,lpsnmedia.net,$GOOGLE_GROUP"
+	echo "- DOMAIN,browser-intake-datadoghq.com,$GOOGLE_GROUP"
 	awk -v g="$GROUP" '
 	  /opencode\.ai/ { next }
 	  /^[[:space:]]*-[[:space:]]*/ {
@@ -89,6 +98,29 @@ fi
 	echo "- DOMAIN-SUFFIX,2mdn.net,🛑 广告拦截"
 	echo "- DOMAIN-SUFFIX,clickserve.dartsearch.net,🛑 广告拦截"
 	echo "- DOMAIN-SUFFIX,connect.facebook.net,🛑 广告拦截"
+	echo "# A2. Google 广告/追踪 carve-out（必须在 google.com / DOMAIN-KEYWORD,google 之前）"
+	echo "# 宽泛 google 规则会把这些模板 REJECT 整段抢走；实测 pagead2/google-analytics"
+	echo "# 曾走 🤖 干净出口并真实下载 59–63 KB。doubleclick.net 同时挡住 googleads.* 子域。"
+	echo "- DOMAIN-SUFFIX,doubleclick.net,🛑 广告拦截"
+	echo "- DOMAIN-SUFFIX,googlesyndication.com,🛑 广告拦截"
+	echo "- DOMAIN-SUFFIX,googleadservices.com,🛑 广告拦截"
+	echo "- DOMAIN-SUFFIX,google-analytics.com,🛑 广告拦截"
+	echo "- DOMAIN-SUFFIX,googleadsserving.cn,🛑 广告拦截"
+	echo "- DOMAIN-SUFFIX,ads.google.com,🛑 广告拦截"
+	echo "- DOMAIN-SUFFIX,adservice.google.com,🛑 广告拦截"
+	echo "- DOMAIN-SUFFIX,pagead.google.com,🛑 广告拦截"
+	echo "- DOMAIN-SUFFIX,pagead.l.google.com,🛑 广告拦截"
+	echo "- DOMAIN-SUFFIX,pagead-tpc.l.google.com,🛑 广告拦截"
+	echo "- DOMAIN-SUFFIX,mobileads.google.com,🛑 广告拦截"
+	echo "- DOMAIN-SUFFIX,afd.l.google.com,🛑 广告拦截"
+	echo "- DOMAIN-SUFFIX,badad.googleplex.com,🛑 广告拦截"
+	echo "- DOMAIN-SUFFIX,csi.gstatic.com,🛑 广告拦截"
+	echo "- DOMAIN-SUFFIX,collector.githubapp.com,🛑 广告拦截"
+	echo "- DOMAIN-SUFFIX,app-measurement.com,🛑 广告拦截"
+	echo "# GTM/GTS 是共享标签管理器：不绑 Google 账号出口，走通用代理"
+	echo "- DOMAIN-SUFFIX,googletagmanager.com,$GOOGLE_GROUP"
+	echo "- DOMAIN-SUFFIX,googletagservices.com,$GOOGLE_GROUP"
+	echo "# googlecommerce.com 保留代理（Google Shopping/Merchant，不一定是广告）"
 	echo "#GEMINI_E_BLOCK_MARKER Gemini/Google 关键端点统一出口（必须早于 IP-CIDR 与模板 DOMAIN-KEYWORD,google）"
 	echo "# 这些端点若落到 IP-CIDR 203.208.32.0/19 或 DOMAIN-KEYWORD,google，会以中国出口 IP 访问，Google 即判定为中国区"
 	echo "- DOMAIN-SUFFIX,gstatic.com,$CL"
@@ -113,7 +145,6 @@ fi
 	echo "- DOMAIN-SUFFIX,google.com,$CL"
 	echo "- DOMAIN-KEYWORD,google,$CL"
 	echo "- DOMAIN-SUFFIX,googleapis.com,$CL"
-	echo "- DOMAIN-SUFFIX,googletagmanager.com,$CL"
 	echo "#CLEAN_EXIT_BLOCK_MARKER 2026-10-20: Google 残留域族 / GFE 段 / YouTube 全族 → 干净出口（印度）"
 	echo "# ===== E. 干净出口（Google 残留域族 / GFE 段 / YouTube 全族）====="
 	echo "# 这些域在模板里会落到通用池（🚀 节点选择 / 🌍 国外媒体），而通用池的出口被 Google 判为 CN。"
@@ -242,6 +273,41 @@ if ! grep -q "DOMAIN,dl.google.com,🎯 全球直连" "$OUT.tmp" ||
 	echo "警告: 高带宽直连段丢失（可能被上游规则去重），请检查 $OUT.tmp"
 	exit 1
 fi
+for r in "DOMAIN-SUFFIX,doubleclick.net,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,googlesyndication.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,googleadservices.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,google-analytics.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,googleadsserving.cn,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,ads.google.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,adservice.google.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,pagead.google.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,pagead.l.google.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,pagead-tpc.l.google.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,mobileads.google.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,afd.l.google.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,badad.googleplex.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,csi.gstatic.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,collector.githubapp.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,app-measurement.com,🛑 广告拦截"; do
+	if ! grep -qF -- "- $r" "$OUT.tmp"; then
+		echo "警告: Google 广告 carve-out 丢失: $r"
+		exit 1
+	fi
+done
+for r in "DOMAIN-SUFFIX,envato.com,$GOOGLE_GROUP" \
+         "DOMAIN-SUFFIX,envato-static.com,$GOOGLE_GROUP" \
+         "DOMAIN-SUFFIX,envatousercontent.com,$GOOGLE_GROUP" \
+         "DOMAIN-SUFFIX,themeforest.net,$GOOGLE_GROUP" \
+         "DOMAIN-SUFFIX,liveperson.net,$GOOGLE_GROUP" \
+         "DOMAIN-SUFFIX,lpsnmedia.net,$GOOGLE_GROUP" \
+         "DOMAIN,browser-intake-datadoghq.com,$GOOGLE_GROUP" \
+         "DOMAIN-SUFFIX,googletagmanager.com,$GOOGLE_GROUP" \
+         "DOMAIN-SUFFIX,googletagservices.com,$GOOGLE_GROUP"; do
+	if ! grep -qF -- "- $r" "$OUT.tmp"; then
+		echo "警告: 共享 SaaS / GTM 覆盖丢失: $r"
+		exit 1
+	fi
+done
 mv -f "$OUT.tmp" "$OUT"
 echo "已更新 $n 条 AI/Google/修正规则 -> $OUT"
 echo "重启服务生效: /etc/ShellCrash/start.sh start"

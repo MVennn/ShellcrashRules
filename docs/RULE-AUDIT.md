@@ -103,8 +103,8 @@
 > **2026-10-22 追加**：`z.ai` / `bigmodel.cn` 显式直连（+2 条）。
 > 原因：ZCode 账号/项目 Token API 的 `z.ai` 域名原先落到 `MATCH,🐟 漏网之鱼`
 > （香港出口），project token 请求 15s 超时；路由器直连实测 0.34s。
-> 审计表的 `00_custom` 201 是 2026-10-19 快照；当前生成物 306 条
-> （含后续 geosite / 分类修正），完整索引与计数待下次重跑审计。
+> 审计表的 `00_custom` 201 是 2026-10-19 快照；当前生成物 323 条
+> （含后续 geosite / 分类修正 / 2026-10-22 广告 carve-out），完整索引与计数待下次重跑审计。
 
 ---
 
@@ -376,3 +376,69 @@ python mihomo/rule_audit.py config.yaml proxies.json lists REPORT.md   # 工具�
 - 完整表格与机器可读结果：**未随公开仓发布**（含节点与订阅信息）
 - 审计工具：`OpenwrtOpsToolkit` 仓的 `mihomo/rule_audit.py`
 - 上游列表：`third-party/ACL4SSR/Clash/`
+
+---
+
+## 7. 2026-10-22 追加：Google 广告 carve-out 与 AI 列表共享 SaaS 清理
+
+> 本节是 2026-10-19 审计后的增量结论。运行配置已从 13,010 条降到 4,154 条
+> （`cnip` provider 接管 8,980 条 CN IP 规则），生成物 `00_custom` 323 条。
+
+### 7.1 问题：宽泛 Google 规则把广告 REJECT 整段遮蔽
+
+2026-10-19 的 Phase 1 把「Google 统一出口」放在自定义层最前，保证一次 Google 会话只有一个出口 IP。
+代价是模板 BanAD 里的 Google 广告规则排在后面，永远轮不到：
+
+| 域名 | 模板本意 | 实际命中（2026-10-22 实测） | 实际出口 |
+|---|---|---|---|
+| `pagead2.googlesyndication.com` | 🛑 广告拦截 | `DomainKeyword,google` | 🤖 干净出口，单次 63 KB |
+| `www.google-analytics.com` | 🛑 广告拦截 | `DomainKeyword,google` | 🤖 干净出口，单次 59 KB |
+| `adservice.google.com` | 🛑 广告拦截 | `DomainSuffix,google.com` | 🤖 干净出口 |
+| `tpc.googlesyndication.com` | 🛑 广告拦截 | `DomainKeyword,google` | 🤖 干净出口 |
+| `googletagmanager.com` | 🎯 全球直连 | `DomainKeyword,google` | 🤖 干净出口 |
+| `csi.gstatic.com` | 🛑 广告拦截 | `DomainSuffix,gstatic.com` | 🤖 干净出口 |
+| `collector.githubapp.com` | 🛑 广告拦截 | `DomainSuffix,githubapp.com` | 🤖 干净出口 |
+
+`doubleclick.net` 是更隐蔽的一类：父域规则 `DOMAIN-SUFFIX,doubleclick.net,🛑 广告拦截` 本身不含
+`google`，按规则值做遮蔽审计不会报；但真实广告主机 `googleads.g.doubleclick.net` 含 `google`，
+仍被关键词抢走。所以 carve-out 必须按父域写 `doubleclick.net`，不能只列具体主机。
+
+被遮蔽的 REJECT 规则共 15 条（14 条 Google 广告/追踪 + `collector.githubapp.com`），
+另有 `googletagmanager.com` / `googletagservices.com` 两条 DIRECT 被改成代理。
+
+### 7.2 修复
+
+在 `config/generators/ai-rules-update.sh` 的 A 段、Google 块之前加入：
+
+- `doubleclick.net`、`googlesyndication.com`、`googleadservices.com`、`google-analytics.com`、
+  `googleadsserving.cn`、`ads.google.com`、`adservice.google.com`、`pagead.google.com`、
+  `pagead.l.google.com`、`pagead-tpc.l.google.com`、`mobileads.google.com`、`afd.l.google.com`、
+  `badad.googleplex.com`、`csi.gstatic.com`、`collector.githubapp.com`、`app-measurement.com` → `🛑 广告拦截`
+- `googletagmanager.com` / `googletagservices.com` → `🚀 节点选择`
+- `googlecommerce.com` 保留代理（Google Shopping/Merchant，不一定是广告）
+
+### 7.3 共享 SaaS 从 AI 组移出
+
+上游 `category-ai-chat-!cn` 里混入了非 AI 专用域，和 2026-10-19 处理过的
+sentry/intercom/auth0/statsig 是同一类问题：
+
+| 域 | 实际用途 | 新目标 |
+|---|---|---|
+| `envato.com` / `envato-static.com` / `envatousercontent.com` / `themeforest.net` | 素材市场 | 🚀 节点选择 |
+| `liveperson.net` / `lpsnmedia.net` | 客服聊天组件 | 🚀 节点选择 |
+| `browser-intake-datadoghq.com` | Datadog RUM | 🚀 节点选择 |
+
+### 7.4 回归结果（2026-10-22）
+
+- 运行配置 4,154 条；`RULE-SET,cn` 在 #3227，仍在 ProxyMedia 之前；`RULE-SET,cnip` 在 #877
+- `pagead2.googlesyndication.com` / `www.google-analytics.com` / `googleads.g.doubleclick.net` /
+  `collector.githubapp.com` / `csi.gstatic.com` / `app-measurement.com` 经 `127.0.0.1:7890` 全部
+  `exit=35`（REJECT）；修复前是 200 且真实下载 59–63 KB
+- `www.google.com` / `github.com` / `dl.google.com` / `chatgpt.com` 仍 `exit=0`
+- `googletagmanager.com` / `googletagservices.com` / `liveperson.net` 的 chains 为
+  `🇭🇰 香港WAP → ♻️ 自动选择 → 🚀 节点选择`
+- `ai-api-check.sh` 全 18 段通过；新增第 18 段断言 carve-out 在
+  `DOMAIN-SUFFIX,google.com` / `DOMAIN-KEYWORD,google` 之前
+
+> 未改：`gstatic.cn` / `googleapis.cn` 仍走干净出口；`baidustatic.com` / `xdrig.com` 仍是
+> BanAD REJECT（可能是误伤，未验证到实际使用场景，暂不动）。

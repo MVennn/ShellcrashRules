@@ -380,12 +380,12 @@ if [ -f "$RCFG" ] && grep -q "name: 🤖 干净出口" "$RCFG"; then
 	fi
 	MEM=$(curl -s -m 5 -H "Authorization: Bearer $ASEC" "http://127.0.0.1:9999/proxies/$CLE" 2>/dev/null | grep -oE "\"all\":\[[^]]*\]" | head -1)
 	case "$MEM" in
-		*印度*) echo "OK: 干净出口候选为印度节点" ;;
+		*HY2*|*印度*) echo "OK: 干净出口候选含 HY2/印度节点" ;;
 		*) echo "FAIL: 干净出口候选异常: ${MEM:-无}"; fail=1 ;;
 	esac
 	NOWC=$(curl -s -m 5 -H "Authorization: Bearer $ASEC" "http://127.0.0.1:9999/proxies/$CLE" 2>/dev/null | grep -oE "\"now\":\"[^\"]*\"" | head -1 | sed "s/\"now\":\"//;s/\"$//")
 	case "$NOWC" in
-		*印度*) echo "OK: 干净出口当前 = $NOWC" ;;
+		*HY2*|*印度*|*台湾-优化3*) echo "OK: 干净出口当前 = $NOWC" ;;
 		*) echo "WARN: 干净出口当前 = ${NOWC:-空}（守护会在 5 分钟内复位）" ;;
 	esac
 else
@@ -405,7 +405,7 @@ else
 fi
 NOWG=$(curl -s -m 5 -H "Authorization: Bearer $ASEC" "http://127.0.0.1:9999/proxies/$AWE" 2>/dev/null | grep -oE "\"now\":\"[^\"]*\"" | head -1 | sed "s/\"now\":\"//;s/\"$//")
 case "$NOWG" in
-	*印度*) echo "OK: 🤖 AI网页 出口 = $NOWG" ;;
+	*HY2*|*印度*|*台湾-优化3*) echo "OK: 🤖 AI网页 出口 = $NOWG" ;;
 	*) echo "WARN: 🤖 AI网页 出口 = ${NOWG:-空}" ;;
 esac
 if [ -x /etc/ShellCrash/guardian.sh ] && grep -q "CLEAN" /etc/ShellCrash/guardian.sh; then
@@ -467,6 +467,63 @@ if [ -f "$RCFG" ]; then
 		echo "OK: 运行配置里 dl.google.com 直连排在 google.com 代理之前 (#$DL < #$GG)"
 	else
 		echo "FAIL: 运行配置顺序异常（dl=#${DL:-无} google=#${GG:-无}）"
+		fail=1
+	fi
+fi
+
+echo ""
+echo "===== 18. 广告/追踪 carve-out（必须早于宽泛 Google 规则） ====="
+# 宽泛 DOMAIN-KEYWORD,google / DOMAIN-SUFFIX,google.com 会遮蔽模板里的 Google 广告 REJECT。
+# 这些规则必须存在，且在运行配置里排在 google.com / DOMAIN-KEYWORD,google 之前。
+HB=${HB:-/etc/ShellCrash/yamls/rules.yaml}
+RCFG=${RCFG:-/tmp/ShellCrash/config.yaml}
+for r in "DOMAIN-SUFFIX,doubleclick.net,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,googlesyndication.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,googleadservices.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,google-analytics.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,googleadsserving.cn,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,ads.google.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,adservice.google.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,pagead.google.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,pagead.l.google.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,pagead-tpc.l.google.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,mobileads.google.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,afd.l.google.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,badad.googleplex.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,csi.gstatic.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,collector.githubapp.com,🛑 广告拦截" \
+         "DOMAIN-SUFFIX,app-measurement.com,🛑 广告拦截"; do
+	if grep -qF -- "- $r" "$HB" 2>/dev/null; then
+		echo "OK: rules.yaml 含 $r"
+	else
+		echo "FAIL: rules.yaml 缺 $r（重跑 ai-rules-update.sh）"
+		fail=1
+	fi
+done
+for r in "DOMAIN-SUFFIX,envato.com,🚀 节点选择" \
+         "DOMAIN-SUFFIX,envato-static.com,🚀 节点选择" \
+         "DOMAIN-SUFFIX,envatousercontent.com,🚀 节点选择" \
+         "DOMAIN-SUFFIX,themeforest.net,🚀 节点选择" \
+         "DOMAIN-SUFFIX,liveperson.net,🚀 节点选择" \
+         "DOMAIN-SUFFIX,lpsnmedia.net,🚀 节点选择" \
+         "DOMAIN,browser-intake-datadoghq.com,🚀 节点选择" \
+         "DOMAIN-SUFFIX,googletagmanager.com,🚀 节点选择" \
+         "DOMAIN-SUFFIX,googletagservices.com,🚀 节点选择"; do
+	if grep -qF -- "- $r" "$HB" 2>/dev/null; then
+		echo "OK: rules.yaml 含 $r"
+	else
+		echo "FAIL: rules.yaml 缺 $r（重跑 ai-rules-update.sh）"
+		fail=1
+	fi
+done
+if [ -f "$RCFG" ]; then
+	AD=$(grep -nF -- "- DOMAIN-SUFFIX,doubleclick.net,🛑 广告拦截" "$RCFG" | head -1 | cut -d: -f1)
+	GG=$(grep -nF -- "- DOMAIN-SUFFIX,google.com," "$RCFG" | head -1 | cut -d: -f1)
+	GK=$(grep -nF -- "- DOMAIN-KEYWORD,google," "$RCFG" | head -1 | cut -d: -f1)
+	if [ -n "$AD" ] && [ -n "$GG" ] && [ -n "$GK" ] && [ "$AD" -lt "$GG" ] && [ "$AD" -lt "$GK" ]; then
+		echo "OK: 广告 carve-out 在 google.com / google 关键词之前 (#$AD < #$GG / #$GK)"
+	else
+		echo "FAIL: 广告 carve-out 顺序异常（ad=#${AD:-无} google.com=#${GG:-无} keyword=#${GK:-无}）"
 		fail=1
 	fi
 fi
