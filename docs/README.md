@@ -40,6 +40,7 @@
 | 位置 | 一句话定位 |
 |---|---|
 | [release-notes/](release-notes/README.md) | 面向使用者的 Release 说明，文件名 = `versionName`（不带 `v`）；格式规范在它的 README |
+| [release-notes/0.3.0.md](release-notes/0.3.0.md) | 0.3.0 说明：B站解锁 / 大流量 / GitHub 出口三组与多段分流规则 |
 | [release-notes/0.2.1.md](release-notes/0.2.1.md) | 0.2.1 说明：节点同步泛化为「缺什么补什么」，防重名 |
 | [release-notes/0.2.0.md](release-notes/0.2.0.md) | 0.2.0 说明：订阅刷新后 HY2 节点自动同步、z.ai 直连 |
 | [release-notes/0.1.1.md](release-notes/0.1.1.md) | 0.1.1 说明：看门狗补内存闸门、出口策略口径对齐设备 |
