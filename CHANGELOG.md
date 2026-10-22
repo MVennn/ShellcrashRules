@@ -130,6 +130,13 @@
 - 仓库/设备哈希对照：`clash_modify.sh` / `fw_nftables.sh` / `start_legacy_wd.sh` / `rules-mid.sh` / `reorder-groups.sh` / `post-sc-update.sh` / `ai-api-check.sh` / `ai-rules-update.sh` / `rules.yaml` / `fake_ip_filter.list` 全部一致；`fake_ip_filter` 的两行差异已补齐（注释保留）
 - `rules-cnip.sh` 已入库；设备侧 `/etc/ShellCrash/rules-cnip.sh` 的 sha256 为 `d301054d…`
 
+### 清理（2026-10-22）
+
+- 删除 `__pycache__/`（`tools/`、`tools/public-nodes/`、`tools/latency/archive/` 三处，共 156 KB）—— `.gitignore` 已覆盖、[docs/MAINTENANCE.md](docs/MAINTENANCE.md) §5.3 明说可再生；仓体 18M → 17,734 KB（-156 KB）
+- 调整 `docs/release-notes/README.md` —— 「形状」补第二行反馈入口，链接固定用绝对地址 `https://github.com/MVennn/ShellcrashRules/issues/new/choose`；明确它不是清单条目，已发布历史正文不回填
+- 调整 `docs/README.md` —— RULE-AUDIT 定位补当前口径「13,010 → 4,154」；TOOLS 定位改为自检 / 控制面查询 / 规则审计 / 延迟探测，与 [docs/TOOLS.md](docs/TOOLS.md) 实际章节一致
+- 保留 `.work/` —— `private-evidence/`、`private-history.bundle`、`audit-20261022/` 是隐私材料与审计证据原文；`public-nodes/{state.json,screen.log,task.log}` 是计划任务运行状态，均不删
+
 ---
 
 ## [0.2.1] — 2026-10-22
