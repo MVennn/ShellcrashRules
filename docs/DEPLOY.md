@@ -43,11 +43,14 @@ ShellcrashRules/
 | `config/generators/ai-rules-update.sh` | `/etc/ShellCrash/ai-rules-update.sh` | cron `30 4 * * 0`（经 auto-update.sh） | 停 cron 行 + 恢复旧 `rules.yaml` |
 | `config/generators/auto-update.sh` | `/etc/ShellCrash/auto-update.sh` | cron `30 4 * * 0` | 删 `/etc/crontabs/root` 对应行 |
 | `config/hooks/rules-mid.sh` | `/etc/ShellCrash/rules-mid.sh` | `starts/clash_modify.sh`（merger_yaml 之后） | 删文件 → 钩子失效 → 配置里没有 CN 中间层 |
+| `config/hooks/rules-cnip.sh` | `/etc/ShellCrash/rules-cnip.sh` | `starts/clash_modify.sh`（rules-mid 之后、reorder-groups 之前） | 删文件 → 内联 CN IP 规则保留（13k，功能可用、内存略高） |
+| `config/fakeip/fake_ip_filter` | `/etc/ShellCrash/configs/fake_ip_filter` | `starts/clash_modify.sh`（cat 进 fake-ip 排除清单） | 删文件 → Chrome LNA / Google 下载可能异常 |
+| `config/fakeip/fake_ip_filter.list` | `/etc/ShellCrash/configs/fake_ip_filter.list` | 同上 | 同上 |
 | `config/hooks/reorder-groups.sh` | `/etc/ShellCrash/reorder-groups.sh` | 同上 | 删文件 → 去重/重排失效（**会退回重复 key 拒载的老坑**） |
 | `config/archive/rules-dedup.sh` | **不部署（离线工具）** | 人工：在 PC 上对 scp 下来的 config.yaml 副本跑 | **禁止在路由器上跑** —— O(N²) 扫描会拖垮 CPU/内存（2026-10-22 实测断网） |
 | `config/starts/fw_nftables.sh` | `/etc/ShellCrash/starts/fw_nftables.sh` | ShellCrash 启动；`post-sc-update.sh` 恢复 | 从 `/etc/ShellCrash/local-patches/` 恢复；上游副本存为 `starts/*.upstream.*` |
 | `config/starts/start_legacy_wd.sh` | `/etc/ShellCrash/starts/start_legacy_wd.sh` | cron 每分钟 | 同上（local-patches 恢复） |
-| `config/starts/clash_modify.sh` | `/etc/ShellCrash/starts/clash_modify.sh` | ShellCrash 启动 / 订阅更新 | **本仓待补**（见下方「待补」） |
+| `config/starts/clash_modify.sh` | `/etc/ShellCrash/starts/clash_modify.sh` | ShellCrash 启动 / 订阅更新 | 本仓维护（与设备侧哈希一致） |
 | `config/post-sc-update.sh` | `/etc/ShellCrash/post-sc-update.sh` | 人工（ShellCrash 官方脚本更新后） | 删 `local-patches/` 即不再恢复 |
 | `config/ai-api-check.sh` | `/etc/ShellCrash/ai-api-check.sh` | 人工（订阅更新后必跑） | 只读为主；少数段带自动修复，删掉即不修 |
 | `config/archive/geo-test.sh` | **不部署** | 无（一次性诊断，已归档） | 归档件，保留备查 |
@@ -65,9 +68,5 @@ ShellcrashRules/
 
 ## 待补
 
-本仓缺、但设备上在跑的东西 —— **补进来前不要删设备上的对应文件**：
-
-| 缺什么 | 为什么重要 | 证据 |
-|---|---|---|
-| `config/starts/clash_modify.sh` | 整个合并链路的**入口**：读 `yamls/*`、拼 fake-ip 过滤、挂 `rules-mid.sh` / `reorder-groups.sh` 两个钩子 | `post-sc-update.sh` 按标记 `rules-mid.sh` 判定该文件是否被官方覆盖 |
-| `config/fakeip/fake_ip_filter` 与 `fake_ip_filter.list` | 部署到 `/etc/ShellCrash/configs/`（**不是 `yamls/`**）。Chrome LNA 修复（`+.gstatic.com` / `+.googleapis.com` / `+.google.com`）就落在这里 | `ai-api-check.sh` 第 7 段校验 `fake_ip_filter` 里有 `+.googleusercontent.com`；`clash_modify.sh` 会 cat 这两个文件合成 fake-ip 排除清单 |
+当前无待补。2026-10-22 已把设备侧 `rules-cnip.sh` 与 `fake_ip_filter` 同步回仓库；
+`config/starts/clash_modify.sh` / `fw_nftables.sh` / `start_legacy_wd.sh` 的哈希均与设备侧一致。

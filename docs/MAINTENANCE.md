@@ -117,7 +117,7 @@ ssh root@10.0.0.1 "mkdir -p /root/backup/pre-yamls-$TS && \
 | `config/yamls/proxy-groups.yaml` | 拷回；或删文件 → 自定义组消失、回到模板组（**会连带丢掉 AI 分组，记得一起回退规则**） |
 | `config/yamls/proxies.yaml` | 拷回；或删文件 → 备用入口消失（干净出口少两条冗余）。**该文件含节点凭据、不入库**，模板见 `proxies.example.yaml`（见 [SECRETS.md](SECRETS.md)） |
 | `config/generated/rules.yaml` | **不要手改回退** —— 重跑生成器（`ai-rules-update.sh`）即可回到上游内容；但如果你改的是生成器，回退生成器文件后重跑 |
-| `config/hooks/*.sh` | 删文件 → 钩子失效（`clash_modify.sh` 里有 `[ -x ]` 判断，不存在就跳过）。**注意**：删 `reorder-groups.sh` 会退回「同名组重复 → 拒载回退」的老坑。`rules-dedup.sh` 已归档到 `config/archive/`，**不部署** |
+| `config/hooks/*.sh` | 删文件 → 钩子失效（`clash_modify.sh` 里有 `[ -x ]` 判断，不存在就跳过）。**注意**：删 `reorder-groups.sh` 会退回「同名组重复 → 拒载回退」的老坑；删 `rules-cnip.sh` 会保留 13k 内联 IP 规则（功能可用、内存略高）。`rules-dedup.sh` 已归档到 `config/archive/`，**不部署** |
 | `config/starts/*.sh` | 从 `/etc/ShellCrash/local-patches/` 恢复；上游原版存为 `starts/*.upstream.*` |
 | `firewall/tables/*.nft` | `nft delete table inet <表名>` 立即生效；文件层回退 = 删文件 + 重载 `rc.local` 那几行（`AX3000TOpenwrt` 仓） |
 | `config/ai-api-check.sh` | 拷回（只读脚本，删掉即不巡检） |

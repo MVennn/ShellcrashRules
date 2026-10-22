@@ -36,6 +36,8 @@
 - 调整 `config/generated/rules.yaml` —— 由路由器重生成（323 条，+17）
 - 新增 `config/archive/rules-dedup.sh` —— 离线去重审计：4,154 条副本上找出 211 条可安全删除的同目标冗余 / PROCESS-NAME；**不部署到路由器**（O(N²) 扫描会拖垮 CPU/内存，2026-10-22 实测断网）
 - 调整 `config/post-sc-update.sh` —— 自动 disable `init.d/shellcrash`（避免 `start_old=ON` 下 procd + legacy 双实例）；不再检查 `rules-dedup.sh`
+- 新增 `config/hooks/rules-cnip.sh` —— 从路由器同步回仓库：把 8,980 条内联 CN IP-CIDR 折叠成 `RULE-SET,cnip`，13,133 → 4,154
+- 调整 `config/fakeip/fake_ip_filter` —— 补 `+.gstatic.com` / `+.googleapis.com`，与路由器 live 文件一致（Chrome LNA 修复）
 
 ### 文档
 
@@ -48,6 +50,9 @@
 - 调整 `docs/RULE-AUDIT.md` —— §7.5 记录 211 条可删空间与「不部署」结论；补当前 13,133 条恢复状态
 - 调整 `docs/PITFALLS.md` —— 新增 §24/§25（O(N²) 断网、双实例/并发启动）；§12 补 2026-10-22 复发
 - 调整 `docs/TROUBLESHOOTING.md` —— 新增 §9 整网断/部分 DNS 的排查与恢复顺序
+- 调整 `docs/ARCHITECTURE.md` —— 生成链路补 `rules-cnip.sh`（实际为三个钩子：rules-mid → rules-cnip → reorder-groups）
+- 调整 `docs/DEPLOY.md` —— 映射表补 `rules-cnip.sh` 与 `fake_ip_filter`；移除已不成立的「待补」
+- 调整 `docs/MAINTENANCE.md` —— 回退表补 `rules-cnip.sh`
 
 ### 事故与结论（2026-10-22）
 
@@ -67,6 +72,8 @@
 - 事故恢复后：单 CrashCore、端口 7890/7892/9999、可用内存 67 MB；运行配置 13,133 条（`rules-cnip.sh` 临时 disabled）
 - 维护窗口完成后：4,154 条；单 CrashCore；可用内存 63 MB；`RULE-SET,cnip` / `RULE-SET,cn` 各 1 条；18 段自检通过；广告域 exit=35（REJECT），`google.com` / `github.com` / `baidu.com` exit=0
 - 副本验证：`rules-cnip` 副本验证后已在维护窗口部署（13,133 → 4,154）；`rules-dedup` 4,154 → 3,943（保护 15 条后 -211），**未部署**
+- 仓库/设备哈希对照：`clash_modify.sh` / `fw_nftables.sh` / `start_legacy_wd.sh` / `rules-mid.sh` / `reorder-groups.sh` / `post-sc-update.sh` / `ai-api-check.sh` / `ai-rules-update.sh` / `rules.yaml` / `fake_ip_filter.list` 全部一致；`fake_ip_filter` 的两行差异已补齐（注释保留）
+- `rules-cnip.sh` 已入库；设备侧 `/etc/ShellCrash/rules-cnip.sh` 的 sha256 为 `d301054d…`
 
 ---
 

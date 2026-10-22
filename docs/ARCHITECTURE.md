@@ -28,7 +28,10 @@ starts/clash_modify.sh  ← 合并链路的入口（本仓待补，设备侧在�
 钩子 ① rules-mid.sh        插 - RULE-SET,cn,🎯 全球直连
    │                      （最后一条「📲 电报消息」之后，第一条「🌍 国外媒体」之前）
    ▼
-钩子 ② reorder-groups.sh   ① proxy-groups 同名去重（保留首次出现）
+钩子 ② rules-cnip.sh       把 8,980 条内联 CN IP-CIDR 折叠成一条 RULE-SET,cnip
+   │                      （rule-providers.cnip：file / ipcidr / mrs；13k → 4.1k 条）
+   ▼
+钩子 ③ reorder-groups.sh   ① proxy-groups 同名去重（保留首次出现）
    │                      ② 组内重复 key 清理
    │                      ③ 成员重排（🛟 主备自动 → ♻️ 自动选择 → AI接口 → 地区组 → 手动切换 → DIRECT → 🆓 公共备用）
    │                      ④ mixed-port 归一（去掉重复的 host 前缀）
@@ -38,14 +41,15 @@ mihomo 校验（CrashCore -t）→ 加载
 运行期 config.yaml（/tmp/ShellCrash/config.yaml）
 ```
 
-### 1.2 两个钩子的分工
+### 1.2 三个钩子的分工
 
 | 钩子 | 解决什么 | 关键约束 |
 |---|---|---|
 | `rules-mid.sh` | 模板把「宽泛代理」（ProxyMedia / ProxyLite）排在「CN 直连」之前 → `.hk`、Steam 中国等 CN 站点被绕路。插一行 CN 直连中间层即可一次性解决 | **幂等**；写前先在同目录写临时文件并做完整性校验，全部通过才 `mv` 原子替换；任何失败都不动原文件；预检 `rule-providers.cn` 必须存在且 `behavior: domain` / `format: mrs` |
+| `rules-cnip.sh` | 模板把约 9,631 条 IP-CIDR 内联在配置里，其中 8,980 条目标是 `🎯 全球直连` → 13k 行配置、内存和加载时间都高。折叠成 `cnip` provider 后 13,133 → 4,154 条 | **幂等**；provider 键不能变成顶层重复键；删除/插入前做行号、规则数、IP-CIDR 数、逐行重建四重校验；失败不 `mv` |
 | `reorder-groups.sh` | ShellCrash 的 `merger_yaml` 把用户自定义组**追加**进基础配置，而基础配置本身是上一次合并结果的快照 → 同名组重复出现 → YAML 重复 key → mihomo 拒载 | 同名组保留**第一次出现**（merger_yaml 把最新定义放在最前），丢弃后续陈旧副本；同一组块内重复 key 一并丢弃 |
 
-> **为什么这两个钩子必须放在 `merger_yaml` 之后、`test_yaml`（校验）之前** ——
+> **为什么这三个钩子必须放在 `merger_yaml` 之后、`test_yaml`（校验）之前** ——
 > 早了拿不到合并结果，晚了校验已经过了。位置写死在 `starts/clash_modify.sh` 里，
 > ShellCrash 官方更新会覆盖该文件，由 `post-sc-update.sh` 按标记串恢复。
 
@@ -241,7 +245,7 @@ mihomo 校验（CrashCore -t）→ 加载
 | `ai-rules-update.sh` 下载或校验失败 | 什么都不改，退出 1；`auto-update.sh` 跳过 hotupdate | 保留旧 `rules.yaml`（**这就是跳过 hotupdate 的理由**），网络恢复后重跑 |
 | `hotupdate` 写 `/tmp/ShellCrash/config.yaml` | mihomo `SAFE_PATHS` 拒绝 + `put_save` 丢弃 HTTP 状态码 → **静默失败** | 必须写 `/etc/ShellCrash/config.yaml`，且**校验 HTTP 状态码**；`ai-api-check.sh` 第 6 段巡检并自动修复 |
 | `rules-mid.sh` 预检失败（`rule-providers.cn` 不对） | 不改原文件、退出 1 → 配置里没有 CN 中间层 | 修 provider 后重跑 |
-| `rules-mid.sh` / `reorder-groups.sh` 钩子丢失 | ShellCrash 官方更新覆盖了 `starts/clash_modify.sh` | `post-sc-update.sh` 按标记串恢复；`ai-api-check.sh` 第 8 段巡检 |
+| `rules-mid.sh` / `rules-cnip.sh` / `reorder-groups.sh` 钩子丢失 | ShellCrash 官方更新覆盖了 `starts/clash_modify.sh` | `post-sc-update.sh` 按标记串恢复；`ai-api-check.sh` 第 8 段巡检 CN 中间层 |
 | mihomo OOM 被杀 | 9999 监听整个消失、所有 URL 返回 000，约 3 分钟后才恢复 | 瘦身 `config.yaml`（13k 条规则 ≈ 739 KB）、清 `/tmp`（tmpfs 水位守卫 ≥ 80% 触发清理） |
 | 配置里出现尾逗号规则 | `rules[16] [DOMAIN-SUFFIX,i.google.dev,] error: format invalid` → 校验失败 → 起不来 | 生成器写规则时不允许空策略名；`ai-api-check.sh` 第 12 段巡检 |
 | 单实例与双实例 | 两个 mihomo 实例并存，抢不到端口但白占内存 | 只留一个主人：procd `S99shellcrash` 必须 `disable` |
