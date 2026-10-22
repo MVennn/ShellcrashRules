@@ -121,19 +121,54 @@ def log(msg: str) -> None:
         fh.write(line + "\n")
 
 
-def ssh(cmd: str, *, stdin: str | None = None, timeout: int = 120, check: bool = True) -> subprocess.CompletedProcess:
-    proc = subprocess.run(
-        ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", ROUTER, cmd],
-        input=stdin,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-    )
-    if check and proc.returncode != 0:
-        raise RuntimeError(f"ssh failed ({proc.returncode}): {cmd}\n{proc.stderr[-800:]}")
-    return proc
+def ssh(
+    cmd: str,
+    *,
+    stdin: str | None = None,
+    timeout: int = 120,
+    check: bool = True,
+    retries: int = 2,
+) -> subprocess.CompletedProcess:
+    """执行 ssh 命令。传输层失败（超时 / rc=255）自动重试一次。
+
+    路由器在重启 ShellCrash 的那几十秒里会短暂失联，一条 `rm -f` 卡满 120 秒
+    就足以让整轮作废（2026-10-22 实测）。ServerAliveInterval 让死连接在
+    ~10 秒内被判死，而不是干等到 timeout。
+    """
+    args = [
+        "ssh",
+        "-o", "BatchMode=yes",
+        "-o", "ConnectTimeout=8",
+        "-o", "ServerAliveInterval=5",
+        "-o", "ServerAliveCountMax=2",
+        ROUTER,
+        cmd,
+    ]
+    last = ""
+    for attempt in range(1, retries + 1):
+        try:
+            proc = subprocess.run(
+                args,
+                input=stdin,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            last = f"timeout after {timeout}s"
+        else:
+            if proc.returncode == 0 or not check:
+                return proc
+            last = f"rc={proc.returncode}: {proc.stderr[-300:]}"
+            if proc.returncode != 255:
+                # 命令本身的错误（非连接层）重试也没用
+                raise RuntimeError(f"ssh failed ({proc.returncode}): {cmd}\n{proc.stderr[-800:]}")
+        if attempt < retries:
+            log(f"ssh 传输失败（{last}），3 秒后重试：{cmd[:60]}")
+            time.sleep(3)
+    raise RuntimeError(f"ssh failed after {retries} attempts: {cmd}\n{last}")
 
 
 def read_remote(path: str) -> str:
@@ -497,9 +532,10 @@ def backup_remote(keep: int = 20) -> str:
     return dst
 
 
-def prevalidate(block: str) -> tuple[bool, str]:
+def prevalidate(block: str, runtime: str | None = None) -> tuple[bool, str]:
     """把候选块插进当前运行配置的 proxies 段，用 CrashCore -t 预检。"""
-    runtime = read_remote(REMOTE_RUNTIME)
+    if runtime is None:
+        runtime = read_remote(REMOTE_RUNTIME)
     if "proxy-groups:" not in runtime:
         return False, "运行配置里没有 proxy-groups:"
     lines = [line for line in runtime.splitlines() if f"{NAME_PREFIX}-" not in line]
@@ -520,9 +556,40 @@ def prevalidate(block: str) -> tuple[bool, str]:
         timeout=90,
         check=False,
     )
-    ssh(f"rm -f {test_path}", check=False)
+    try:
+        ssh(f"rm -f {test_path}", check=False, retries=1)
+    except Exception:  # noqa: BLE001 - 清理失败不该掩盖预检结论
+        pass
     detail = (proc.stdout + proc.stderr).strip().splitlines()
     return proc.returncode == 0, detail[-1] if detail else ""
+
+
+def isolate_bad_nodes(nodes: list[dict], prefix: str = "T") -> list[dict]:
+    """预检失败时二分定位无法被 mihomo 接受的节点。
+
+    整块预检是「一条坏节点否决整批」，而候选池顺序稳定 —— 不把坏节点挑出来
+    记死，同样的 50 条每轮都会排在最前面反复失败，队头永久堵死。
+    """
+    runtime = read_remote(REMOTE_RUNTIME)
+    bad: list[dict] = []
+    stack: list[list[dict]] = [list(nodes)]
+    while stack:
+        chunk = stack.pop()
+        if not chunk:
+            continue
+        block, kept = make_block(chunk, prefix)
+        if not kept:
+            continue
+        ok, _ = prevalidate(block, runtime)
+        if ok:
+            continue
+        if len(kept) == 1:
+            bad.append(kept[0])
+            continue
+        mid = len(kept) // 2
+        stack.append(kept[:mid])
+        stack.append(kept[mid:])
+    return bad
 
 
 def restart_core(settle: int) -> bool:
@@ -645,8 +712,25 @@ def test_batches(
                 continue
             ok, detail = prevalidate(block)
             if not ok:
-                log(f"批次 {bi} 预检失败，跳过：{detail}")
-                continue
+                log(f"批次 {bi} 预检失败，二分定位坏节点：{detail}")
+                bad = isolate_bad_nodes(kept)
+                bad_fps = {fingerprint(n) for n in bad}
+                if bad:
+                    bad_now = int(time.time())
+                    for node in bad:
+                        update_state(state, node, alive=False, delay=None, now=bad_now)
+                    save_state(state)
+                    log(f"批次 {bi} 剔除 {len(bad)} 条无法加载的节点（记 dead，3 天内不再测）")
+                kept = [n for n in kept if fingerprint(n) not in bad_fps]
+                if not kept:
+                    log(f"批次 {bi} 没有可加载的节点，跳过")
+                    continue
+                block, kept = make_block(kept, "T")
+                ok, detail = prevalidate(block)
+                if not ok:
+                    log(f"批次 {bi} 剔除后预检仍失败，跳过：{detail}")
+                    continue
+                log(f"批次 {bi} 剔除坏节点后继续，剩 {len(kept)} 条")
             content = read_remote(REMOTE_PROXIES)
             write_remote(REMOTE_PROXIES, replace_block(content, block))
             if not restart_core(settle):

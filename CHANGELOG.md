@@ -28,6 +28,8 @@
 - 修复 `tools/public-nodes/screen.py` —— 重启后先 `wait_api` 轮询 `/version`（最多 60s）再读 `/proxies`，`api_proxies` 重试 2 次 → 4 次、间隔 5s → 10s；这一轮就是「配置已加载但 API 未就绪」导致整轮崩掉的
 - 修复 `tools/public-nodes/screen.py` —— 「没有存活节点」时保留旧配置的重启失败没人管，现在失败会等 30 秒重试一次，仍失败则显式返回 1：网络抖动会让配置生成被截断，ShellCrash 静默回退基础配置
 - 修复 `tools/public-nodes/run-daily.cmd` —— **批处理文件里不能写中文注释**：本仓 `.gitattributes` 强制 `eol=lf`，计划任务用 OEM 代码页（936）解析 UTF-8 中文会直接退出整个脚本，表现为「任务返回 0 但 python 根本没启动」（2026-10-22 排查）。同时去掉多行 `if (...)` 块，改成单行 `if ... for ... do if ...`
+- 修复 `tools/public-nodes/screen.py` —— `ssh()` 对**传输层**失败（超时 / rc=255）自动重试一次，并加 `ServerAliveInterval=5 / ServerAliveCountMax=2`：路由器重启那几十秒里连 `rm -f` 都能卡满 120 秒，足以让整轮作废（2026-10-22 16:37 实测）；命令本身的错误仍然立即抛出
+- 修复 `tools/public-nodes/screen.py` —— 预检失败时二分定位坏节点：整块预检是「一条坏节点否决整批」，而候选池顺序稳定，不把坏节点挑出来记 dead，同样的 50 条每轮都会排在最前反复失败，**队头永久堵死**。现在用二分（约 2×log2(n) 次预检）找出 mihomo 无法加载的节点，写进 state 记 dead（3 天冷却），其余继续测。单测：20 条里精确找出 3 条坏节点
 
 ### 设备侧（不入库）
 
