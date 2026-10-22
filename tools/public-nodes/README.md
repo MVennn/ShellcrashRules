@@ -116,6 +116,9 @@ ripaojiedian 已过期（最后更新 2026-09-30）。
 ## 定时任务（Windows）
 
 已注册 `ShellcrashRules-PublicNodes`：每天 05:10 跑一次增量。
+任务动作是 `pythonw.exe "tools\public-nodes\run-daily-hidden.pyw"`（工作目录为仓库根）——
+`run-daily-hidden.pyw` 用 `CREATE_NO_WINDOW` 转调 `run-daily.cmd`，不会弹出控制台窗口；
+**任务本体仍是 `run-daily.cmd`**（日志轮转 / UTF-8 / python 调用只在它里面维护）。
 
 ```cmd
 schtasks /Query /TN "ShellcrashRules-PublicNodes" /V /FO LIST
@@ -134,9 +137,12 @@ schtasks /Run /TN "ShellcrashRules-PublicNodes"     :: 手动触发
 ```cmd
 cd /d <仓库根>
 schtasks /Create /TN "ShellcrashRules-PublicNodes" ^
-  /TR "\"%CD%\tools\public-nodes\run-daily.cmd\"" ^
+  /TR "\"<pythonw.exe 的绝对路径>\" \"%CD%\tools\public-nodes\run-daily-hidden.pyw\"" ^
   /SC DAILY /ST 05:10 /IT /F
 ```
+
+> 直接用 `run-daily.cmd` 也能跑，但会闪一个控制台窗口；用 `pythonw.exe` 包一层才是
+> 无窗口的当前配置。`pythonw.exe` 的路径按本机 Python 安装位置填（`where pythonw` 可查）。
 
 然后用 PowerShell 补上上面四项设置：
 

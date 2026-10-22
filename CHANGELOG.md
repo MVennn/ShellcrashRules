@@ -39,6 +39,9 @@
 - 修复 `tools/public-nodes/screen.py` —— `ssh()` 对**传输层**失败（超时 / rc=255）自动重试一次，并加 `ServerAliveInterval=5 / ServerAliveCountMax=2`：路由器重启那几十秒里连 `rm -f` 都能卡满 120 秒，足以让整轮作废（2026-10-22 16:37 实测）；命令本身的错误仍然立即抛出
 - 修复 `tools/public-nodes/screen.py` —— 预检失败时二分定位坏节点：整块预检是「一条坏节点否决整批」，而候选池顺序稳定，不把坏节点挑出来记 dead，同样的 50 条每轮都会排在最前反复失败，**队头永久堵死**。现在用二分（约 2×log2(n) 次预检）找出 mihomo 无法加载的节点，写进 state 记 dead（3 天冷却），其余继续测。单测：20 条里精确找出 3 条坏节点
 
+- 新增 `tools/public-nodes/run-daily-hidden.pyw` —— 计划任务的当前入口：用 `pythonw.exe` 无窗口转调 `run-daily.cmd`，任务动作已经是它；**任务本体仍是 `run-daily.cmd`**（日志轮转 / UTF-8 / python 调用只在它里面维护）
+- 调整 `tools/public-nodes/README.md` —— 定时任务一节写明实际动作与无窗口原理，重建命令改用 `pythonw.exe` + `run-daily-hidden.pyw`
+
 ### 设备侧（不入库）
 
 - 删除 `yamls/proxies.yaml` 里的 `印度-备用m2` / `印度-备用ct2` —— 机场已不再发布这两个入口，且它们硬编码了共享 UUID，机场换凭据时会静默失效；两者都不在 guardian 候选与自动选路路径上，删除后 `proxies` 34 → 32
