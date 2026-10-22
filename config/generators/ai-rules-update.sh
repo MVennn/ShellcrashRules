@@ -105,24 +105,34 @@ fi
 	echo "- DOMAIN-SUFFIX,cdn-telegram.org,📺 大流量"
 	echo "- IP-CIDR,91.108.0.0/16,📺 大流量,no-resolve"
 	echo "- IP-CIDR,149.154.160.0/20,📺 大流量,no-resolve"
-	echo "# ===== J. B站（API 出国、CDN 直连，2026-10-22）====="
+	echo "# ===== J. B站（属地上国外、其余直连，2026-10-22）====="
 	echo "# 目的：评论 / 主页的 IP 属地显示节点所在国家，视频仍走国内直连。"
 	echo "# 属地由「发请求那一刻的源 IP」决定，没有独立检测接口 —— 只有让 API 真出国才改得了；"
 	echo "#   页面 / 登录 / 静态 / 视频 CDN 必须直连，否则视频流量会绕到机场。"
 	echo "# CDN 规则用字面 DIRECT，不用 🎯 全球直连 组：respect-rules 的 DNS 只有"
 	echo "#   对字面 DIRECT 才走 direct-nameserver（AliDNS/DoH.pub）；用组会落到默认"
 	echo "#   nameserver（Cloudflare/Google DoH），解析到海外 Akamai 边缘，实测 28 KB/s。"
-	echo "# API → 🎬 B站解锁。HY2 池到大陆方向不通（香港/韩国能连 gstatic，"
-	echo "#   但百度/知乎/B站全部 TLS EOF/超时）；vmess 池的 香港WAP/台湾-优化3/"
-	echo "#   日本-优化/新加坡-优化3 可正常访问，B站 zone 分别显示对应地区。"
+	echo "# 只有这三族与属地有关，走 🎬 B站解锁："
+	echo "#   api.bilibili.com   web 评论 / 空间 / zone"
+	echo "#   biliapi.com/.net   App（grpc 上评论与 playurl 同域，拆不开）"
+	echo "# HY2 池到大陆方向不通（香港/韩国能连 gstatic，但百度/知乎/B站全部 TLS EOF/超时）；"
+	echo "#   vmess 池的 香港WAP/台湾-优化3/日本-优化/新加坡-优化3 可正常访问，"
+	echo "#   B站 zone 分别显示对应地区。"
+	echo "# 下面四个不参与属地，直连：每个新连接少一次隧道往返。"
+	echo "#   实测（2026-10-22，api.bilibili.com）：经香港 TLS 0.42–1.29s / TTFB 0.57–1.57s，"
+	echo "#   直连 TTFB 0.11s —— 动态 / 直播 / App 启动每开一个连接都要付这笔钱。"
+	echo "#   app.bilibili.com      App 启动配置 / 版本 / 开屏"
+	echo "#   cm.bilibili.com       广告投放"
+	echo "#   api.vc.bilibili.com   动态 / 关注 / 私信（显示的是他人属地）"
+	echo "#   api.live.bilibili.com 直播房间 API（弹幕与开播信息不含自身属地）"
 	echo "# 模板本来就把 bilibili 全族直连，这里显式写一遍，避免模板更新后落到 MATCH。"
 	echo "- DOMAIN-SUFFIX,api.bilibili.com,🎬 B站解锁"
-	echo "- DOMAIN-SUFFIX,app.bilibili.com,🎬 B站解锁"
-	echo "- DOMAIN-SUFFIX,cm.bilibili.com,🎬 B站解锁"
-	echo "- DOMAIN-SUFFIX,api.live.bilibili.com,🎬 B站解锁"
-	echo "- DOMAIN-SUFFIX,api.vc.bilibili.com,🎬 B站解锁"
 	echo "- DOMAIN-SUFFIX,biliapi.com,🎬 B站解锁"
 	echo "- DOMAIN-SUFFIX,biliapi.net,🎬 B站解锁"
+	echo "- DOMAIN-SUFFIX,app.bilibili.com,DIRECT"
+	echo "- DOMAIN-SUFFIX,cm.bilibili.com,DIRECT"
+	echo "- DOMAIN-SUFFIX,api.vc.bilibili.com,DIRECT"
+	echo "- DOMAIN-SUFFIX,api.live.bilibili.com,DIRECT"
 	echo "- DOMAIN-SUFFIX,bilibili.com,DIRECT"
 	echo "- DOMAIN-SUFFIX,bilibili.co,DIRECT"
 	echo "- DOMAIN-SUFFIX,bilivideo.com,DIRECT"
@@ -437,8 +447,11 @@ for r in "DOMAIN,api.github.com,$GH" \
 	fi
 done
 for r in "DOMAIN-SUFFIX,api.bilibili.com,🎬 B站解锁" \
-         "DOMAIN-SUFFIX,cm.bilibili.com,🎬 B站解锁" \
          "DOMAIN-SUFFIX,biliapi.net,🎬 B站解锁" \
+         "DOMAIN-SUFFIX,app.bilibili.com,DIRECT" \
+         "DOMAIN-SUFFIX,cm.bilibili.com,DIRECT" \
+         "DOMAIN-SUFFIX,api.vc.bilibili.com,DIRECT" \
+         "DOMAIN-SUFFIX,api.live.bilibili.com,DIRECT" \
          "DOMAIN-SUFFIX,bilibili.com,DIRECT" \
          "DOMAIN-SUFFIX,bilivideo.com,DIRECT" \
          "DOMAIN-SUFFIX,hdslb.com,DIRECT"; do

@@ -520,10 +520,31 @@ AAAA；原先使用的 `2408:8756::/31` 是整个联通 IPv6 大段，腾讯（Q
 
 | 类别 | 域名 | 目标 |
 |---|---|---|
-| API | `api.bilibili.com` / `app.bilibili.com` / `cm.bilibili.com` / `api.live.bilibili.com` / `api.vc.bilibili.com` / `biliapi.com` / `biliapi.net` | 🎬 B站解锁 |
+| 属地 API | `api.bilibili.com` / `biliapi.com` / `biliapi.net` | 🎬 B站解锁 |
+| 非属地 API | `app.bilibili.com` / `cm.bilibili.com` / `api.vc.bilibili.com` / `api.live.bilibili.com` | DIRECT |
 | 页面/登录/静态 | `bilibili.com` / `bilibili.co` / `b23.tv` / `acg.tv` | 🎯 全球直连 |
 | 视频 CDN | `bilivideo.com` / `bilivideo.cn` / `hdslb.com` / `biliimg.com` / `acgvideo.com` / `upos-hz-mirrorakam.akamaized.net` | DIRECT |
 | MCDN / PCDN | `*.mcdn.bilivideo.cn` / `*.edge.mountaintoys.cn` | `hosts:` → `127.0.0.1`（强制回落常规 CDN） |
+
+**2026-10-22 二次拆分：只有三族真的需要出国**
+
+原先把 `app.` / `cm.` / `api.live.` / `api.vc.` 也送进 🎬 B站解锁，但它们都不参与属地：
+`app` 是 App 启动配置/版本/开屏，`cm` 是广告投放，`api.vc` 是动态/关注/私信（显示的是**他人**属地），
+`api.live` 是直播房间 API（弹幕与开播信息不含自身属地）。改直连后实测：
+
+- 经香港：`api.bilibili.com` TLS 0.42–1.29s、TTFB 0.57–1.57s；
+- 直连：同类请求 TTFB 0.06–0.09s（冷启动 0.11s）—— 每个新连接省一次隧道往返；
+- 验证：`/connections` 里四个域链路为 `["DIRECT"]`，`api.bilibili.com` 为
+  `["🎬 B站解锁","🇭🇰 香港WAP-优化"]`，`x/web-interface/zone` 仍返回 `country=香港`。
+
+**视频 CDN 拆不动（同一轮实测，别再试）**
+
+`playurl` 与评论/zone 同在 `api.bilibili.com`，而 B站按**请求源 IP** 选 CDN：
+经香港请求返回 `upos-sz-mirrorcosov.bilivideo.com` + `upos-hz-mirrorakam.akamaized.net`（海外边缘，
+实测 0.69–1.23 MB/s）；路由器 WAN 出口请求同一接口返回 `upos-sz-mirrorbd.bilivideo.com`（国内 CDN）。
+因此只要 API 出国，媒体就注定落在海外边缘；想拿国内 CDN 只能让 `api.bilibili.com` 直连 ——
+那等于放弃属地。按域名/路径都拆不开：规则只能匹配 host，playurl 与评论同 host；
+`dash` 的 `backupUrl` 也只有海外域，DNS 层屏蔽海外 CDN 只会把播放打断。
 
 **节点选择（2026-10-22 实测）**：
 

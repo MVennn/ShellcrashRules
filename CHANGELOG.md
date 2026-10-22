@@ -25,6 +25,9 @@
 - 新增 `📺 大流量` 组 —— `select`：`🆓 公共备用` → `♻️ 自动选择`，只由规则 H 段的大文件下载域引用；默认走公共池省机场流量，吞吐低于阈值时由 `bulk-guard.sh` 切回机场。`reorder-groups.sh` 的成员顺序与兜底插入同步（`🚀 节点选择` 末尾、`DIRECT` 之前）
 - 调整 `config/yamls/proxies.example.yaml` —— 说明当前设备不再维护手工节点（节点全部来自订阅 + `sub-sync.sh` 自动补齐），模板只用于额外加备用入口；`cp` 重建时提醒保留 SUB-SYNC 块
 - 调整 `config/yamls/proxies.example.yaml` —— 明确设备上的 `proxies.yaml` 有 `SUB-SYNC` / `PUBLIC-NODES` 两个自动块，**禁止整文件覆盖**（2026-10-22 曾因整文件部署冲掉 4 个公开节点）
+- 调整 `config/generators/ai-rules-update.sh` + `config/generated/rules.yaml` —— B站二次拆分：`app.bilibili.com` / `cm.bilibili.com` / `api.vc.bilibili.com` / `api.live.bilibili.com` 改 `DIRECT`（四者都不参与 IP 属地），只留 `api.bilibili.com` / `biliapi.com` / `biliapi.net` 走 `🎬 B站解锁`。实测直连 TTFB 0.06–0.09s vs 经香港 0.57–1.57s，动态/直播/App 启动每个新连接都省一次隧道往返
+- 调整 `config/generators/ai-rules-update.sh` —— B站段自检同步新拆分：原来强制要求 `cm.bilibili.com` 指向 `🎬 B站解锁`，新规则会被自己的校验拒掉（`警告: B站段丢失`、`rc=1`），并补上四个 `DIRECT` 项
+- 记录 `docs/RULE-AUDIT.md` 7.6 —— 视频 CDN 拆不动的实测：`playurl` 与评论同在 `api.bilibili.com`，经香港返回海外 CDN（0.69–1.23 MB/s），路由器官网出口返回国内 CDN（`upos-sz-mirrorbd`）；要国内 CDN 只能放弃属地
 
 ### 工具
 
