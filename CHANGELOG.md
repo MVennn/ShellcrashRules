@@ -11,6 +11,12 @@
 
 ## [未发布] — 2026-10-22 ~ 2026-10-23
 
+### 𝕏 媒体（2026-10-23）
+
+- 新增 `𝕏 媒体` 组 —— `url-test` + `filter: HY2`，只承载 `twimg.com`（X/Twitter 图片与视频 CDN）。修复 VMess+WS 并发建连被串行化：10 并发真实图片从 1.9–5.9s（偶发单张 5–6s）降到 0.35s、单张 0.21–0.25s；单请求延迟看不出差异（HY2 89ms vs VMess 65ms），所以组内只放 HY2，健康检查用 `pbs.twimg.com/robots.txt`（200、稳定）
+- 调整 `config/generators/ai-rules-update.sh` —— 规则置顶新增 X 段，并在写后校验里要求 `DOMAIN-SUFFIX,twimg.com,𝕏 媒体` 存在
+- 调整 `config/generated/rules.yaml` —— 同步 X 段（自定义规则在机场模板规则之前，覆盖 `twimg.com` 的默认出口）
+
 ### 文档骨架对齐系列仓（2026-10-23）
 
 - 调整 `docs/release-notes/` —— 文件名去掉 `v` 前缀（`v0.2.1.md` → `0.2.1.md`，共 4 份）；

@@ -188,6 +188,7 @@ mihomo 校验（CrashCore -t）→ 加载
 | 🛟 主备自动 | `fallback`：`♻️ 自动选择` → `🆓 公共备用` | `config/yamls/proxy-groups.yaml` | `🚀 节点选择` 的默认项；机场节点正常时走 `♻️ 自动选择`，机场全挂时自动落到公共备用。**不放 DIRECT**，避免两边都挂时静默直连泄露真实 IP |
 | 🆓 公共备用 | `url-test` + `filter: 🆓 公共` | `config/yamls/proxy-groups.yaml` | AutoMergePublicNodes 公开节点的最后手段：作为 `🛟 主备自动` 的兜底成员，同时保留在 `🚀 节点选择` 末尾供手动选择。节点由 PC 侧 `tools/public-nodes/screen.py` 定期筛选后写入路由器本地 `yamls/proxies.yaml`（不入库）；2026-10-21 全量筛选池 208 条通常只有 4–6 条存活，**不可用于 AI / 网银 / 邮箱** |
 | 📺 大流量 | `select`：`🆓 公共备用` → `♻️ 自动选择` | `config/yamls/proxy-groups.yaml` | 只承载 `rules.yaml` H 段（Steam / Epic 内容 CDN + 探测域 `proof.ovh.net`）与 I 段（成人站及其自有 CDN + `RULE-SET,porn` 上游规则集兜底、Telegram 的 `91.108.0.0/16` + `149.154.160.0/20`）。默认走公共池省机场流量；`bulk-guard.sh`（`OpenwrtOpsToolkit` 仓）实测吞吐低于 800 KB/s 时切回机场并冷却 1 小时。**订阅流媒体刻意不进**：YouTube 全族必须走干净出口（Google cc），Netflix/Disney 对公共节点几乎必然判代理；成人站与 Telegram 不绑账号/支付出口、全程加密，所以接进来 |
+| 𝕏 媒体 | `url-test` + `filter: HY2` | `config/yamls/proxy-groups.yaml` | X/Twitter 图片与视频 CDN（`twimg.com`）专用出口，规则见 `rules.yaml` X 段。2026-10-23 实测：VMess+WS 并发建连会被串行化（10 并发真实图片 1.9–5.9s，偶发单张 5–6s）；HY2（QUIC 多路复用）0.35s、单张 0.21–0.25s。单请求延迟看不出差异（HY2 89ms vs VMess 65ms），所以组内只放 HY2、不掺 VMess。健康检查用 `pbs.twimg.com/robots.txt`（200、稳定；根路径 400 抖动大）。HY2 全挂时把 `rules.yaml` 里 `twimg.com` 改回 `🚀 节点选择` 即可回退 |
 | 规则更新 cron | `30 4 * * 0` | 路由器 crontab | 每周跑 `auto-update.sh`（规则生成 + hotupdate） |
 | 看门狗 cron | `* * * * *` | 路由器 crontab | 每分钟拉起代理（`starts/start_legacy_wd.sh shellcrash`） |
 | 守护 cron | `*/5 * * * *` | 路由器 crontab | 每 5 分钟自愈（补载三表、节点劣化复位、干净出口守护）—— 脚本在 `AX3000TOpenwrt` 仓 |

@@ -44,6 +44,13 @@ fi
 	echo "# AI 服务分流规则 — 由 MetaCubeX/meta-rules-dat geosite category-ai-chat-!cn 生成"
 	echo "# 更新于 $(date '+%Y-%m-%d %H:%M:%S')"
 	echo "# 同键规则已去重（保留首次出现；顶部覆盖优先）"
+	echo "# ===== X. 𝕏 媒体（twimg.com 走 HY2，2026-10-23）====="
+	echo "# X/Twitter 图片 CDN 的并发建连在 VMess+WS 上会被串行化："
+	echo "#   2026-10-23 实测 10 并发真实图片，VMess 墙钟 1.9–5.9s、偶发单张 5–6s；"
+	echo "#   HY2（QUIC 多路复用）墙钟 0.35s、单张 0.21–0.25s。"
+	echo "# 单请求延迟看不出差异（HY2 89ms vs VMess 65ms），不能用延迟选路；"
+	echo "#   策略组 𝕏 媒体 只收 HY2 节点，健康检查用同域 robots.txt（200）。"
+	echo "- DOMAIN-SUFFIX,twimg.com,𝕏 媒体"
 	echo "# ===== G. 高带宽直连（省机场流量，2026-10-21）====="
 	echo "# 模板把这些域名送进代理组，但它们在国内有可用 CDN，实测直连更快："
 	echo "#   dl.google.com   → 🤖 干净出口（DOMAIN-SUFFIX,google.com）Chrome/Play/Android SDK 下载"
@@ -460,6 +467,10 @@ for r in "DOMAIN-SUFFIX,api.bilibili.com,🎬 B站解锁" \
 		exit 1
 	fi
 done
+if ! grep -qF -- "- DOMAIN-SUFFIX,twimg.com,𝕏 媒体" "$OUT.tmp"; then
+	echo "警告: 𝕏 媒体段丢失，请检查 $OUT.tmp"
+	exit 1
+fi
 for r in "DOMAIN-SUFFIX,doubleclick.net,🛑 广告拦截" \
          "DOMAIN-SUFFIX,googlesyndication.com,🛑 广告拦截" \
          "DOMAIN-SUFFIX,googleadservices.com,🛑 广告拦截" \
