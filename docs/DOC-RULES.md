@@ -11,13 +11,28 @@ docs/ 分四类（索引见 [README.md](README.md)）：
 
 | 类别 | 收什么 | 现有成员 |
 |---|---|---|
-| 架构与链路 | 配置怎么长出来、运行时怎么跑、谁拥有哪个文件 | ARCHITECTURE |
-| 坑与排错 | 踩过的坑（为什么）与排查流程（怎么查） | PITFALLS、TROUBLESHOOTING |
-| 流程与规范 | 文档怎么写、配置怎么维护、版本怎么晋升、凭据放在哪、工具怎么跑 | DOC-RULES、MAINTENANCE、VERSIONING、SECRETS、TOOLS |
-| 参考资料 | 审计结论、Release 说明、许可证 | RULE-AUDIT、release-notes/、根 LICENSE、NOTICE |
+| 架构与配置 | 配置怎么长出来、运行时怎么跑、部署到哪 | ARCHITECTURE、DEPLOY |
+| 规则与工具 | 规则审计结论、脚本与工具的用法 | RULE-AUDIT、TOOLS |
+| 流程与规范 | 文档怎么写、配置怎么维护、坑与排障、版本怎么晋升、凭据放在哪 | DOC-RULES、MAINTENANCE、PITFALLS、TROUBLESHOOTING、SECRETS、VERSIONING、release-notes/README |
+| 参考资料 | 审计结论、Release 说明、上游与许可证 | release-notes/、UPSTREAM、根 LICENSE、NOTICE、CHANGELOG、third-party/ |
 
 每篇文档开头必须有一个 **「一句话」引言块**（`> **一句话**：…`），
-让读者不用往下翻就知道这篇管什么。新文档没有它不算写完。
+让读者不用往下翻就知道这篇管什么。新文档没有它不算写完
+（`tools/check-docs.py` 会拦；`docs/release-notes/` 下的单版本说明与根
+[README.md](../README.md) 例外 —— 前者正文首行就是加粗总结，后者是门面）。
+
+### 1.1 文件命名：全大写 + 连字符
+
+docs/ 下的文档**一律 `ALL-CAPS-WITH-HYPHENS.md`**（如 `RULE-AUDIT.md`、
+`DOC-RULES.md`、`UPSTREAM.md`）。不接受小写文档名（小写留给 `README.md` 这类
+约定俗成的入口）、不接受中文文件名、不接受下划线或空格。
+
+改名纪律：**改名用 `git mv`**（保住历史），然后**全仓 grep 旧文件名**，
+把所有指向它的链接改成新位置 —— **禁止只改名不同步引用方**。
+改完跑 `python tools/check-docs.py`（链接 / 锚点 / 引言块 / 孤儿四项）。
+
+唯一的例外是 `docs/release-notes/` 下的单版本说明：文件名 = `versionName`
+（如 `0.2.1.md`），**不带 `v`** —— `v` 前缀只属于发版 tag。
 
 仓库根的文件各管一件事，**不在 docs/ 里重复**：
 
@@ -118,7 +133,8 @@ docs/ 分四类（索引见 [README.md](README.md)）：
 | 改了凭据的存放位置或新增了凭据 | [SECRETS.md](SECRETS.md)（位置清单）、`.gitignore` 的排除项 |
 | 改了版本晋升 / 发版规则 | [VERSIONING.md](VERSIONING.md)；仓库根 [CHANGELOG.md](../CHANGELOG.md)（版本号本身） |
 | 改了许可证 | 仓库根 [LICENSE](../LICENSE)、[NOTICE](../NOTICE)、[UPSTREAM.md](UPSTREAM.md) §1.1 / §4、根 [README.md](../README.md) 的许可证段 |
-| 发版 | 仓库根 [CHANGELOG.md](../CHANGELOG.md)、[docs/release-notes/v<版本>.md](release-notes/README.md)（版本号进位规则：[VERSIONING.md](VERSIONING.md)） |
+| 改名文档 | `git mv` + 全仓 grep 旧文件名同步引用方（见 §1.1）；跑 `python tools/check-docs.py` |
+| 发版 | 仓库根 [CHANGELOG.md](../CHANGELOG.md)、`docs/release-notes/<版本>.md`（不带 `v`，格式正本 [release-notes/README.md](release-notes/README.md)；版本号进位规则：[VERSIONING.md](VERSIONING.md)） |
 | 内部重构 / 死代码 / 归档 | 说明里**必须按对象单列一行**（算「调整」，不许打包成「代码整理」） |
 | 新增 / 删除文档 | [docs/README.md](README.md) 索引（见 §7） |
 | 改文档规则 | 本篇 + [docs/README.md](README.md) 的「正本」标注 |

@@ -245,7 +245,7 @@ ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-api-check.sh'
 - [ ] 改动了 `config/` 就同步了本仓对应文件（**设备上改了、仓里没改 = 下次更新就丢**）
 - [ ] 改了规则/分组/端口就同步了 [docs/ARCHITECTURE.md](ARCHITECTURE.md) §4 关键参数表
 - [ ] 踩到新坑就往 [docs/PITFALLS.md](PITFALLS.md) 加一条
-- [ ] 发版就按 [VERSIONING.md](VERSIONING.md) §1 定版本号，再写 [CHANGELOG.md](../CHANGELOG.md) + `docs/release-notes/v<版本>.md`
+- [ ] 发版就按 [VERSIONING.md](VERSIONING.md) §1 定版本号，再写 [CHANGELOG.md](../CHANGELOG.md) + `docs/release-notes/<版本>.md`（不带 `v`；`v` 只属于发版 tag）
 
 ---
 

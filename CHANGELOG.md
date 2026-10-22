@@ -114,6 +114,13 @@
 - 调整 `docs/ARCHITECTURE.md` —— 生成链路补 `rules-cnip.sh`（实际为三个钩子：rules-mid → rules-cnip → reorder-groups）
 - 调整 `docs/DEPLOY.md` —— 映射表补 `rules-cnip.sh` 与 `fake_ip_filter`；移除已不成立的「待补」
 - 调整 `docs/MAINTENANCE.md` —— 回退表补 `rules-cnip.sh`
+- 新增 `docs/DOC-RULES.md` §1.1 —— 文件命名纪律：docs/ 下一律 `ALL-CAPS-WITH-HYPHENS.md`；改名用 `git mv` + 全仓 grep 同步引用方，改完跑 `tools/check-docs.py`；`release-notes/` 单版本说明例外（文件名 = `versionName`，不带 `v`）
+- 调整 `docs/DOC-RULES.md` §5 —— 变更触发矩阵新增「改名文档」一行；「发版」行的说明文件名去掉 `v` 前缀
+- 调整 `docs/VERSIONING.md` —— §5 改写为「不发版就不要动版本号」，补手工号提前进位会吃掉下一个版本号（CHANGELOG 标题 / 说明文件名 / tag 三处一起偏离）的理由；§2 边界情况表新增「规则段 / 策略组增删改名」一行；§3 / §4 的 Release 说明文件名与当前版本对齐（0.2.1，不带 `v`）
+- 重命名 `docs/release-notes/v0.1.0.md` / `v0.1.1.md` / `v0.2.0.md` / `v0.2.1.md` —— 改为 `0.1.0.md` / `0.1.1.md` / `0.2.0.md` / `0.2.1.md`（对齐系列仓：文件名 = `versionName` 不带 `v`，`v` 前缀只属于发版 tag）；**git tag 不动**
+- 调整 `docs/release-notes/README.md` —— 文件名口径改为 `versionName`（不带 `v`）并说明 `v` 只属于 tag；「别写这些」补引言块与版本标题行；发版流程与写完对照清单同步新文件名
+- 调整 `docs/README.md` —— 索引引言块与结尾提醒对齐系列仓措辞；四张表的一句话定位压到一行能读完；「参考资料」补 `release-notes/` 目录入口行，四份单版本说明链接改新文件名
+- 调整 `docs/MAINTENANCE.md` —— 收尾清单的 Release 说明路径去掉 `v` 前缀
 
 ### 事故与结论（2026-10-22）
 
