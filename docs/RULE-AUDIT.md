@@ -479,6 +479,15 @@ sentry/intercom/auth0/statsig 是同一类问题：
 路由器层只能按域名拆，发评论和刷首页走同一批 API 域名。所以要让属地变国外，
 必须把 API 域名整体指向国外组，CDN 保持直连。
 
+**网络层（2026-10-22 追加）**：只加域名规则不够 —— 手机端 App 会用 HTTPDNS 拿到
+真实 CN IP（`157.148.134.0/24`、`27.37.206.0/24`）或走 QUIC（UDP 443），
+两者都会被 `cn_ip`/`cn_ip6` 的直连豁免放行，根本到不了 mihomo。因此：
+
+- `config/starts/fw_nftables.sh`：在 `cn_ip`/`cn_ip6` return **之前**把 B站 API 的
+  IPv4/IPv6 段 TCP 443 重定向到 7892（`BILI_IP_MARKER` / `BILI_V6_MARKER`）；
+- `firewall/quicguard-sync.sh` / `firewall/tables/quicguard.nft`：在 CN QUIC 豁免
+  **之前** reject 这些网段的 UDP 443/8443，强制 App 回落 TCP。
+
 | 类别 | 域名 | 目标 |
 |---|---|---|
 | API | `api.bilibili.com` / `app.bilibili.com` / `cm.bilibili.com` / `api.live.bilibili.com` / `api.vc.bilibili.com` / `biliapi.com` / `biliapi.net` | 🎬 B站解锁 |

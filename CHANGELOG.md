@@ -43,6 +43,8 @@
 
 ### 脚本
 
+- 调整 `config/starts/fw_nftables.sh` —— 在 `cn_ip`/`cn_ip6` return 之前把 B站 API 的 IPv4/IPv6 段（`157.148.134.0/24`、`27.37.206.0/24`、`2408:8756::/31`）TCP 443 重定向到 7892；手机端用 HTTPDNS 拿真实 CN IP 时域名规则才能生效（`BILI_IP_MARKER` / `BILI_V6_MARKER`）
+- 调整 `firewall/quicguard-sync.sh` / `firewall/tables/quicguard.nft` —— 在 CN QUIC 豁免之前 reject B站 API 段的 UDP 443/8443，强制 App 回落 TCP；否则 QUIC 会带着国内 IP 直连
 - 调整 `config/generators/ai-rules-update.sh` —— 新增 J 段（B站 API 出国 / CDN 直连）并逐条校验，防止每周更新被上游规则去重掉
 - 调整 `config/hooks/reorder-groups.sh` —— 组定义顺序与 `🚀 节点选择` 成员顺序加入 `🎬 B站解锁`（`🆓 公共备用` 之后、`📺 大流量` 之前）
 - 调整 `config/generated/rules.yaml` —— 由路由器重生成（396 条；J 段 +17，K 段由并行批次加入）

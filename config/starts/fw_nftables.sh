@@ -9,6 +9,10 @@ add_ip6_route(){
     nft add rule inet shellcrash $1 ip6 daddr {$RESERVED_IP6} return
     #仅代理本机局域网网段流量
     nft add rule inet shellcrash $1 ip6 saddr != {$HOST_IP6} return
+    #BILI_V6_MARKER B站 API 的 IPv6 段在 cn_ip6 里，会被下面的 CN 绕过规则直接放行；
+    #  手机端走 IPv6 时评论/主页属地仍是国内。先在 CN return 之前重定向到 mihomo，
+    #  由 rules.yaml J 段的域名规则（api/cm.bilibili.com → 🎬 B站解锁）接管。
+    [ "$redir_mod" = "Redir" ] && nft add rule inet shellcrash $1 ip6 daddr 2408:8756::/31 tcp dport 443 redirect to $redir_port
     #绕过CN_IPV6
     [ "$dns_mod" != "fake-ip" -a "$cn_ip_route" = "ON" -a -f "$BINDIR"/cn_ipv6.txt ] && {
         CN_IP6=$(awk '{printf "%s, ",$1}' "$BINDIR"/cn_ipv6.txt)
@@ -73,6 +77,10 @@ start_nft_route() { #nftables-route通用工具
             fi
         }
     }
+    #BILI_IP_MARKER B站 API 的真实 IP 落在 cn_ip 里（157.148.0.0/16、27.36.0.0/14），
+    #  会被下面的 CN 绕过规则直接放行；手机端用 HTTPDNS/真实 IP 时评论属地仍是国内。
+    #  在 CN return 之前把这些网段重定向到 mihomo，由 rules.yaml J 段的域名规则接管。
+    [ "$redir_mod" = "Redir" ] && nft add rule inet shellcrash $1 ip daddr { 157.148.134.0/24, 27.37.206.0/24 } tcp dport 443 redirect to $redir_port
     #绕过CN-IP
     [ "$dns_mod" != "fake-ip" -a "$cn_ip_route" = "ON" -a -f "$BINDIR"/cn_ip.txt ] && {
         #CN_IP_EXCLUDE_203208 剔除 Google 国内边缘段：留在 cn_ip 会被 nft 提前放行直连，

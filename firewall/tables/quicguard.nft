@@ -42,6 +42,12 @@ table inet quicguard {
 	chain prerouting {
 		type filter hook prerouting priority -150; policy accept;
 
+		# Bilibili API: QUIC would leave with the CN IP (CN exemption below).
+		#   Reject it so the app falls back to TCP, where Redir + the domain
+		#   rules (api/cm.bilibili.com -> B站 group) can take over.
+		ip daddr { 157.148.134.0/24, 27.37.206.0/24 } udp dport { 443, 8443 } counter reject with icmpx type port-unreachable
+		ip6 daddr 2408:8756::/31 udp dport { 443, 8443 } counter reject with icmpx type port-unreachable
+
 		# 0) Domestic targets: DIRECT anyway -> QUIC may leave directly.
 		ip daddr @cn_ip_mirror return
 		ip6 daddr @cn_ip6_mirror return

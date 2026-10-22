@@ -757,6 +757,9 @@ enabled，procd 也会拉一个实例；再加上手动 `start.sh start`、`guar
 **解法**：把该 App 的 **API 域名整体**指向国外组，CDN 域名直连 —— 大头（视频）仍是国内，
 但 API 那部分真的出国。B站见 `🎬 B站解锁` 与 `rules.yaml` J 段；**评论接口是
 `cm.bilibili.com`，只加 `api.bilibili.com` 不够**（2026-10-22 实测：手机端评论仍显示广东）。
+另：只加域名规则也不够 —— 手机 App 会用 HTTPDNS 拿真实 CN IP 或走 QUIC（UDP 443），
+两者都被 `cn_ip`/`cn_ip6` 的直连豁免放行；必须同时在 nft 层把 B站 IP 段 TCP 443
+重定向到 mihomo，并在 quicguard 里 reject 这些段的 QUIC。
 抖音对境外 IP 有内容/风控限制，小红书相对可用。另：机场的 HY2 池到大陆方向可能不通，
 选节点前先用 B站 `x/web-interface/zone` 实测属地，别只看节点名字。
 
