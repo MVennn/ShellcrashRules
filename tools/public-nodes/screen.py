@@ -2,15 +2,16 @@
 """公开节点筛选器（PC 侧执行）。
 
 流程：
-  1. 拉取多个公开节点源（AutoMergePublicNodes / Epodonios / ermaozi，各自多镜像兜底）；
+  1. 拉取多个公开节点源（AutoMergePublicNodes / Epodonios / ermaozi /
+     NoMoreWalls / Au1rxx / zhuhaiuk，各自多镜像兜底）；
   2. 按源轮转合并后本地过滤：协议白名单、去诱饵、去重、按协议/网段限流；
   3. 分批推到路由器 /etc/ShellCrash/yamls/proxies.yaml，重启 ShellCrash
      让 mihomo 的健康检查实测每条节点；
   4. 只保留本轮存活的节点，其余记为 dead，进入冷却期；
   5. 下次只测「存活 + 从未见过 + 冷却期已过」的节点，避免重复测死节点。
 
-多源轮转的意义：单源池只有约 200 条、其中大半是测过的死节点；三个源轮转
-可以把候选池扩到 600+ 条，每天都有足够的新节点可测。轮转而不是顺序拼接，
+多源轮转的意义：单源池只有约 200 条、其中大半是测过的死节点；六个源轮转
+可以把候选池扩到 2000+ 条，每天都有足够的新节点可测。轮转而不是顺序拼接，
 是为了让每个源都能拿到协议配额，不会被第一个源占满。
 
 路由器上没有 Python，所以本脚本在 PC 上跑；只通过 ssh/scp 读写
@@ -89,6 +90,30 @@ SOURCES: list[tuple[str, list[str]]] = [
         [
             "https://raw.githubusercontent.com/ermaozi/get_subscribe/main/subscribe/clash.yml",
             "https://ghproxy.net/https://raw.githubusercontent.com/ermaozi/get_subscribe/main/subscribe/clash.yml",
+        ],
+    ),
+    # 2026-10-23 追加：NoMoreWalls 主仓与 AutoMergePublicNodes 同源但更新更及时；
+    # Au1rxx 池子大、协议全；zhuhaiuk 量小但每日更新，用来补新鲜节点。
+    (
+        "nomorewalls",
+        [
+            "https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list.txt",
+            "https://cdn.jsdelivr.net/gh/peasoft/NoMoreWalls@master/list.txt",
+            "https://ghproxy.net/https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list.txt",
+        ],
+    ),
+    (
+        "au1rxx",
+        [
+            "https://raw.githubusercontent.com/Au1rxx/free-vpn-subscriptions/main/output/clash.yaml",
+            "https://cdn.jsdelivr.net/gh/Au1rxx/free-vpn-subscriptions@main/output/clash.yaml",
+        ],
+    ),
+    (
+        "zhuhaiuk",
+        [
+            "https://raw.githubusercontent.com/zhuhaiuk/free-nodes/main/clash_config.yaml",
+            "https://cdn.jsdelivr.net/gh/zhuhaiuk/free-nodes@main/clash_config.yaml",
         ],
     ),
 ]
@@ -602,6 +627,15 @@ def restart_core(settle: int) -> bool:
         log(f"重启返回 {proc.returncode}")
         return False
     time.sleep(settle)
+    # 节点编号每轮重排，旧吞吐缓存会张冠李戴；重启后让守卫重新测。
+    try:
+        ssh(
+            "rm -f /tmp/ShellCrash/.bulk_guard_speed /tmp/ShellCrash/.bulk_guard_tried",
+            check=False,
+            retries=1,
+        )
+    except Exception as exc:  # noqa: BLE001 - 清理失败不该让整轮筛选失败
+        log(f"WARN: 清理 bulk-guard 测速缓存失败：{exc}")
     tail = ssh("tail -3 /tmp/sc-public-screen.log", check=False).stdout.strip()
     if "校验失败" in tail:
         log(f"配置校验失败：{tail}")
@@ -813,19 +847,20 @@ def pick_survivors(
 # --------------------------------------------------------------------------
 # 主流程
 # --------------------------------------------------------------------------
-WATCHDOG_PATTERN = r"guardian\.sh|start_legacy_wd\.sh"
+WATCHDOG_PATTERN = r"guardian\.sh|start_legacy_wd\.sh|bulk-guard\.sh"
 
 
 def crontab_has_watchdogs() -> bool:
-    """路由器上的 crontab 是否还留着 guardian / legacy 看门狗行。"""
+    """路由器上的 crontab 是否还留着 guardian / legacy / bulk-guard 行。"""
     return ssh(f"grep -qE '{WATCHDOG_PATTERN}' {CRON_FILE}", check=False).returncode == 0
 
 
 def pause_watchdogs() -> bool:
-    """测试期间停掉 guardian / legacy 看门狗，避免和 start.sh restart 抢。
+    """测试期间停掉 guardian / legacy / bulk-guard，避免和 start.sh restart 抢。
 
-    历史事故：两者并发时会出现双实例，两个启动同时写 /tmp/ShellCrash/config.yaml，
+    历史事故：看门狗与启动并发时会出现双实例，两个启动同时写 /tmp/ShellCrash/config.yaml，
     生成出的配置带重复的 proxies:/proxy-groups: 键，校验失败后静默回退基础配置。
+    bulk-guard 也要停：测试节点的编号每批重排，守卫若同时钉点会选到错误节点。
     上次异常退出留下的备份先恢复，避免把「已暂停」的 crontab 当成正常状态再备份一次。
 
     恢复这一步必须 check=True：传输层抖动时如果悄悄失败、后面又照常备份，
@@ -847,7 +882,7 @@ def pause_watchdogs() -> bool:
         f"grep -vE '{WATCHDOG_PATTERN}' {CRON_FILE} > /tmp/.cron.public-screen && "
         f"cat /tmp/.cron.public-screen > {CRON_FILE} && /etc/init.d/cron restart",
     )
-    log("已暂停 guardian / legacy 看门狗")
+    log("已暂停 guardian / legacy / bulk-guard 看门狗")
     return True
 
 
@@ -855,9 +890,9 @@ def resume_watchdogs() -> None:
     try:
         ssh(f"cp {CRON_BACKUP} {CRON_FILE} && /etc/init.d/cron restart")
     except Exception as exc:
-        log(f"ERROR: 恢复 guardian / legacy 看门狗失败，请手动把 {CRON_BACKUP} 拷回 {CRON_FILE}：{exc}")
+        log(f"ERROR: 恢复 guardian / legacy / bulk-guard 看门狗失败，请手动把 {CRON_BACKUP} 拷回 {CRON_FILE}：{exc}")
         raise
-    log("已恢复 guardian / legacy 看门狗")
+    log("已恢复 guardian / legacy / bulk-guard 看门狗")
 
 
 def run(args: argparse.Namespace) -> int:
