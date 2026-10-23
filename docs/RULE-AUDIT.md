@@ -564,3 +564,112 @@ AAAA；原先使用的 `2408:8756::/31` 是整个联通 IPv6 大段，腾讯（Q
 
 **注意**：这是「API 出国、CDN 直连」，不是「所有流量走国内」；抖音对境外 IP
 有内容与风控限制，小红书相对可用，但同一套拆法无法让「全部流量国内 + 属地国外」成立。
+
+---
+
+## 8. 2026-10-23 规则吸收与公共池利用
+
+### 8.1 调研的上游项目
+
+| 项目 | 星 | 重点 | 本轮结论 |
+|---|---:|---|---|
+| `Loyalsoldier/clash-rules` | 28.9k | direct / proxy / reject 分类清单 | 全量 11 万 direct、19.9 万 reject 与模板重叠且吃内存，**不整包引入**；只吸收 3 条直连与 5 条广告变体 |
+| `VPSDance/ai-proxy-rules` | 644 | 按 provider 拆分的 AI 规则，日更 | 吸收 40 条 AI 自有域；共享 SaaS/CDN 明确不收 |
+| `Aethersailor/Custom_OpenClash_Rules` | 6.6k | 直连 / 代理 / Steam / 游戏下载 CDN | 吸收 Epic / Steam / 暴雪 / Riot / Bethesda / Ubisoft / Xbox / GOG 下载域 |
+| `MetaCubeX/meta-rules-dat` | 5.4k | geosite category 规则集 | 用 `category-game-platforms-download` 交叉核对；本仓现用的 `category-ai-chat-!cn` **不换** |
+| `blackmatrix7/ios_rule_script` | 28.4k | 一服务一文件 | 只吸收 Disney 自有 CDN 与 Telegram/Twitch 辅助域；不引入 600+ 服务包 |
+| `peasoft/NoMoreWalls` | 3.5k | 公开节点 | 新增为公共节点源 |
+| `Au1rxx/free-vpn-subscriptions` | 1.0k | 公开节点 | 新增为公共节点源 |
+| `zhuhaiuk/free-nodes` | 366 | 公开节点 | 新增为公共节点源 |
+
+### 8.2 吸收的规则
+
+统一写进 `config/generators/ai-rules-update.sh`，再由生成器输出
+`config/generated/rules.yaml`（当前 486 条 / 610 行），**不直接手改生成物**。
+
+| 类别 | 代表规则 | 目标 |
+|---|---|---|
+| AI 自有域 | `ai.com`、`modelcontextprotocol.io`、`together.xyz`、`deepinfra.com`、`fireworks.ai`、`novita.ai`、`bfl.ai`、`stability.ai`、`runway.com`、`suno.com`、`udio.com`、`character.ai`、`you.com` 及生成/编码类 | 🤖 人工智能 |
+| 大流量 | Epic `download2/3/4`、`fastly-download`、`cloudflare.epicgamescdn`、`egdownload.fastly-edge`、`steampipe*.akamaized.net` | 📺 大流量 |
+| 游戏补丁 | `cdn.blizzard.com`、`blzddistkr1`、`prod.cloudflare.cdn.ea.com`、`dyn.riotcdn.net`、`gamedownloads-rockstargames-com.akamaized.net`、`cdp.bethesda.net`、`uplaypc-s-ubisoft*.cdn.ubi.com`、`assets1/2.xboxlive.com`、`gog-cdn.akamaized.net` | 📺 大流量 |
+| 媒体 CDN | `i/v/preview.redd.it`、`i.imgur.com`、`i.pximg.net`、`vimeocdn.com`、`dmcdn.net`、`ttvnw.net`、`static-cdn.jtvnw.net`、`sourceforge.net`、`replicate.delivery`、`image.civitai.com` | 📺 大流量 |
+| Civitai | 主站 `civitai.com` → 🚀 节点选择；图片 CDN → 📺 大流量（`image.*` 必须排在主站之前） | — |
+| 高带宽直连 | `hf-mirror.com`（Range 4MB 实测 2.42 vs 代理 0.65 MB/s）、`kuaishouzt.com`、`images-cn.ssl-images-amazon.com` | 🎯 全球直连 |
+| 广告变体 | `2mdn-cn.net`、`doubleclick-cn.net`、`dartsearch-cn.net`、`admob-cn.com`、`app-measurement-cn.com` | 🛑 广告拦截 |
+| 一致性 | `ghcr.io` → 🔗 GitHub 出口；`graph.org` / `tg.dev` → 🚀 节点选择；`live-video.net` → 🌍 国外媒体；`hotstar-cdn.net` / `dlp-media.com` → 🎥 DisneyP | — |
+| 性能 | Google 兜底 `IP-CIDR 74.125.0.0/16` / `173.194.0.0/16` 补 `no-resolve`，避免为匹配触发真实 DNS | — |
+
+### 8.3 实测否掉的建议
+
+- `cn.download.nvidia.com` **不要直连**：直连 403（跳到 `.cn` 后仍 403），代理 3.2 MB/s。
+- `gstatic-cn.com` 两边都 000；`recaptcha-cn.net` 直连 1.6s vs 代理 0.27s —— 不加直连。
+- 不整包引入 Loyalsoldier 的 `direct.txt` / `reject.txt`：与 `RULE-SET,cn`、
+  本仓广告表高度重叠，且 11 万/19.9 万条会显著增加内存与加载时间。
+- 不把 auth0 / sentry / statsig / aws / azure 共享域塞进 AI 组：同一登录会话出口会分裂。
+- `i.pximg.net` 必须显式写；只写 `pximg.net` 时 `ip.pximg.net` 会被更早的
+  `DOMAIN-SUFFIX,pximg.net,🚀 节点选择` 截走（实测首匹配已确认）。
+
+### 8.4 伪节点与主备组事故（2026-10-23）
+
+机场在订阅里塞了一个名字叫 **`过滤掉14条线路`** 的节点，它与 `🇯🇵 日本-优化`
+**同 server / port / uuid**（`p6-olduser.linuxlh.xin:16617`），但名字带「过滤掉」。
+`♻️ 自动选择` 是模板组，没有排除它，url-test 因它延迟低而选中；该节点到
+`gstatic.com` 的健康检查在 07:03–07:23 之间多次返回 0，导致
+`🛟 主备自动` 把整个 `♻️ 自动选择` 判为不健康，**所有通用流量回落到 `🆓 公共备用`**。
+实测 15:11 时 `🛟 主备自动 now = 🆓 公共备用`。
+
+修复：`config/hooks/reorder-groups.sh` 在生成阶段从 `proxies:` 定义和**所有**
+`proxy-groups` 成员列表中剔除名字匹配 `剩余流量|套餐|到期|过滤掉|官网` 的伪节点。
+配置副本验证：删除 3 行，YAML 可正常解析；重启后运行配置 0 处伪节点，
+`♻️ 自动选择` 首位回到真实 `🇯🇵 日本-优化`，`🛟 主备自动 now = ♻️ 自动选择`。
+
+### 8.5 公共节点筛选与 `bulk-guard` 二次校验
+
+- 数据源从 3 个扩到 6 个：`NoMoreWalls`、`Au1rxx`、`zhuhaiuk` 新增；
+  本轮 9804 原始 → 9479 合格 → 1271 多样性池；实测 259 条，13 存活，最终保留 10 条
+  （延迟 211–584ms）。
+- 逐节点 OVH 2MB 实测：`公共-08` 889 KB/s（最快）、`05` 582、`10` 580、`07` 488、
+  `09` 418、`04` 386、`06` 180、`01` 85 KB/s；`02/03` TLS EOF / HTTP 503。
+- 公共池钉到 `公共-08` 后，`proof.ovh.net` 4MB 实测 **1.9–2.2 MB/s**（修复前 17–34 KB/s）。
+- `OpenwrtOpsToolkit/openwrt/bulk-guard.sh` 修复：新增 `node_bulk_alive()`，
+  钉点、候选、当前节点都用 `PROBE_URL`（`proof.ovh.net`）做二次校验；
+  原来的 `node_alive()` 只测 `gstatic.com/generate_204`，会把「能出网但不能跑大文件」
+  的节点钉进 `📺 大流量`。
+- 当前公共池 10 条中 8 条存活；`📺 大流量` 仍默认 `🆓 公共备用`，守卫按阈值
+  切回机场。
+
+### 8.6 𝕏 媒体 fallback
+
+白天实测 HY2 并发优势仍在（10 并发 0.35s vs VMess 1.9–5.9s），但 2026-10-23 晚
+HY2 池对 `pbs.twimg.com/robots.txt` **4/4 全部超时**，而 VMess 节点 **5/5 200**
+（日本 79ms / 香港 152ms / 新加坡 107ms）。因此把 `𝕏 媒体` 拆成：
+
+- `𝕏 媒体-HY2`：url-test，只收 HY2；
+- `𝕏 媒体-备用`：url-test，收非 HY2、非公共节点；
+- `𝕏 媒体`：fallback，HY2 优先，整池劣化时自动落到 VMess。
+
+实测 `pbs.twimg.com` 恢复 200 / 0.26–0.28s；HY2 恢复后 fallback 会自动切回。
+策略组总数 28 → 30。
+
+### 8.7 验收
+
+- 生成器输出 **486 条 / 610 行**；运行配置 **4317 条规则 / 30 个策略组**。
+- `ai-api-check.sh` **18 段全部通过**（`CHECK_RC=0`）；新增伪节点、AI/大流量规则、
+  Google `no-resolve` 检查。
+- 关键站点：GitHub 200/0.78s、B站 200/0.11s、百度 200/0.10s、`pbs.twimg.com` 200/0.27s；
+  `hf-mirror.com` 直连 1.06 MB/s；公共池 4MB 1.76 MB/s。
+- Gemini / YouTube 本轮偏慢（12–18s / 13–20s），原因是 `🤖 干净出口` 当前在
+  `🇹🇼 台湾-优化3`，`support.google.com` 的 `cc='TW'` 合法但吞吐差；
+  这是出口节点劣化，不是规则回归，`guardian.sh` 会继续轮换。
+- 内存：MemAvailable ≈ 28 MB，`/tmp` 69%；dmesg 里的 OOM 记录是更早的一次，
+  本轮无新 OOM。
+
+### 8.8 回退
+
+| 改动 | 回退 |
+|---|---|
+| 生成器 / 规则 | 恢复路由器 `/etc/ShellCrash/ai-rules-update.sh.bak-20261023-153637` 与 `yamls/rules.yaml.bak-20261023-153637`，重启 |
+| 伪节点过滤 | 恢复 `reorder-groups.sh.bak-20261023-153637` |
+| X 媒体 fallback | 恢复 `proxy-groups.yaml.bak-20261023-*`，重启 |
+| `bulk-guard` | 恢复 `bulk-guard.sh.bak-20261023-*` |
+| 公共节点 | 恢复 `proxies.yaml.bak-public-screen-20261023-154500`，重启 |

@@ -83,6 +83,23 @@ else
 		fail=1
 	fi
 fi
+# 机场伪节点：过滤掉N条线路 / 剩余流量 / 套餐 / 到期 / 官网 都不是可用线路。
+# 「过滤掉14条线路」与日本-优化同 server/port/uuid，2026-10-23 被 url-test 选中后
+# 健康检查一抖就把 🛟 主备自动 整组切到公共池，所以必须在生成阶段剔除。
+if grep -q "丢弃机场伪节点" /etc/ShellCrash/reorder-groups.sh 2>/dev/null; then
+	echo "OK: reorder-groups.sh 含机场伪节点过滤"
+else
+	echo "FAIL: reorder-groups.sh 缺少机场伪节点过滤"
+	fail=1
+fi
+DECOY=$(grep -E '^ *- *\{ *name: .*(过滤掉|剩余流量|套餐|到期|官网)' /tmp/ShellCrash/config.yaml 2>/dev/null | head -1)
+DECOY_M=$(grep -E '^      - .*(过滤掉|剩余流量|套餐|到期|官网)' /tmp/ShellCrash/config.yaml 2>/dev/null | head -1)
+if [ -z "$DECOY" ] && [ -z "$DECOY_M" ]; then
+	echo "OK: 运行配置无机场伪节点"
+else
+	echo "FAIL: 运行配置仍有伪节点: ${DECOY:-$DECOY_M}"
+	fail=1
+fi
 
 FIRST=$(curl -s --max-time 8 -H "$AUTH" "$API/proxies/%F0%9F%9A%80%20%E8%8A%82%E7%82%B9%E9%80%89%E6%8B%A9" | jsonfilter -e '@.all[0]' 2>/dev/null)
 if [ "$FIRST" = "🛟 主备自动" ]; then
@@ -451,7 +468,10 @@ HB=/etc/ShellCrash/yamls/rules.yaml
 for r in "DOMAIN,dl.google.com,🎯 全球直连" \
          "DOMAIN-SUFFIX,gvt1.com,🎯 全球直连" \
          "DOMAIN-SUFFIX,gvt1-cn.com,🎯 全球直连" \
-         "DOMAIN-SUFFIX,jetbrains.com,🎯 全球直连"; do
+         "DOMAIN-SUFFIX,jetbrains.com,🎯 全球直连" \
+         "DOMAIN-SUFFIX,hf-mirror.com,🎯 全球直连" \
+         "DOMAIN-SUFFIX,kuaishouzt.com,🎯 全球直连" \
+         "DOMAIN-SUFFIX,images-cn.ssl-images-amazon.com,🎯 全球直连"; do
 	if grep -qF -- "- $r" "$HB" 2>/dev/null; then
 		echo "OK: rules.yaml 含 $r"
 	else
@@ -467,6 +487,34 @@ if [ -f "$RCFG" ]; then
 		echo "OK: 运行配置里 dl.google.com 直连排在 google.com 代理之前 (#$DL < #$GG)"
 	else
 		echo "FAIL: 运行配置顺序异常（dl=#${DL:-无} google=#${GG:-无}）"
+		fail=1
+	fi
+fi
+# 2026-10-23 吸收段：AI / 大流量 / GitHub / 媒体 CDN（生成器校验之外的第二道）
+for r in "DOMAIN-SUFFIX,image.civitai.com,📺 大流量" \
+         "DOMAIN-SUFFIX,civitai.com,🚀 节点选择" \
+         "DOMAIN,download2.epicgames.com,📺 大流量" \
+         "DOMAIN-SUFFIX,cdn.blizzard.com,📺 大流量" \
+         "DOMAIN-SUFFIX,dyn.riotcdn.net,📺 大流量" \
+         "DOMAIN-SUFFIX,i.pximg.net,📺 大流量" \
+         "DOMAIN-SUFFIX,replicate.delivery,📺 大流量" \
+         "DOMAIN-SUFFIX,runway.com,🤖 人工智能" \
+         "DOMAIN-SUFFIX,suno.com,🤖 人工智能" \
+         "DOMAIN-SUFFIX,ai.com,🤖 人工智能" \
+         "DOMAIN-SUFFIX,ghcr.io,🔗 GitHub 出口"; do
+	if grep -qF -- "- $r" "$HB" 2>/dev/null; then
+		echo "OK: rules.yaml 含 $r"
+	else
+		echo "FAIL: rules.yaml 缺 $r（重跑 ai-rules-update.sh）"
+		fail=1
+	fi
+done
+if [ -f "$RCFG" ]; then
+	if grep -qF -- "- IP-CIDR,74.125.0.0/16,🤖 干净出口,no-resolve" "$RCFG" && \
+	   grep -qF -- "- IP-CIDR,173.194.0.0/16,🤖 干净出口,no-resolve" "$RCFG"; then
+		echo "OK: Google 兜底 IP-CIDR 带 no-resolve"
+	else
+		echo "FAIL: Google 兜底 IP-CIDR 缺 no-resolve（会触发真实 DNS 解析）"
 		fail=1
 	fi
 fi
