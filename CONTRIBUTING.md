@@ -39,6 +39,9 @@ ShellCrash / mihomo 本体、路由器系统运维、控制台与 AI 接入各�
 
 4. 改配置或 nft 表时，写清部署路径与回退方式（见 [docs/DEPLOY.md](docs/DEPLOY.md)）。
    PR 描述里写「怎么验的、实际走向是什么」；**真机没验就明说没验**。
+5. 新增 / 改名 / 删除策略组时，按 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 的
+   「代理组排序规则」同步 `config/hooks/reorder-groups.sh` 的 `order[]`
+   （组顺序；需要时再改成员顺序 / 节点排序目标），PR 里贴出三处顺序的验证结果。
 
 ## 几条硬规矩
 
@@ -48,6 +51,7 @@ ShellCrash / mihomo 本体、路由器系统运维、控制台与 AI 接入各�
 | 订阅更新后必跑 `ai-api-check.sh`，退出码 0 才算过 | [docs/TOOLS.md](docs/TOOLS.md) |
 | 凭据与节点信息不入库，配置片段先脱敏 | [docs/SECRETS.md](docs/SECRETS.md) |
 | 规则顺序与策略组兜底不能随手改 | [docs/PITFALLS.md](docs/PITFALLS.md) |
+| 新增策略组必须同步 `reorder-groups.sh` 的 `order[]`，否则会掉到面板最后 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)「代理组排序规则」 |
 | 每条规则只在一篇文档里定义，别处只留链接 | [docs/DOC-RULES.md](docs/DOC-RULES.md) |
 | 版本号只在发版时进位，规则按对象拆行 | [docs/VERSIONING.md](docs/VERSIONING.md) |
 | 用户可感知的改动要进 [CHANGELOG.md](CHANGELOG.md) | [docs/MAINTENANCE.md](docs/MAINTENANCE.md) |

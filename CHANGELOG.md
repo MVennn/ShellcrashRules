@@ -11,6 +11,71 @@
 
 ## [未发布] — 2026-10-24
 
+### 代理组与节点排序（2026-10-23）
+
+- 调整 `config/hooks/reorder-groups.sh` —— 代理组展示顺序改为
+  「常用入口 → 专用出口 → 地区组 → 工具 → 内部子组」：
+  `🚀 节点选择` → `🛟 主备自动` → `♻️ 自动选择` → `🚀 手动切换` → AI 家族 →
+  GitHub/B站/𝕏 媒体/大流量/公共备用 → 地区组 → 流媒体/工具 →
+  `𝕏 媒体-HY2`/`𝕏 媒体-备用` 放最后；未知组按原顺序补在末尾
+- 调整 `config/hooks/reorder-groups.sh` —— `🚀 节点选择` 成员顺序改为
+  `🛟 主备自动` → `♻️ 自动选择` → `🚀 手动切换` → `🤖 AI接口` →
+  `🔗 GitHub 出口` → `🎬 B站解锁` → `𝕏 媒体` → `📺 大流量` → `🆓 公共备用` →
+  地区组（港/日/台/新/美/印/加/德/英）→ `DIRECT`；`🚀 手动切换` 从第 13 位提到第 3 位
+- 新增 `config/hooks/reorder-groups.sh` —— `🚀 手动切换` / `♻️ 自动选择` 的节点按
+  香港 → 日本 → 台湾 → 新加坡 → 美国 → 印度 → 加拿大 → 德国 → 英国稳定排序，
+  同地区保留订阅原顺序，未知地区排最后
+- 验证 —— 运行配置 30 个组顺序、`🚀 节点选择` 19 个成员、两个 27 节点组顺序
+  全部符合预期；`ai-api-check.sh` 18 段全绿；伪节点仍为 0
+- 文档 —— `ARCHITECTURE.md` 新增「代理组排序规则（新增组必须遵守）」正本；
+  `MAINTENANCE.md` §2.5、`CONTRIBUTING.md`、`DOC-RULES.md` 变更触发矩阵、
+  `PITFALLS.md` §38、`proxy-groups.yaml` / `reorder-groups.sh` 顶部注释同步。
+  **新增 / 改名 / 删除组必须同步 `order[]`**，漏加会掉到面板最后
+
+### 规则吸收与公共池（2026-10-23）
+
+- 调整 `config/generators/ai-rules-update.sh` + `config/generated/rules.yaml` —— 从
+  `VPSDance/ai-proxy-rules` 吸收 40 条 AI 自有域（`ai.com`、`modelcontextprotocol.io`、
+  `together.xyz`、`deepinfra.com`、`fireworks.ai`、`novita.ai`、`bfl.ai`、`stability.ai`、
+  `runway.com`、`suno.com`、`udio.com`、`character.ai`、`you.com` 及生成/编码类），
+  共享 SaaS/CDN 不收；生成物 486 条 / 610 行
+- 调整 `config/generators/ai-rules-update.sh` —— 从 `Aethersailor/Custom_OpenClash_Rules`
+  与 `MetaCubeX` 吸收 Epic / Steam / 暴雪 / Riot / Bethesda / Ubisoft / Xbox / GOG 下载 CDN；
+  Civitai 主站走 `🚀 节点选择`、`image.civitai.com` 走 `📺 大流量`（图片 CDN 必须排在主站前）
+- 调整 `config/generators/ai-rules-update.sh` —— 媒体 CDN 进 `📺 大流量`：Reddit 图片/视频、
+  Imgur、Pixiv 图片、Vimeo、Dailymotion、Twitch CDN、SourceForge、`replicate.delivery`
+- 调整 `config/generators/ai-rules-update.sh` —— 只吸收实测更快的直连：`hf-mirror.com`
+  （Range 4MB 2.42 vs 代理 0.65 MB/s）、`kuaishouzt.com`、`images-cn.ssl-images-amazon.com`；
+  实测否掉 `cn.download.nvidia.com`（直连 403、代理 3.2 MB/s）、`gstatic-cn.com`、`recaptcha-cn.net`
+- 调整 `config/generators/ai-rules-update.sh` —— 补 5 条国内广告变体
+  （`2mdn-cn.net` / `doubleclick-cn.net` / `dartsearch-cn.net` / `admob-cn.com` /
+  `app-measurement-cn.com`）；`ghcr.io` → `🔗 GitHub 出口`，`graph.org` / `tg.dev` →
+  `🚀 节点选择`，`live-video.net` → `🌍 国外媒体`
+- 调整 `config/generators/ai-rules-update.sh` —— Google 兜底 `IP-CIDR 74.125.0.0/16` /
+  `173.194.0.0/16` 补 `no-resolve`，避免 fake-ip 下为匹配触发真实 DNS
+- 新增 `config/yamls/proxy-groups.yaml` —— `𝕏 媒体` 拆成 `𝕏 媒体-HY2`（主）+
+  `𝕏 媒体-备用`（VMess）+ fallback；2026-10-23 晚 HY2 对 `pbs.twimg.com` 4/4 超时，
+  VMess 5/5 200，`pbs` 恢复 200/0.26–0.28s；策略组 28 → 30
+- 新增 `config/hooks/reorder-groups.sh` —— 生成阶段剔除机场伪节点
+  （`过滤掉N条线路` / `剩余流量` / `套餐` / `到期` / `官网`）：`过滤掉14条线路` 与
+  `日本-优化` 同 server/port/uuid，被 url-test 选中后健康抖动会让 `🛟 主备自动`
+  整组回落到公共池；配置副本验证删除 3 行、YAML 可解析、运行配置 0 处伪节点
+- 调整 `config/ai-api-check.sh` —— 第 5 段新增伪节点过滤/运行配置检查；第 17 段新增
+  `hf-mirror.com` 等直连、AI/大流量吸收规则与 Google `no-resolve` 回归项；18 段全绿
+- 调整 `tools/public-nodes/screen.py` —— 数据源 3 → 6（新增 `NoMoreWalls`、`Au1rxx`、
+  `zhuhaiuk`）；筛选期间同时暂停 `bulk-guard`；重启后清空 `.bulk_guard_speed` /
+  `.bulk_guard_tried`，避免节点编号重排后测速缓存张冠李戴
+- 调整 `tools/public-nodes/README.md` —— 补六源说明与 2026-10-23 实跑结果
+  （9804 → 9479 → 1271；实测 259/存活 13/保留 10）
+- 调整 `OpenwrtOpsToolkit/openwrt/bulk-guard.sh` —— 新增 `node_bulk_alive()`，钉点/
+  候选/当前节点都用 `PROBE_URL`（`proof.ovh.net`）二次校验；修复「gstatic 200 但大流量
+  不通」的节点被钉进 `📺 大流量`（实测 `公共-02` TLS EOF/502）。公共池钉 `公共-08`
+  后 4MB 实测 1.9–2.2 MB/s（修复前 17–34 KB/s）
+- 验证 —— 生成器 `sh -n` ✓；`CrashCore -t` / 重启校验 ✓；`ai-api-check.sh` 18 段
+  `CHECK_RC=0`；`/connections` 实测 `civitai.com` → 🚀 节点选择、`image.civitai.com` →
+  📺 大流量、`runway/suno` → 🤖 人工智能；GitHub 0.78s、B站 0.11s、百度 0.10s、
+  `pbs.twimg.com` 0.27s、`hf-mirror` 1.06 MB/s、公共池 1.76 MB/s
+
 ### 看门狗备份顺序（2026-10-24）
 
 - 修复 `tools/public-nodes/screen.py` 的 `pause_watchdogs()` —— 先恢复上次残留备份这一步

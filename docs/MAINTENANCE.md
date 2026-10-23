@@ -59,12 +59,12 @@ python mihomo/rule_audit.py config.yaml proxies.json third-party/ACL4SSR/Clash R
 `ai-api-check.sh` 的 18 段，按顺序：
 
 1. 策略组状态 · 2. 组到 opencode.ai 的延迟 · 3. opencode.ai 可达性 ·
-4. 三种协议最小 token 测试 · 5. 分组排序钩子 · 6. hotupdate 重载路径 ·
+4. 三种协议最小 token 测试 · 5. 分组/成员/节点排序钩子 + 伪节点过滤 · 6. hotupdate 重载路径 ·
 7. Chrome/Google 下载修复（fake-ip 过滤 + quicguard 表）· 8. CN 直连中间层（rules-mid）·
 9. 境外 QUIC 拦截 + TLS 重新解析 · 10. Google 家族统一出口 ·
 11. 夜间加固项（cn_ip 剔除 / sniffer 跳过 CDN / 组出口）· 12. 规则文件完整性（空组名 / 原子写）·
 13. IPv6 fake-IP 旁路防护 · 14. 干净出口组 · 15. 出口组与守护进程 · 16. 全局 QUIC 阻断 ·
-17. 高带宽直连（Google 下载 / Chrome 更新 / JetBrains 直连，省机场流量）·
+17. 高带宽直连（Google 下载 / Chrome 更新 / JetBrains / hf-mirror / 国内 CDN 直连，省机场流量）·
 18. 广告/追踪 carve-out（广告 REJECT 必须在 google.com / google 关键词之前）
 
 **任何一段 FAIL 都必须处理完再往下走** —— 这些段覆盖的正是「更新后悄悄坏掉」的部位。
@@ -87,13 +87,29 @@ python mihomo/rule_audit.py config.yaml proxies.json third-party/ACL4SSR/Clash R
    `config/archive/rules-dedup.sh`、`rule_audit.py` 等；**禁止在路由器上跑 O(N²) 两两匹配**。
    2026-10-22 实测：4,154 条规则上跑 `rules-dedup.sh --check`，CPU/内存被拖垮，整网断流。
 2. **同一时间只允许一个 `start.sh start`** —— 手动重启前先 `pidof CrashCore`；
-   重启期间暂停 `guardian.sh` 与 `start_legacy_wd.sh` 的 cron。
+   重启期间暂停 `guardian.sh`、`start_legacy_wd.sh`、`bulk-guard.sh` 三条 cron。
    两个启动并发会同时写 `/tmp/ShellCrash/config.yaml`，`rules-cnip.sh` 会因行数校验失败中止，
-   配置不生效、CrashCore 起不来。
+   配置不生效、CrashCore 起不来；`bulk-guard` 还会按测试批次的临时节点编号钉点。
 3. **`init.d/shellcrash` 必须保持 disabled** —— `start_old=ON` 下 procd 与 legacy 各拉一个实例；
    双实例白占 ~50 MB，并放大 OOM。`post-sc-update.sh` 已改为自动 disable。
 
 > 事故经过与恢复命令见 [PITFALLS.md](PITFALLS.md) §24/§25 与 [TROUBLESHOOTING.md](TROUBLESHOOTING.md) §9。
+
+### 2.5 新增代理组 / 节点的排序
+
+**排序正本**是 [ARCHITECTURE.md](ARCHITECTURE.md) 的「代理组排序规则（新增组必须遵守）」。
+这里只列操作顺序，避免在维护时漏掉 `order[]`：
+
+1. 先在 `config/yamls/proxy-groups.yaml` 定义组；需要挂进父组就写 `#父组`。
+2. 在 `config/hooks/reorder-groups.sh` 的**组顺序** `order[]` 按分段插入。
+   漏加不会报错，但组会掉到面板最后。
+3. 需要出现在 `🚀 节点选择` 的组，再在**成员顺序** `order[]` 对应段插入；
+   内部子组（如 `𝕏 媒体-HY2`）不要加。
+4. 节点需要排序的组，加到节点排序 pass 的目标列表；新地区补 `rank()`。
+5. 用配置副本验证三处顺序（组 / 主选择器成员 / 节点），再部署；
+   重启前暂停 `guardian.sh`、`start_legacy_wd.sh`、`bulk-guard.sh` 三条 cron。
+
+**不要**依赖 `proxy-groups.yaml` 的文件顺序或订阅原始顺序；这两者都不决定面板顺序。
 
 ---
 

@@ -831,3 +831,92 @@ CDN 规则是字面 `DIRECT`，问题依旧。
 
 **下次怎么避**：任何「备份 → 改动 → 恢复」的流程，先证明「备份里的状态是可恢复的」，
 再动手；恢复失败绝不能静默。
+
+## 34. 机场伪节点名：`过滤掉N条线路` 也是真节点，且会拖垮主备组
+
+**现象**：2026-10-23 15:11 实测 `🛟 主备自动 now = 🆓 公共备用`，所有通用流量
+在不知情的情况下走了公共节点；`♻️ 自动选择` 的当前项是一个叫
+`过滤掉14条线路` 的节点。
+
+**根因**：机场把「剩余流量 / 套餐到期 / 过滤掉N条线路」也写成**真节点形状**。
+`过滤掉14条线路` 与 `🇯🇵 日本-优化` **同 server / port / uuid**
+（`p6-olduser.linuxlh.xin:16617`），不是信息节点，而是一条重复线路；
+模板的 `♻️ 自动选择` 没有排除它，url-test 因延迟低而选中。该节点到
+`gstatic.com/generate_204` 的健康检查在 07:03–07:23 多次返回 0，
+fallback 于是把整个 `♻️ 自动选择` 判为不健康，整组回落到 `🆓 公共备用`。
+
+**解法**：`config/hooks/reorder-groups.sh` 在生成阶段从 `proxies:` 定义和**所有**
+`proxy-groups` 成员列表里剔除名字匹配 `剩余流量|套餐|到期|过滤掉|官网` 的条目。
+只删 flow 形式定义（`- {name: ...}`），不碰 block 形式，避免留下孤儿字段。
+`ai-api-check.sh` 第 5 段加静态回归检查。
+
+**验证**：配置副本执行后删除 3 行、`yaml.safe_load` 通过；运行配置 0 处伪节点；
+`♻️ 自动选择` 首位回到 `🇯🇵 日本-优化`，`🛟 主备自动 now = ♻️ 自动选择`。
+
+## 35. `start.sh restart` 后台生成 + 看门狗并发，会留下半成品配置
+
+**现象**：部署伪节点过滤后重启，`/tmp/ShellCrash/config.yaml.decoy` 还在
+（内容是过滤后的 0 处伪节点），而最终 `config.yaml` 仍有 3 处伪节点；
+`reorder-groups.sh` 的日志只出现在 `.decoy` 的生成阶段。
+
+**根因**：`start.sh start` 把 `bfstart && ... && afstart` 放到后台执行；
+`start_legacy_wd.sh` 每分钟检查一次核心，`guardian.sh` 每 5 分钟一次。
+手动 `start.sh restart` 与看门狗撞上时，两个生成流程同时写
+`/tmp/ShellCrash/config.yaml`，后写覆盖前写；`.decoy` 中间文件是其中一路
+在 `awk` 之后、`mv` 之前被打断的残留。`test_yaml` 没有报错（`error.yaml`
+仍是旧文件），所以不会自动回退。
+
+**解法**：任何手动重启/重新生成前，暂停 `guardian.sh`、`start_legacy_wd.sh`、
+`bulk-guard.sh` 三条 cron，串行执行；`screen.py` 已把三条都纳入
+`pause_watchdogs()`。验证时同时看「运行配置内容」和「是否残留 `.decoy` /
+`.dedup` 中间文件」，不要只看核心进程是否起来。
+
+## 36. 公共节点的健康检查 URL ≠ 大流量探测 URL
+
+**现象**：`bulk-guard.sh` 把 `🆓 公共-02` 钉进 `📺 大流量`，但
+`proof.ovh.net` 4MB 三次都是 000；同一节点对 `gstatic.com/generate_204`
+的延迟测试却返回 200 / 335ms。
+
+**根因**：`node_alive()` 只测 `ALIVE_URL`（gstatic 204），而大流量实际走
+`PROBE_URL`（`proof.ovh.net`）。公共节点可以「能出网」但到 OVH 的 TLS 握手
+EOF / HTTP 502；mihomo 的 `/delay` 对后者返回 503 + message，原逻辑只看
+HTTP 状态码，钉点/候选都没有用大流量 URL 复核。2026-10-23 实测 10 条公共节点
+里 3 条（02/03/06）属于这一类。
+
+**解法**：新增 `node_bulk_alive()`，要求 `/delay?url=$PROBE_URL` 返回
+HTTP 200 **且响应体含 `"delay"`**；`pool_health()`、`pick_live_node()`、
+`handle_slow()` 全部改用它。未钉住时也检查 URLTest 当前节点，不合格就先钉
+一个合格节点。修复后公共池钉 `公共-08`，OVH 4MB 实测 1.9–2.2 MB/s。
+
+## 37. 公共节点编号每轮重排，旧测速缓存会张冠李戴
+
+**现象**：筛选器把 10 条节点写成 `🆓 公共-01..10`，下一轮同名编号可能对应
+完全不同的节点；`bulk-guard` 的 `/tmp/ShellCrash/.bulk_guard_speed` 仍按
+名字记着上一轮的 889 KB/s，可能把慢节点排到最前。
+
+**根因**：`screen.py` 的 `make_block()` 每轮按最终保留顺序重新编号，节点身份
+（fingerprint）没有写进名字；`bulk-guard` 的缓存键是名字，不是指纹。
+
+**解法**：`screen.py` 每次重启后删除 `.bulk_guard_speed` 与 `.bulk_guard_tried`，
+让守卫重新实测；筛选期间同时暂停 `bulk-guard`，避免它按测试批次的临时编号
+钉点。长期若要让缓存跨轮复用，应把缓存键改成节点指纹而不是编号。
+
+## 38. 新增代理组只改 yaml、不改 `reorder-groups.sh`，会掉到面板最后
+
+**现象**：在 `config/yamls/proxy-groups.yaml` 里加了一个新组，配置校验通过、
+组也能用，但面板里它排在所有组之后；下次订阅更新后顺序依旧不受控。
+
+**根因**：面板顺序不由 `proxy-groups.yaml` 的文件顺序决定，也不由订阅顺序决定。
+`config/hooks/reorder-groups.sh` 在每次生成配置时按 `order[]` 重排；数组里没有的组
+会被当作「未知组」，按原顺序追加到末尾。改名同理：旧名字留在 `order[]` 里，
+新名字不在，组也会掉到最后。
+
+**解法**：按 [ARCHITECTURE.md](ARCHITECTURE.md)「代理组排序规则（新增组必须遵守）」
+选分段，然后同步三处：
+
+1. **组顺序** `order[]`（必须）；
+2. 需要出现在 `🚀 节点选择` 的，加到**成员顺序** `order[]`（内部子组不要加）；
+3. 节点需要排序的组，加到 node-order pass 的目标列表；新地区补 `rank()`。
+
+改完用配置副本跑一遍 `sh reorder-groups.sh /tmp/test.yaml`，检查
+「组顺序 / 主选择器成员 / 节点顺序」三处，再部署。

@@ -35,9 +35,10 @@ starts/clash_modify.sh  ← 合并链路的入口（本仓待补，设备侧在�
    │                      （rule-providers.cnip：file / ipcidr / mrs；13k → 4.1k 条）
    ▼
 钩子 ④ reorder-groups.sh   ① proxy-groups 同名去重（保留首次出现）
-   │                      ② 组内重复 key 清理
-   │                      ③ 成员重排（🛟 主备自动 → ♻️ 自动选择 → AI接口 → 地区组 → 手动切换 → 🆓 公共备用 → 📺 大流量 → DIRECT）
-   │                      ④ mixed-port 归一（去掉重复的 host 前缀）
+   │                      ② 组内重复 key 清理 / 机场伪节点剔除
+   │                      ③ 组顺序重排（常用入口 → 专用出口 → 地区组 → 工具 → 内部子组）
+   │                      ④ 成员/节点重排（主选择器；手动/自动组按地区）
+   │                      ⑤ mixed-port 归一（去掉重复的 host 前缀）
    ▼
 mihomo 校验（CrashCore -t）→ 加载
    ▼
@@ -182,13 +183,13 @@ mihomo 校验（CrashCore -t）→ 加载
 | `profile.store-selected` | `true` | `config/yamls/user.yaml` | **必须有**：干净出口组成员会随订阅变化，没它重启后被重置成第一个成员（实测恰是那条不稳定的订阅入口） |
 | `tolerance` | `50` | `config/yamls/proxy-groups.yaml`（🤖 AI接口） | 延迟差 < 50ms 不换节点 → 出口 IP 稳定 |
 | `exclude-filter` | 含 `香港\|HK\|Hong Kong\|公共` | `config/yamls/proxy-groups.yaml` | 排除香港出口（OpenAI 上游会返回 `unsupported_country_region_territory`）与公开节点（陌生人的出口不可用于 AI 流量） |
-| 🤖 AI网页 类型 | `select` + `filter: (印度\|India\|IN\|台湾-优化3)` | `config/yamls/proxy-groups.yaml` | **不能用 url-test** —— 按延迟会漂到被 Google 判为 CN 的节点 |
-| 🤖 干净出口 | `select` + 印度/台湾-优化3 过滤 | `config/yamls/proxy-groups.yaml` | 唯一经 Google 侧 `cc` 实测判为非 CN 的稳定出口 |
+| 🤖 AI网页 类型 | `select` + `filter: (印度\|India\|IN\|台湾-优化3\|新加坡\|HY2)` | `config/yamls/proxy-groups.yaml` | **不能用 url-test** —— 按延迟会漂到被 Google 判为 CN 的节点；`exclude-filter` 排除香港与公共节点 |
+| 🤖 干净出口 | `select` + 印度/台湾-优化3/新加坡/HY2 过滤 | `config/yamls/proxy-groups.yaml` | 唯一经 Google 侧 `cc` 实测判为非 CN 的稳定出口；`exclude-filter` 排除香港与公共节点 |
 | 🎬 B站解锁 | `select` + `filter: (香港WAP\|台湾-优化3\|日本-优化\|新加坡-优化3)` | `config/yamls/proxy-groups.yaml` | B站 API 域（`api/app/cm.bilibili.com`、`biliapi.com/.net`）的出口，规则见 `rules.yaml` J 段。**HY2 池到大陆方向不通**（香港/韩国能连 gstatic，但百度/知乎/B站 TLS EOF/超时；日本/新加坡节点本身超时）；实测 vmess 的香港WAP/台湾-优化3/日本-优化/新加坡-优化3 在 B站 `x/web-interface/zone` 分别显示对应地区，默认 `🇭🇰 香港WAP-优化`。CDN（bilivideo/hdslb/biliimg/acgvideo）规则用字面 `DIRECT`（`respect-rules` 的 DNS 才走 `direct-nameserver`），由 `clash_modify.sh` 单独指定上游 DNS；设备侧 `ipv6_dns=OFF`（Akamai IPv6 实测 22 KB/s），视频不占机场流量。MCDN/PCDN 域（`*.mcdn.bilivideo.cn`、`*.edge.mountaintoys.cn`）在生成的 `hosts:` 里指到 `127.0.0.1`，避免播放器踩到 6–11 KB/s 的劣化 P2P 节点。属地按请求源 IP 判定，没有独立检测接口；评论接口是 `cm.bilibili.com`，只加 `api` 不够 |
 | 🛟 主备自动 | `fallback`：`♻️ 自动选择` → `🆓 公共备用` | `config/yamls/proxy-groups.yaml` | `🚀 节点选择` 的默认项；机场节点正常时走 `♻️ 自动选择`，机场全挂时自动落到公共备用。**不放 DIRECT**，避免两边都挂时静默直连泄露真实 IP |
-| 🆓 公共备用 | `url-test` + `filter: 🆓 公共` | `config/yamls/proxy-groups.yaml` | AutoMergePublicNodes 公开节点的最后手段：作为 `🛟 主备自动` 的兜底成员，同时保留在 `🚀 节点选择` 末尾供手动选择。节点由 PC 侧 `tools/public-nodes/screen.py` 定期筛选后写入路由器本地 `yamls/proxies.yaml`（不入库）；2026-10-21 全量筛选池 208 条通常只有 4–6 条存活，**不可用于 AI / 网银 / 邮箱** |
-| 📺 大流量 | `select`：`🆓 公共备用` → `♻️ 自动选择` | `config/yamls/proxy-groups.yaml` | 只承载 `rules.yaml` H 段（Steam / Epic 内容 CDN + 探测域 `proof.ovh.net`）与 I 段（成人站及其自有 CDN + `RULE-SET,porn` 上游规则集兜底、Telegram 的 `91.108.0.0/16` + `149.154.160.0/20`）。默认走公共池省机场流量；`bulk-guard.sh`（`OpenwrtOpsToolkit` 仓）实测吞吐低于 800 KB/s 时切回机场并冷却 1 小时。**订阅流媒体刻意不进**：YouTube 全族必须走干净出口（Google cc），Netflix/Disney 对公共节点几乎必然判代理；成人站与 Telegram 不绑账号/支付出口、全程加密，所以接进来 |
-| 𝕏 媒体 | `url-test` + `filter: HY2` | `config/yamls/proxy-groups.yaml` | X/Twitter 图片与视频 CDN（`twimg.com`）专用出口，规则见 `rules.yaml` X 段。2026-10-23 实测：VMess+WS 并发建连会被串行化（10 并发真实图片 1.9–5.9s，偶发单张 5–6s）；HY2（QUIC 多路复用）0.35s、单张 0.21–0.25s。单请求延迟看不出差异（HY2 89ms vs VMess 65ms），所以组内只放 HY2、不掺 VMess。健康检查用 `pbs.twimg.com/robots.txt`（200、稳定；根路径 400 抖动大）。HY2 全挂时把 `rules.yaml` 里 `twimg.com` 改回 `🚀 节点选择` 即可回退 |
+| 🆓 公共备用 | `url-test` + `filter: 🆓 公共` | `config/yamls/proxy-groups.yaml` | 机场全挂时的最后网页通道：作为 `🛟 主备自动` 的兜底成员，同时保留在 `🚀 节点选择` 末尾供手动选择。节点由 PC 侧 `tools/public-nodes/screen.py` 从 6 个源筛选后写入路由器本地 `yamls/proxies.yaml`（不入库）；2026-10-23 实测池 1271 条、实测 259 条、保留 10 条（8 条存活，211–584ms），公共-08 对 OVH 2MB 实测 889 KB/s。**不可用于 AI / 网银 / 邮箱** |
+| 📺 大流量 | `select`：`🆓 公共备用` → `♻️ 自动选择` | `config/yamls/proxy-groups.yaml` | 承载 `rules.yaml` H/I/I2/K 段：Steam / Epic 内容 CDN、成人站及其自有 CDN（`RULE-SET,porn` 兜底）、Telegram 两个 DC 段、游戏补丁（暴雪/Riot/EA/育碧/Xbox/GOG）、媒体 CDN（Reddit/Imgur/Pixiv/Vimeo/Twitch/SourceForge/`replicate.delivery`）、HuggingFace LFS / GitHub release / NVIDIA+AMD 驱动 / Maven，以及探测域 `proof.ovh.net`。默认走公共池省机场流量；`bulk-guard.sh`（`OpenwrtOpsToolkit` 仓）用 `proof.ovh.net` 对钉点/候选做二次校验，吞吐低于 800 KB/s 时切回机场并冷却 1 小时。**订阅流媒体刻意不进**：YouTube 全族必须走干净出口（Google cc），Netflix/Disney 对公共节点几乎必然判代理；成人站与 Telegram 不绑账号/支付出口、全程加密，所以接进来 |
+| 𝕏 媒体 | `fallback`：`𝕏 媒体-HY2` → `𝕏 媒体-备用` | `config/yamls/proxy-groups.yaml` | X/Twitter 图片与视频 CDN（`twimg.com`）专用出口，规则见 `rules.yaml` X 段。2026-10-23 白天实测：VMess+WS 并发建连会被串行化（10 并发真实图片 1.9–5.9s）；HY2（QUIC 多路复用）0.35s、单张 0.21–0.25s，所以 HY2 主组只收 HY2、不掺 VMess。当晚 HY2 对 `pbs.twimg.com` 4/4 超时、VMess 5/5 200，于是拆成 HY2 主 + VMess 备的 fallback：HY2 正常时仍享受并发，整池劣化时自动落到 VMess（实测 `pbs` 200/0.26–0.28s）。健康检查统一用 `pbs.twimg.com/robots.txt`（200、稳定；根路径 400 抖动大） |
 | 规则更新 cron | `30 4 * * 0` | 路由器 crontab | 每周跑 `auto-update.sh`（规则生成 + hotupdate） |
 | 看门狗 cron | `* * * * *` | 路由器 crontab | 每分钟拉起代理（`starts/start_legacy_wd.sh shellcrash`） |
 | 守护 cron | `*/5 * * * *` | 路由器 crontab | 每 5 分钟自愈（补载三表、节点劣化复位、干净出口守护）—— 脚本在 `AX3000TOpenwrt` 仓 |
@@ -203,9 +204,18 @@ mihomo 校验（CrashCore -t）→ 加载
 | 功能组 | 图标 emoji + 功能名（`🤖` AI 家族 / `🎥` 流媒体 / `🛑` 广告 / `🎯` 直连 / `🚀` `♻️` `🛟` 调度） | 是 | 规则只指向功能组 |
 | 内置目标 | `GLOBAL` / `DIRECT` / `REJECT` | 是 | mihomo 内置：`DIRECT`/`REJECT` 是关键字，`GLOBAL` 是全局选择器；都不能加 emoji 或改名。控制台会隐藏 `GLOBAL`，面板（zashboard）仍会显示 |
 
+- 代理组在面板里的顺序（由 `reorder-groups.sh` 维护）：
+  `🚀 节点选择` → `🛟 主备自动` → `♻️ 自动选择` → `🚀 手动切换` →
+  `🤖 AI接口` → `🤖 人工智能` → `🤖 AI网页` → `🤖 干净出口` →
+  `🔗 GitHub 出口` → `🎬 B站解锁` → `𝕏 媒体` → `📺 大流量` → `🆓 公共备用` →
+  地区组（港/日/台/新/美/印/加/德/英）→ 流媒体组 → 工具组 →
+  `𝕏 媒体-HY2` / `𝕏 媒体-备用`（内部子组放最后，避免干扰常用组）。
 - `🚀 节点选择` 的成员顺序（由 `reorder-groups.sh` 维护）：
-  `🛟 主备自动`（默认）→ `♻️ 自动选择` → `🤖 AI接口` → 地区组 →
-  `🚀 手动切换` → `🆓 公共备用` → `🎬 B站解锁` → `📺 大流量` → `DIRECT`。
+  `🛟 主备自动`（默认）→ `♻️ 自动选择` → `🚀 手动切换` → `🤖 AI接口` →
+  `🔗 GitHub 出口` → `🎬 B站解锁` → `𝕏 媒体` → `📺 大流量` → `🆓 公共备用` →
+  地区组（港/日/台/新/美/印/加/德/英）→ `DIRECT`。
+- `🚀 手动切换` / `♻️ 自动选择` 的节点顺序：香港 → 日本 → 台湾 → 新加坡 →
+  美国 → 印度 → 加拿大 → 德国 → 英国；同地区内保持订阅原顺序（稳定排序）。
   注意：`store-selected` 会记住面板里的最后一次手动选择；设备上的守护进程
   在出口劣化时会把 `🚀 节点选择` 复位到 `♻️ 自动选择`，所以「默认项是主备自动」
   并不等于运行期一直在主备自动上（见 [PITFALLS.md](PITFALLS.md)「主备自动的兜底实际不生效」）。
@@ -216,6 +226,51 @@ mihomo 校验（CrashCore -t）→ 加载
 - 纯中转组（`📲 电报消息` / `📢 谷歌FCM` → `🚀 节点选择`，
   `Ⓜ️ 微软服务` / `🍎 苹果服务` → `DIRECT`）已删除，规则直接指向实际出口。
   只有真正需要独立出口的服务组才保留（如 `🎥 NETFLIX` / `🎥 DisneyP` 锁定新加坡）。
+
+### 代理组排序规则（新增组必须遵守）
+
+> **正本**。`config/hooks/reorder-groups.sh` 里的 `order[]` 是实际执行者；
+> `config/yamls/proxy-groups.yaml` 的**文件顺序不决定面板顺序**，订阅顺序也不决定。
+> 新增 / 改名 / 删除组时，按下表选段落，再同步 `order[]`；漏加不会报错，
+> 但该组会按原顺序追加到面板最后。
+
+**组顺序分段**（从常用到兜底）：
+
+| 段 | 段内顺序 | 新组落点 |
+|---|---|---|
+| 入口/调度 | `🚀 节点选择` → `🛟 主备自动` → `♻️ 自动选择` → `🚀 手动切换` | 固定，不新增 |
+| AI 专用 | `🤖 AI接口` → `🤖 人工智能` → `🤖 AI网页` → `🤖 干净出口` | 本段末尾，按「API → 父组 → 网页 → 干净出口」 |
+| 服务专用 | `🔗 GitHub 出口` → `🎬 B站解锁` → `𝕏 媒体` | 本段末尾；通用服务在前、单站服务在后 |
+| 流量/兜底 | `📺 大流量` → `🆓 公共备用` | 本段末尾 |
+| 地区组 | 港 → 日/韩 → 台 → 新 → 美 → 印 → 加 → 德 → 英 | 按地理位置插入；新地区加在本段末尾 |
+| 流媒体 | `🎥 NETFLIX` → `🎥 DisneyP` → `🌍 国外媒体` | 本段末尾 |
+| 工具/规则 | `🛑 广告拦截` → `🎯 全球直连` → `🐟 漏网之鱼` | 固定，不新增 |
+| 内部子组 | `𝕏 媒体-HY2` → `𝕏 媒体-备用` | **所有内部子组都放最后**，不干扰常用组 |
+
+**`🚀 节点选择` 成员分段**：
+
+`🛟 主备自动` → `♻️ 自动选择` → `🚀 手动切换` → 专用组（`🤖 AI接口` →
+`🔗 GitHub 出口` → `🎬 B站解锁` → `𝕏 媒体` → `📺 大流量` → `🆓 公共备用`）→
+地区组 → `DIRECT`。新成员按段插入；`DIRECT` 永远最后；
+内部子组（`𝕏 媒体-HY2` / `𝕏 媒体-备用`）**不要**加进主选择器。
+
+**节点顺序**（`🚀 手动切换` / `♻️ 自动选择`）：
+
+香港 → 日本/韩国 → 台湾 → 新加坡 → 美国 → 印度 → 加拿大 → 德国 → 英国；
+同地区内保持订阅原顺序（稳定排序），未知地区排最后。新增地区时在
+`reorder-groups.sh` 的 `rank()` 里按地理位置插入，不要用字母序。
+
+**新增 / 改名 / 删除一个组的最小步骤**：
+
+1. 在 `config/yamls/proxy-groups.yaml` 定义组（需要挂进父组就写 `#父组`）。
+2. 在 `config/hooks/reorder-groups.sh` 的**组顺序** `order[]` 中按上表插入。
+3. 如果它要出现在 `🚀 节点选择` 里，再在**成员顺序** `order[]` 的对应段插入；
+   内部子组不要加。
+4. 如果它的节点需要手动排序，把组名加到节点排序 pass 的目标列表，
+   并在 `rank()` 里补新地区。
+5. 用配置副本验证：`sh config/hooks/reorder-groups.sh /tmp/test.yaml`，
+   检查「组顺序 / 主选择器成员 / 节点顺序」三处，再部署；
+   重启前暂停 `guardian.sh` / `start_legacy_wd.sh` / `bulk-guard.sh` 三条 cron。
 
 <a id="arch-failure"></a>
 

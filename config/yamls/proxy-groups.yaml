@@ -4,6 +4,11 @@
 #
 # 语法：- name: 组名#要挂进哪个现有组#可以写多个
 # 节点筛选用正则，订阅更新/节点改名后自动跟随，无需重新调优
+#
+# 展示顺序不由此文件的顺序决定：由 config/hooks/reorder-groups.sh 的 order[] 维护。
+# 新增 / 改名 / 删除组时必须同步 order[]（组顺序，必要时再改主选择器成员顺序 /
+# 节点排序目标）；漏加不会报错，但组会掉到面板最后。
+# 排序规则正本：docs/ARCHITECTURE.md「代理组排序规则（新增组必须遵守）」。
 # ============================================================
 
 # AI API 专用出口：健康检查直接打 opencode.ai，按真实 API 延迟选路
@@ -130,19 +135,22 @@
 # ============================================================
 # 𝕏 媒体 —— X / Twitter 图片与视频 CDN（twimg.com）
 #
-# 2026-10-23 实测（10 并发真实图片，PC 走路由器透明代理）：
+# 2026-10-23 白天实测（10 并发真实图片，PC 走路由器透明代理）：
 #   VMess+WS（当前自动选择里的日本/香港节点）并发建连被串行化：
 #     单张 0.9–1.9s、偶发 5–6s；10 并发墙钟 1.9–5.9s。
 #   HY2（QUIC 多路复用，日本/香港）不必重复付 WS 握手：
 #     10 并发墙钟 0.35s，单张 0.21–0.25s。
 #   单请求延迟看不出差别（HY2 89ms vs VMess 65ms），所以健康检查
-#   按延迟选不出这个差异 —— 组里必须只放 HY2，不能掺 VMess。
+#   按延迟选不出这个差异 —— HY2 主组里只放 HY2，不能掺 VMess。
 #   pbs 根路径返回 400 且抖动大（HK-HY2 会误判超时），
 #   改用同域 robots.txt（200、稳定）做 url-test。
-# 只接 twimg.com，其他流量保持原样。HY2 全挂时 X 图片会失败：
-#   把 rules.yaml 里 twimg.com 那条改回 🚀 节点选择 即可回退。
+#
+# 2026-10-23 晚：HY2 池对 pbs.twimg.com 全部超时（4/4 504），
+#   VMess 节点同域 5/5 200（日本 79ms / 香港 152ms / 新加坡 107ms）。
+#   于是拆成 HY2 主 + VMess 备的 fallback：HY2 正常时仍享受 QUIC 并发，
+#   HY2 整池劣化时自动落到 VMess，X 图片不会直接失败。
 # ============================================================
-- name: 𝕏 媒体#🚀 节点选择
+- name: 𝕏 媒体-HY2
   type: url-test
   url: https://pbs.twimg.com/robots.txt
   interval: 300
@@ -151,6 +159,25 @@
   include-all-proxies: true
   filter: "HY2"
   exclude-filter: "过滤|流量|到期|剩余|套餐|公共"
+
+- name: 𝕏 媒体-备用
+  type: url-test
+  url: https://pbs.twimg.com/robots.txt
+  interval: 300
+  timeout: 5000
+  tolerance: 50
+  include-all-proxies: true
+  exclude-filter: "HY2|公共|过滤|流量|到期|剩余|套餐"
+
+- name: 𝕏 媒体#🚀 节点选择
+  type: fallback
+  url: https://pbs.twimg.com/robots.txt
+  interval: 300
+  timeout: 5000
+  lazy: false
+  proxies:
+    - 𝕏 媒体-HY2
+    - 𝕏 媒体-备用
 
 # ============================================================
 # 🆓 公共备用 —— AutoMergePublicNodes（NoMoreWalls fork）公开节点
