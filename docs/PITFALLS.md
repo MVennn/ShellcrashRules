@@ -793,3 +793,41 @@ CDN 规则是字面 `DIRECT`，问题依旧。
 `hosts` 的 `*.` 通配与 `fake_ip_filter.list` 的写法一致，mihomo 1.19.28 实测可用。
 
 **出处**：2026-10-22 B站播放卡顿排查；实测见 [RULE-AUDIT.md](RULE-AUDIT.md) §7.6。
+
+## 31. 凭据扫描的占位符不能整行放行
+
+**现象**：`tools/check-secrets.py` 对一行里同时有示例和真值的情况完全失明。
+
+**根因**：`if PLACEHOLDER.search(line): continue` —— 整行 `continue`。
+行内只要出现 `example.com` / `<...>` / `YOUR-`，同一行的真 `sk-` token、真实节点 URI
+都不会被报。CI 里这是唯一的自动凭据防线。
+
+**解法**：只豁免**匹配片段本身** —— 拿到 `m.group(0)` 再判占位符；
+示例 URL 仍按预期放行，真值不再逃检。7 个仓共用同一份脚本，改一处要同步其余仓。
+
+## 32. `ls -l` 的符号模式不能喂给 GNU chmod
+
+**现象**：规则钩子在 PC 上复现时，`config.yaml` 的权限变成 umask 默认值（可能全局可读）。
+
+**根因**：`PERM=$(ls -l "$CFG" | awk '{print substr($1,2,9)}')` 取到 `rw-r--r--`，
+`chmod "$PERM"` 在 GNU coreutils 下直接报 `invalid mode`（busybox 碰巧接受），
+错误又被 `2>/dev/null || true` 吞掉。
+
+**解法**：`cp -p "$CFG" "$TMP"` 先建临时文件、再截断写入，权限与属主沿用原文件
+（`rules-cnip.sh` / `rules-porn.sh` 早就是这个写法）。配置文件里有节点 UUID，
+权限一旦变松就是凭据暴露。
+
+## 33. 备份类操作：先确认「当前状态是正常的」，恢复失败要显式报错
+
+**现象**：公开节点筛选跑完，guardian / legacy 看门狗永久停摆，而日志写着「已恢复」。
+
+**根因**：`screen.py` 的 `pause_watchdogs()` 先用 `check=False` 恢复上次残留备份，
+再把**当前** crontab 存成新备份。第一步传输抖动失败、第二步成功时，备份里存的就是
+「已暂停」的 crontab；此后恢复和下一次暂停都从这份坏备份读。
+
+**解法**：恢复改 `check=True` 并校验备份里确实有看门狗行；备份前若当前 crontab
+本来就没有看门狗行，记 WARN 但不拒绝（那是真实状态）；`resume_watchdogs()` 失败
+记 ERROR 并抛出让脚本非零退出。
+
+**下次怎么避**：任何「备份 → 改动 → 恢复」的流程，先证明「备份里的状态是可恢复的」，
+再动手；恢复失败绝不能静默。
