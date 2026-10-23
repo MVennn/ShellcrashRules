@@ -121,6 +121,7 @@ docs/ 下的文档**一律 `ALL-CAPS-WITH-HYPHENS.md`**（如 `RULE-AUDIT.md`、
 
 | 变更 | 必须同步 |
 |---|---|
+| **修一个缺陷**（行为变化 / 判据修正 / 安全加固） | 对应正本补一条 **现象 → 根因 → 怎么避**：[PITFALLS.md](PITFALLS.md)；CHANGELOG 只是变更记录，**不算补文档** |
 | 新增 / 删除 / 改名策略组 | [config/yamls/proxy-groups.yaml](../config/yamls/proxy-groups.yaml)、[ARCHITECTURE.md](ARCHITECTURE.md) §4 关键参数表；若影响出口判定，[PITFALLS.md](PITFALLS.md) 对应条目 |
 | 新增 / 修改规则 | [config/generators/ai-rules-update.sh](../config/generators/ai-rules-update.sh) → 重跑生成器更新 [config/generated/rules.yaml](../config/generated/rules.yaml)、[RULE-AUDIT.md](RULE-AUDIT.md) |
 | 新增 / 修改 nft 表 | [firewall/tables/](../firewall/tables/)、[ARCHITECTURE.md](ARCHITECTURE.md) §2 运行期、[PITFALLS.md](PITFALLS.md) |
