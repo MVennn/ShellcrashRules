@@ -32,6 +32,9 @@
   `PITFALLS.md` §38、`proxy-groups.yaml` / `reorder-groups.sh` 顶部注释同步。
   **新增 / 改名 / 删除组必须同步 `order[]`**，漏加会掉到面板最后；
   验证步骤补 OpenwrtConsole 本地 mock 入口（无需路由器密码）
+- 调整 `docs/ARCHITECTURE.md` —— 说明 `𝕏 媒体-HY2` / `𝕏 媒体-备用` 是
+  `𝕏 媒体` fallback 的内部子组；OpenwrtConsole 默认不单独展示它们的卡片
+  （父组下拉仍可切换），避免列表末尾看起来像重复的 `𝕏 媒体`
 
 ### 规则吸收与公共池（2026-10-23）
 
