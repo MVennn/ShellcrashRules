@@ -52,6 +52,7 @@ ShellCrash / mihomo 本体、路由器系统运维、控制台与 AI 接入各�
 | 凭据与节点信息不入库，配置片段先脱敏 | [docs/SECRETS.md](docs/SECRETS.md) |
 | 规则顺序与策略组兜底不能随手改 | [docs/PITFALLS.md](docs/PITFALLS.md) |
 | 新增策略组必须同步 `reorder-groups.sh` 的 `order[]`，否则会掉到面板最后 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)「代理组排序规则」 |
+| 内部子组（只作为父组 fallback 成员）默认隐藏卡片，父组下拉保留 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)「代理组排序规则」、OpenwrtConsole `src/utils/proxy.ts` 的 `HIDDEN_GROUPS` |
 | 每条规则只在一篇文档里定义，别处只留链接 | [docs/DOC-RULES.md](docs/DOC-RULES.md) |
 | 版本号只在发版时进位，规则按对象拆行 | [docs/VERSIONING.md](docs/VERSIONING.md) |
 | 用户可感知的改动要进 [CHANGELOG.md](CHANGELOG.md) | [docs/MAINTENANCE.md](docs/MAINTENANCE.md) |

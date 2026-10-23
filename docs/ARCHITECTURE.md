@@ -226,9 +226,14 @@ mihomo 校验（CrashCore -t）→ 加载
 - 纯中转组（`📲 电报消息` / `📢 谷歌FCM` → `🚀 节点选择`，
   `Ⓜ️ 微软服务` / `🍎 苹果服务` → `DIRECT`）已删除，规则直接指向实际出口。
   只有真正需要独立出口的服务组才保留（如 `🎥 NETFLIX` / `🎥 DisneyP` 锁定新加坡）。
-- 内部子组（`𝕏 媒体-HY2` / `𝕏 媒体-备用`）只作为父组 fallback 的成员；
-  OpenwrtConsole 默认不单独展示它们的卡片（父组下拉仍可切换），避免列表末尾
-  看起来像重复的 `𝕏 媒体`。
+- **内部子组约定**：只作为父组 fallback / load-balance 成员、不被规则直接引用、
+  也不作为顶层手动出口的组（当前 `𝕏 媒体-HY2` / `𝕏 媒体-备用`）：
+  - 名字用 `父组-用途`，例如 `𝕏 媒体-HY2`；
+  - `reorder-groups.sh` 仍把它们排在组列表最后（实现细节），且**不加**进
+    `🚀 节点选择` 的成员顺序；
+  - OpenwrtConsole 的 `src/utils/proxy.ts` 要把组名加入 `HIDDEN_GROUPS`，
+    默认不单独出卡片；父组下拉仍保留它们，供手动切换；
+  - 这样列表末尾不会看起来像重复的父组，也不会被误选成全局出口。
 
 ### 代理组排序规则（新增组必须遵守）
 
@@ -268,7 +273,7 @@ mihomo 校验（CrashCore -t）→ 加载
 1. 在 `config/yamls/proxy-groups.yaml` 定义组（需要挂进父组就写 `#父组`）。
 2. 在 `config/hooks/reorder-groups.sh` 的**组顺序** `order[]` 中按上表插入。
 3. 如果它要出现在 `🚀 节点选择` 里，再在**成员顺序** `order[]` 的对应段插入；
-   内部子组不要加。
+   内部子组不要加；内部子组还要把组名加入 OpenwrtConsole 的 `HIDDEN_GROUPS`。
 4. 如果它的节点需要手动排序，把组名加到节点排序 pass 的目标列表，
    并在 `rank()` 里补新地区。
 5. 用配置副本验证：`sh config/hooks/reorder-groups.sh /tmp/test.yaml`，

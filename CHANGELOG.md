@@ -35,6 +35,9 @@
 - 调整 `docs/ARCHITECTURE.md` —— 说明 `𝕏 媒体-HY2` / `𝕏 媒体-备用` 是
   `𝕏 媒体` fallback 的内部子组；OpenwrtConsole 默认不单独展示它们的卡片
   （父组下拉仍可切换），避免列表末尾看起来像重复的 `𝕏 媒体`
+- 文档 —— 固化「内部子组默认隐藏」约定：只作为父组 fallback 成员、默认不出卡片；
+  新增 / 改名时同步 OpenwrtConsole 的 `HIDDEN_GROUPS`，父组下拉保留。
+  `MAINTENANCE.md` §2.5、`CONTRIBUTING.md`、`DOC-RULES.md` 变更触发矩阵同步
 
 ### 规则吸收与公共池（2026-10-23）
 
