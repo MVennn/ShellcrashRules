@@ -265,6 +265,16 @@
 - 仓库/设备哈希对照：`clash_modify.sh` / `fw_nftables.sh` / `start_legacy_wd.sh` / `rules-mid.sh` / `reorder-groups.sh` / `post-sc-update.sh` / `ai-api-check.sh` / `ai-rules-update.sh` / `rules.yaml` / `fake_ip_filter.list` 全部一致；`fake_ip_filter` 的两行差异已补齐（注释保留）
 - `rules-cnip.sh` 已入库；设备侧 `/etc/ShellCrash/rules-cnip.sh` 的 sha256 为 `d301054d…`
 
+### 清理（2026-10-23）
+
+- 删除 `.work/` 下 14 个一次性审计抓取（`live-*` / `current-*` / `test-*` 的 `config.yaml`
+  与 `proxies.json`，以及 `c2` / `p3` / `conns-new` 三个 json）与两级 `tools/__pycache__`
+  —— 都是 `docs/MAINTENANCE.md` §5.3 明说的可再生产物；仓体 21M → 19M
+- 保留 `.work/` —— `private-evidence/`（11M 私有证据）、`private-history.bundle`（1.1M 旧历史）、
+  `audit-20261022/`（1.2M 审计原文）、`public-nodes/`（1.8M 计划任务状态）、`PROGRESS.md`，
+  与 `config/yamls/proxies.yaml`（含节点 uuid 的模板实例），按 §5.3 与上一轮口径均不删
+- 补记 —— `docs/DOC-RULES.md` 与 `docs/PITFALLS.md` 两笔纯文档提交此前没有 CHANGELOG 条目
+
 ### 清理（2026-10-22）
 
 - 删除 `__pycache__/`（`tools/`、`tools/public-nodes/`、`tools/latency/archive/` 三处，共 156 KB）—— `.gitignore` 已覆盖、[docs/MAINTENANCE.md](docs/MAINTENANCE.md) §5.3 明说可再生；仓体 18M → 17,734 KB（-156 KB）
