@@ -813,30 +813,50 @@ def pick_survivors(
 # --------------------------------------------------------------------------
 # 主流程
 # --------------------------------------------------------------------------
+WATCHDOG_PATTERN = r"guardian\.sh|start_legacy_wd\.sh"
+
+
+def crontab_has_watchdogs() -> bool:
+    """路由器上的 crontab 是否还留着 guardian / legacy 看门狗行。"""
+    return ssh(f"grep -qE '{WATCHDOG_PATTERN}' {CRON_FILE}", check=False).returncode == 0
+
+
 def pause_watchdogs() -> bool:
     """测试期间停掉 guardian / legacy 看门狗，避免和 start.sh restart 抢。
 
     历史事故：两者并发时会出现双实例，两个启动同时写 /tmp/ShellCrash/config.yaml，
     生成出的配置带重复的 proxies:/proxy-groups: 键，校验失败后静默回退基础配置。
     上次异常退出留下的备份先恢复，避免把「已暂停」的 crontab 当成正常状态再备份一次。
+
+    恢复这一步必须 check=True：传输层抖动时如果悄悄失败、后面又照常备份，
+    备份里存的就是「已暂停」的 crontab，此后每次恢复都从这份坏备份读 ——
+    看门狗永久停摆，而日志显示「已恢复」。
     """
-    ssh(f"test -f {CRON_BACKUP} && cp {CRON_BACKUP} {CRON_FILE} && /etc/init.d/cron restart", check=False)
-    proc = ssh(
+    had_backup = ssh(f"test -f {CRON_BACKUP}", check=False).returncode == 0
+    if had_backup:
+        ssh(f"cp {CRON_BACKUP} {CRON_FILE} && /etc/init.d/cron restart")
+        if not crontab_has_watchdogs():
+            raise RuntimeError(
+                f"{CRON_BACKUP} 里没有 guardian / legacy 看门狗行，拒绝用它覆盖 crontab"
+            )
+    elif not crontab_has_watchdogs():
+        log("WARN: 当前 crontab 本来就没有 guardian / legacy 看门狗行，备份会记录这个状态")
+
+    ssh(
         f"cp {CRON_FILE} {CRON_BACKUP} && "
-        f"grep -vE 'guardian\\.sh|start_legacy_wd\\.sh' {CRON_FILE} > /tmp/.cron.public-screen && "
+        f"grep -vE '{WATCHDOG_PATTERN}' {CRON_FILE} > /tmp/.cron.public-screen && "
         f"cat /tmp/.cron.public-screen > {CRON_FILE} && /etc/init.d/cron restart",
-        check=False,
     )
-    ok = proc.returncode == 0
-    log("已暂停 guardian / legacy 看门狗" if ok else "暂停看门狗失败，继续（可能与重启竞争）")
-    return ok
+    log("已暂停 guardian / legacy 看门狗")
+    return True
 
 
 def resume_watchdogs() -> None:
-    ssh(
-        f"test -f {CRON_BACKUP} && cp {CRON_BACKUP} {CRON_FILE} && /etc/init.d/cron restart",
-        check=False,
-    )
+    try:
+        ssh(f"cp {CRON_BACKUP} {CRON_FILE} && /etc/init.d/cron restart")
+    except Exception as exc:
+        log(f"ERROR: 恢复 guardian / legacy 看门狗失败，请手动把 {CRON_BACKUP} 拷回 {CRON_FILE}：{exc}")
+        raise
     log("已恢复 guardian / legacy 看门狗")
 
 
