@@ -271,6 +271,8 @@ mihomo 校验（CrashCore -t）→ 加载
 5. 用配置副本验证：`sh config/hooks/reorder-groups.sh /tmp/test.yaml`，
    检查「组顺序 / 主选择器成员 / 节点顺序」三处，再部署；
    重启前暂停 `guardian.sh` / `start_legacy_wd.sh` / `bulk-guard.sh` 三条 cron。
+   面板侧可用 OpenwrtConsole 的本地 mock 入口验证（见其 CONTRIBUTING「本地 UI 开发」），
+   不需要路由器密码。
 
 <a id="arch-failure"></a>
 

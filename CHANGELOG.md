@@ -30,7 +30,8 @@
 - 文档 —— `ARCHITECTURE.md` 新增「代理组排序规则（新增组必须遵守）」正本；
   `MAINTENANCE.md` §2.5、`CONTRIBUTING.md`、`DOC-RULES.md` 变更触发矩阵、
   `PITFALLS.md` §38、`proxy-groups.yaml` / `reorder-groups.sh` 顶部注释同步。
-  **新增 / 改名 / 删除组必须同步 `order[]`**，漏加会掉到面板最后
+  **新增 / 改名 / 删除组必须同步 `order[]`**，漏加会掉到面板最后；
+  验证步骤补 OpenwrtConsole 本地 mock 入口（无需路由器密码）
 
 ### 规则吸收与公共池（2026-10-23）
 

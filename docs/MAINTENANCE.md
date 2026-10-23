@@ -108,6 +108,8 @@ python mihomo/rule_audit.py config.yaml proxies.json third-party/ACL4SSR/Clash R
 4. 节点需要排序的组，加到节点排序 pass 的目标列表；新地区补 `rank()`。
 5. 用配置副本验证三处顺序（组 / 主选择器成员 / 节点），再部署；
    重启前暂停 `guardian.sh`、`start_legacy_wd.sh`、`bulk-guard.sh` 三条 cron。
+   面板侧可用 OpenwrtConsole 的本地 mock 入口验证（`node tools/mock-router.mjs` +
+   `ROUTER_URL=http://127.0.0.1:5199 npm run dev`），不需要路由器密码。
 
 **不要**依赖 `proxy-groups.yaml` 的文件顺序或订阅原始顺序；这两者都不决定面板顺序。
 
