@@ -32,7 +32,7 @@
 ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-rules-update.sh'
 #    失败 = 什么都不该改（脚本设计上不会写半成品）→ 停在这里，不要 hotupdate
 
-# ② 自检 18 段（最重要的一条命令）
+# ② 自检 17 段（最重要的一条命令）
 ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-api-check.sh'
 #    退出码 0 = 全过；1 = 有失败项
 #    注意：部分段带**自动修复**（改 log-level、sed 修 task.sh 路径、重载 nft 表）
@@ -56,10 +56,10 @@ python mihomo/rule_audit.py config.yaml proxies.json third-party/ACL4SSR/Clash R
 
 ### 2.2 自检覆盖了什么（为什么它是唯一必跑的一条）
 
-`ai-api-check.sh` 的 18 段，按顺序：
+`ai-api-check.sh` 的 17 段（原 18 段，第 4 段模型测试已移除），按顺序：
 
 1. 策略组状态 · 2. 组到 opencode.ai 的延迟 · 3. opencode.ai 可达性 ·
-4. 三种协议最小 token 测试 · 5. 分组/成员/节点排序钩子 + 伪节点过滤 · 6. hotupdate 重载路径 ·
+4. （已移除：三种协议最小 token 测试） · 5. 分组/成员/节点排序钩子 + 伪节点过滤 · 6. hotupdate 重载路径 ·
 7. Chrome/Google 下载修复（fake-ip 过滤 + quicguard 表）· 8. CN 直连中间层（rules-mid）·
 9. 境外 QUIC 拦截 + TLS 重新解析 · 10. Google 家族统一出口 ·
 11. 夜间加固项（cn_ip 剔除 / sniffer 跳过 CDN / 组出口）· 12. 规则文件完整性（空组名 / 原子写）·
@@ -75,7 +75,7 @@ python mihomo/rule_audit.py config.yaml proxies.json third-party/ACL4SSR/Clash R
 
 - 日期与主题
 - 订阅更新前后的关键差异（规则条数、策略组成员、出口 IP）
-- 18 段自检的结果（过 / 不过 + 失败项）
+- 17 段自检的结果（过 / 不过 + 失败项）
 - 做了什么修复
 - 状态
 

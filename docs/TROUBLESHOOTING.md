@@ -51,7 +51,7 @@ ssh root@10.0.0.1 "grep -nE '^(rule-providers|proxy-groups|proxies|rules|dns|sni
 # ④ 看是不是生成物写坏了（尾逗号 = 策略名为空）
 ssh root@10.0.0.1 "grep -nE ',\]' /tmp/ShellCrash/config.yaml | head"
 
-# ⑤ 巡检脚本（18 段，含自动修复）
+# ⑤ 巡检脚本（17 段，含自动修复）
 ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-api-check.sh'
 ```
 
@@ -176,13 +176,16 @@ python mihomo/mihomo_api.py delay https://opencode.ai/ "🤖 AI接口" "🚀 节
 **排查步骤**：
 
 ```bash
-# ① 用最小 token 请求复测（ai-api-check.sh 第 4 段，三种协议各一次）
-ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-api-check.sh' | sed -n '/4\./,/5\./p'
+# ① 手动发最小请求（模型测试已从 ai-api-check.sh 移除，2026-10-26）
+ssh root@10.0.0.1 'KEY=$(cat /etc/ShellCrash/opencode.key); \
+  curl -s -x http://127.0.0.1:7890 -o /tmp/ai400.json -w "%{http_code}\n" \
+  https://opencode.ai/zen/go/v1/chat/completions \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d "{\"model\":\"deepseek-v4.1-flash\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":8}"'
+# 失败时看响应体前 200 字节
+ssh root@10.0.0.1 'head -c 200 /tmp/ai400.json'
 
-# ② 看响应体（脚本会在失败时打印前 200 字节）
-ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-api-check.sh' 2>&1 | grep -A2 'HTTP 4'
-
-# ③ 确认走的是代理口，且出口正常
+# ② 确认走的是代理口，且出口正常
 ssh root@10.0.0.1 'curl -s -x http://127.0.0.1:7890 -o /dev/null -w "%{http_code}\n" https://opencode.ai/'
 ```
 
@@ -190,7 +193,7 @@ ssh root@10.0.0.1 'curl -s -x http://127.0.0.1:7890 -o /dev/null -w "%{http_code
 
 | 判据 | 原因 | 解法 |
 |---|---|---|
-| 最小 token 请求也 400 | **请求体字段不被该模型接受**（如某些模型不接受思考类字段） | 用「模型真实请求体」复现再对比；本仓的 `ai-api-check.sh` 用的是最小体 —— 最小体都 400 就是协议/模型侧问题，不是分流问题 |
+| 最小 token 请求也 400 | **请求体字段不被该模型接受**（如某些模型不接受思考类字段） | 用「模型真实请求体」复现再对比；手动复测用的是最小体 —— 最小体都 400 就是协议/模型侧问题，不是分流问题 |
 | 最小 token 200、真实请求 400 | 同上，但只有真实体触发 | 对比真实体的字段；网关原样转发多余字段就会 400 |
 | 三种协议里只有一种 400 | **请求头格式不对** | `chat/completions` 与 `responses` 用 `Authorization: Bearer`；`anthropic/messages` 用 `x-api-key` + `anthropic-version` |
 | 401 / 403 | key 无效或**出口被拒**（香港出口会被 OpenAI 上游拒：`unsupported_country_region_territory`） | 排除香港出口（`exclude-filter` 里已有 `香港\|HK\|Hong Kong`）；换干净出口 |
@@ -343,7 +346,7 @@ ssh root@10.0.0.1 "grep -n 'rules-cnip\|rules-dedup' /etc/ShellCrash/starts/clas
 3. `/etc/init.d/shellcrash disable`；
 4. 只跑一次 `/etc/ShellCrash/start.sh start`；
 5. 验证单实例 + 端口 + `free -m`；
-6. 恢复 cron，再跑 `ai-api-check.sh` 18 段。
+6. 恢复 cron，再跑 `ai-api-check.sh` 17 段。
 
 **根治**：[PITFALLS.md](PITFALLS.md) §24（O(N²) 不在路由器跑）、§25（并发启动）、
 [MAINTENANCE.md](MAINTENANCE.md) §2.4（变更纪律）。
@@ -352,7 +355,7 @@ ssh root@10.0.0.1 "grep -n 'rules-cnip\|rules-dedup' /etc/ShellCrash/starts/clas
 
 ## 还没找到？
 
-1. 先跑 `ai-api-check.sh` —— 18 段覆盖了本仓最容易悄悄坏掉的十几个点。
+1. 先跑 `ai-api-check.sh` —— 17 段覆盖了本仓最容易悄悄坏掉的十几个点。
 2. 再看仓库根 [CHANGELOG.md](../CHANGELOG.md) —— 过去的每一次故障都记了现象与根因。
 3. 还不行 → 往 [PITFALLS.md](PITFALLS.md) 加一条（格式见该篇末尾），
    并在 [TROUBLESHOOTING.md](TROUBLESHOOTING.md) 补一个检索入口。

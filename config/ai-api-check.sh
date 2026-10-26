@@ -2,13 +2,15 @@
 # AI API 链路自检 —— 订阅更新后跑一次即可
 # 用法: sh /etc/ShellCrash/ai-api-check.sh
 # 退出码: 0 全部通过 / 1 有失败项
+#
+# 2026-10-26: 移除原第 4 段「三种协议最小 token 测试」。路由器不再向模型接口
+#             发请求；需要排查 AI 接口 400/401 时按 docs/TROUBLESHOOTING.md §5 手动复测。
+#             其余段与编号保持不变（第 4 段留一行说明）。
 
 API="http://127.0.0.1:9999"
 SECRET=$(grep -m1 "^secret=" /etc/ShellCrash/configs/ShellCrash.cfg 2>/dev/null | cut -d= -f2- | tr -d "'\"")
 AUTH="Authorization: Bearer $SECRET"
 G="%F0%9F%A4%96%20AI%E6%8E%A5%E5%8F%A3"   # 🤖 AI接口
-KEYFILE=/etc/ShellCrash/opencode.key
-UA="ShellCrash-AI-Check/1.0"
 fail=0
 
 echo "===== 1. 策略组状态 ====="
@@ -35,39 +37,7 @@ echo "HTTP $CODE"
 [ "$CODE" = "200" ] || { echo "FAIL: 不是 200"; fail=1; }
 
 echo ""
-echo "===== 4. 三种协议最小 token 测试（经 mihomo 代理口） ====="
-if [ -f "$KEYFILE" ]; then
-	KEY=$(cat "$KEYFILE")
-
-	C1=$(curl -s -x http://127.0.0.1:7890 -o /tmp/aicheck.json -w '%{http_code}' --max-time 30 \
-		https://opencode.ai/zen/go/v1/chat/completions \
-		-H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-		-H "User-Agent: $UA" -H "x-opencode-session: router-check" \
-		-d '{"model":"deepseek-v4.1-flash","messages":[{"role":"user","content":"hi"}],"max_tokens":8}')
-	echo "chat/completions        HTTP $C1"
-	[ "$C1" = "200" ] || { echo "  body: $(head -c 200 /tmp/aicheck.json)"; fail=1; }
-
-	C2=$(curl -s -x http://127.0.0.1:7890 -o /tmp/aicheck.json -w '%{http_code}' --max-time 30 \
-		https://opencode.ai/zen/go/v1/messages \
-		-H "x-api-key: $KEY" -H "anthropic-version: 2023-06-01" \
-		-H "Content-Type: application/json" -H "User-Agent: $UA" \
-		-H "x-opencode-session: router-check" \
-		-d '{"model":"claude-haiku-5-5","messages":[{"role":"user","content":"hi"}],"max_tokens":8}')
-	echo "anthropic/messages      HTTP $C2"
-	[ "$C2" = "200" ] || { echo "  body: $(head -c 200 /tmp/aicheck.json)"; fail=1; }
-
-	C3=$(curl -s -x http://127.0.0.1:7890 -o /tmp/aicheck.json -w '%{http_code}' --max-time 30 \
-		https://opencode.ai/zen/go/v1/responses \
-		-H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-		-H "User-Agent: $UA" -H "x-opencode-session: router-check" \
-		-d '{"model":"gpt-6-luna","input":"hi","max_output_tokens":16}')
-	echo "openai/responses        HTTP $C3"
-	[ "$C3" = "200" ] || { echo "  body: $(head -c 200 /tmp/aicheck.json)"; fail=1; }
-else
-	echo "SKIP: 没有 $KEYFILE（只做网络层检查）"
-fi
-
-rm -f /tmp/aicheck.json
+echo "===== 4. 已移除（三种协议最小 token 测试） ====="
 
 echo ""
 echo "===== 5. 分组排序钩子 ====="

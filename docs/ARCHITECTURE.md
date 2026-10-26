@@ -194,7 +194,8 @@ mihomo 校验（CrashCore -t）→ 加载
 | 看门狗 cron | `* * * * *` | 路由器 crontab | 每分钟拉起代理（`starts/start_legacy_wd.sh shellcrash`） |
 | 守护 cron | `*/5 * * * *` | 路由器 crontab | 每 5 分钟自愈（补载三表、节点劣化复位、干净出口守护）—— 脚本在 `AX3000TOpenwrt` 仓 |
 | 大流量守卫 cron | `*/10 * * * *` | 路由器 crontab | 每 10 分钟判定一次（空闲时每 2 小时实测一次吞吐）—— 脚本在 `OpenwrtOpsToolkit` 仓，组名来自 `/etc/openwrt-ops/device.conf` |
-| 自检段数 | 18 段 | `config/ai-api-check.sh` | 订阅更新后必跑；退出码 0/1 |
+| 自检 cron | `5 5 * * *` | 路由器 crontab | 每天跑 `daily-ai-check.sh`（17 段配置审计 + 留痕）—— 脚本在本仓 `config/` |
+| 自检段数 | 17 段（原 18 段，第 4 段模型测试已移除） | `config/ai-api-check.sh` | 订阅更新后必跑；退出码 0/1 |
 
 ### 4.1 组名与规则目标的约定
 

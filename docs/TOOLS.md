@@ -68,7 +68,7 @@ python mihomo/mihomo_api.py proxies
 ## 4. 跑 AI 接口自检
 
 ```bash
-# 路由器上：逐段自检（策略组 / 延迟 / 三协议最小 token / 钩子 / nft 表 / 规则位置 / 出口组…）
+# 路由器上：逐段自检（策略组 / 延迟 / 钩子 / nft 表 / 规则位置 / 出口组…）
 ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-api-check.sh'
 # 退出码 0 = 全过 / 1 = 有失败项
 ```
