@@ -61,7 +61,10 @@ REMOTE_PROXIES = f"{REMOTE_YAMLS}/proxies.yaml"
 REMOTE_RUNTIME = "/tmp/ShellCrash/config.yaml"
 REMOTE_SECRET_CFG = "/etc/ShellCrash/configs/ShellCrash.cfg"
 CRON_FILE = "/etc/crontabs/root"
-CRON_BACKUP = "/tmp/ShellCrash/.crontab.public-screen"
+# 必须放 overlay：放 /tmp 时，PC 侧异常退出后路由器一重启备份就丢了，
+# 而 crontab 仍是"已暂停"状态 —— 下一轮会把暂停态当成正常态重新备份，
+# 看门狗从此永久停摆且日志显示"已恢复"。
+CRON_BACKUP = "/etc/ShellCrash/.crontab.public-screen"
 API = "http://127.0.0.1:9999"
 
 MARK_START = "# >>> PUBLIC-NODES"

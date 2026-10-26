@@ -9,7 +9,38 @@
 
 ---
 
-## [未发布] — 2026-10-24
+## [0.3.1] — 2026-10-26
+
+### 全仓审查修复（2026-10-26）
+
+- 修复 `firewall/quicguard-sync.sh` —— `cn_ip6_mirror` 集合只在 `CN6` 非空时才定义，
+  但生成模板无条件引用它；未开 IPv6 / fake-ip 的设备上 `nft -c -f` 校验失败，
+  整份 CN QUIC 豁免装不上。改为集合始终定义、元素可为空（PITFALLS 39）
+- 修复 `config/starts/fw_nftables.sh` —— `[ -n "$$vm_ipv4" ]` 里的 `$$` 是当前 shell
+  的 PID，条件恒真；`vm_redir=ON` 且 `vm_ipv4` 为空时会建出带空集合的链并导致
+  全部 LAN TCP 被双重劫持。改回 `$vm_ipv4`（PITFALLS 40）
+- 修复 `tools/public-nodes/evaluate.py` —— 评测反复 `start.sh restart` 却不暂停看门狗，
+  与 `screen.py` 注释里记载的「双实例 → 重复键 → 静默回退基础配置」事故同路径；
+  主循环前后复用 `pause_watchdogs()` / `resume_watchdogs()`（try/finally）
+- 修复 `config/starts/sub-sync.sh` —— 已有节点名解析多一行 `sed "s/^[^ ]* //"`，
+  含空格的节点名（`HK 01`）被截断后与订阅侧比对判定「缺失」而重复追加，
+  mihomo 拒载整份配置；同时收窄伪节点过滤（去掉单独的「流量」，避免误杀
+  「大流量专线」类真实节点）（PITFALLS 41）
+- 修复 `config/ai-api-check.sh` —— 第 5 节与 9.1 节的自修复只验语法、不复核结果，
+  上游改了锚点后会假报「已修复」；补重新 grep。第 14/15 节读 secret 未剥引号，
+  `secret='abc'` 时全部 API 查询 401
+- 修复 `config/generators/ai-rules-update.sh` —— `googleapis.com → 节点选择` 是死规则
+  （同键去重保留前面的干净出口版本），删除并注释说明
+- 修复 `tools/public-nodes/screen.py` —— crontab 备份放 `/tmp`（tmpfs），PC 异常退出后
+  路由器重启会把「已暂停」状态当成正常态重新备份，看门狗永久停摆；移到
+  `/etc/ShellCrash/`（overlay）
+- 修复 `tools/check-secrets.py` —— 本机路径豁免是整行的；改为只豁免命中片段
+- 修复 `config/archive/rules-dedup.sh` —— 用 `ls -l` 截出的符号权限喂 GNU chmod 必失败；
+  改用 `cp -p` 保留原权限
+- 部署 —— `starts/sub-sync.sh` 补进 `local-patches/` 与设备 `PATCH_SPEC`（标记 `HAVE_N`），
+  ShellCrash 官方更新后能一起恢复；`quicguard-sync.sh` 重跑生成文件未变、live 表
+  `cn_ip6_mirror` 1487 行；`ai-api-check.sh` 实跑全 OK
+
 
 ### 自检（2026-10-26）
 

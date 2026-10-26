@@ -455,7 +455,8 @@ fi
 	echo "- DOMAIN-SUFFIX,graph.org,🚀 节点选择"
 	echo "- DOMAIN-SUFFIX,tg.dev,🚀 节点选择"
 	echo "- DOMAIN-SUFFIX,live-video.net,🌍 国外媒体"
-	echo "- DOMAIN-SUFFIX,googleapis.com,🚀 节点选择"
+	# googleapis.com 已在上方 Google 段指向干净出口；同键去重保留首次出现，
+	# 这里不再输出（旧行是死规则，会误导阅读者以为它走节点选择）。
 	echo "# C. 服务一致性"
 	echo "- DOMAIN-SUFFIX,bing.com,Ⓜ️ 微软服务"
 	echo "- DOMAIN-SUFFIX,xbox.com,Ⓜ️ 微软服务"

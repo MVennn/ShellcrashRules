@@ -52,7 +52,7 @@ if [ ! -s "$CONVERTED" ]; then
     exit 0
 fi
 grep -oE "\{ ?name: [^,]+" "$CONVERTED" | awk -F'name: ' '{print $2}' \
-    | sed "s/^[^ ]* //" | sed "s/^ *//;s/ *$//" | sort -u > "$TMP.have"
+    | sed "s/^ *//;s/ *$//" | sort -u > "$TMP.have"
 HAVE_N=$(wc -l < "$TMP.have")
 if [ "$HAVE_N" -lt 10 ]; then
     log "WARN: 转换后配置只解析到 $HAVE_N 个节点，疑似异常，保留现有块"
@@ -70,7 +70,7 @@ fi
 #   - 占位名 —— 机场把「剩余流量 / 套餐到期 / 过滤掉N条线路」也写成真节点。
 grep -E "^ *- *\{ *name:" "$TMP.raw" \
     | grep -F 'server:' \
-    | grep -vE '剩余流量|套餐|到期|过滤掉|官网|流量' \
+    | grep -vE '剩余流量|套餐|到期|过滤掉|官网' \
     | sed "s/^ *- *{ *name: */- {name: /" \
     | sed "s/ *} *$/}/" > "$TMP.all"
 

@@ -920,3 +920,33 @@ HTTP 200 **且响应体含 `"delay"`**；`pool_health()`、`pick_live_node()`、
 
 改完用配置副本跑一遍 `sh reorder-groups.sh /tmp/test.yaml`，检查
 「组顺序 / 主选择器成员 / 节点顺序」三处，再部署。
+
+## 39. nft 里「引用了但没定义」的集合会让整份文件校验失败
+
+- **现象**：未开 IPv6 / fake-ip 的设备上，`quicguard-sync.sh` 生成的 nft 表
+  安装失败，CN QUIC 豁免永远不生效，QQ/微信图片一直等握手超时。
+- **根因**：`cn_ip6_mirror` 集合只在 `CN6` 非空时才输出，但表体无条件写
+  `ip6 daddr @cn_ip6_mirror return`。nft 对未定义集合直接报错，`nft -c -f` 整份失败。
+- **解法**：被引用的集合**始终定义**，元素列表可以为空（`elements = { }` 合法）；
+  只在「整条规则都不需要」时才按变量裁掉规则本身。
+- **验证**：在没有 `cn_ip6` 的设备上跑 `sh quicguard-sync.sh`，确认
+  `nft list table inet quicguard` 成功且 `cn_ip6_mirror` 存在。
+
+## 40. `$$var` 不是变量，是当前 shell 的 PID
+
+- **现象**：`vm_redir=ON` 但 `vm_ipv4` 为空时，prerouting_vm 链仍被创建，
+  首条源地址过滤因空集合 `{}` 语法错误添加失败，全部 LAN TCP 被双重劫持。
+- **根因**：`[ -n "$$vm_ipv4" ]` 里的 `$$` 展开成 PID，拼上 `vm_ipv4` 字面量后恒非空。
+- **解法**：改 `$vm_ipv4`；改完在 `sh -n` 之外用 `set -x` 或回显确认变量确实为空。
+- **验证**：`vm_redir=ON` + 空 `vm_ipv4` 跑一遍，确认不建链。
+
+## 41. 解析已有节点名时多剥一层，会把含空格的名字拆坏
+
+- **现象**：订阅里 `HK 01`、`US LA 01` 这类带空格的节点，转换后重复进入
+  `proxies.yaml`，mihomo 因重名拒载整份配置，ShellCrash 静默回退基础配置。
+- **根因**：`awk -F'name: ' '{print $2}'` 之后又接了一行 `sed "s/^[^ ]* //"`，
+  把名字的第一段（`HK`）删掉，`have` 列表记成 `01`，与订阅侧完整名比对必然「缺失」。
+- **解法**：`name: ` 之后已经是纯名字，不要再剥；比对时用完整名。
+  过滤伪节点也别用单独的高频词（「流量」会误杀「大流量专线」）。
+- **验证**：拿含空格节点的订阅跑一次 `sub-sync.sh`，确认 `proxies.yaml` 无重名、
+  `CrashCore -t` 通过。

@@ -213,7 +213,7 @@ start_nftables() { #nftables配置总入口
         [ "$lan_proxy" = true ] && start_nft_route prerouting prerouting filter -150
         [ "$local_proxy" = true ] && start_nft_route output output route -150
     }
-    [ "$vm_redir" = "ON" ] && [ -n "$$vm_ipv4" ] && {
+    [ "$vm_redir" = "ON" ] && [ -n "$vm_ipv4" ] && {
         start_nft_dns prerouting_vm prerouting
         JUMP="meta l4proto tcp redirect to $redir_port" #跳转劫持的具体命令
         start_nft_route prerouting_vm prerouting nat -100

@@ -45,13 +45,15 @@ if grep -q "reorder-groups.sh" /etc/ShellCrash/starts/clash_modify.sh; then
 	echo "OK: clash_modify.sh 钩子在"
 else
 	echo "WARN: 钩子丢失（ShellCrash 脚本可能更新过），正在重新添加"
-	sed -i '/^    merger_yaml$/a\    [ -x "$CRASHDIR"/reorder-groups.sh ] && "$CRASHDIR"/reorder-groups.sh "$TMPDIR"/config.yaml' /etc/ShellCrash/starts/clash_modify.sh
-	if sh -n /etc/ShellCrash/starts/clash_modify.sh; then
-		echo "已修复，重启生效: /etc/ShellCrash/start.sh start"
-	else
-		echo "FAIL: 修复后语法错误，请从 /root/backup/pre-ai-api/clash_modify.sh.bak 恢复"
-		fail=1
-	fi
+		sed -i '/^    merger_yaml$/a\    [ -x "$CRASHDIR"/reorder-groups.sh ] && "$CRASHDIR"/reorder-groups.sh "$TMPDIR"/config.yaml' /etc/ShellCrash/starts/clash_modify.sh
+		# 语法通过不代表真的插进去了：上游改了 merger_yaml 的缩进/写法时
+		# sed 一行都不会插。必须重新 grep 确认。
+		if sh -n /etc/ShellCrash/starts/clash_modify.sh && grep -q "reorder-groups.sh" /etc/ShellCrash/starts/clash_modify.sh; then
+			echo "已修复，重启生效: /etc/ShellCrash/start.sh start"
+		else
+			echo "FAIL: 钩子未能插入（merger_yaml 锚点可能已变），请检查 /etc/ShellCrash/starts/clash_modify.sh"
+			fail=1
+		fi
 fi
 # 机场伪节点：过滤掉N条线路 / 剩余流量 / 套餐 / 到期 / 官网 都不是可用线路。
 # 「过滤掉14条线路」与日本-优化同 server/port/uuid，2026-10-23 被 url-test 选中后
@@ -165,7 +167,7 @@ else
 		print "    " r
 		done=1
 	} { print }' "$QF" > /tmp/fw.fix 2>/dev/null
-	if [ -s /tmp/fw.fix ] && sh -n /tmp/fw.fix 2>/dev/null; then
+	if [ -s /tmp/fw.fix ] && sh -n /tmp/fw.fix 2>/dev/null && grep -q 'QUIC_BLOCK_MARKER' /tmp/fw.fix; then
 		mv /tmp/fw.fix "$QF"
 		echo "FIX: fw_nftables.sh 已补回 QUIC reject 钩子（下次 ShellCrash 启动生效）"
 	else
@@ -354,7 +356,7 @@ fi
 
 echo ""
 echo "===== 14. 干净出口组（唯一 Google 判为非 CN 的稳定出口） ====="
-ASEC=$(sed -n "s/^secret=//p" /etc/ShellCrash/configs/ShellCrash.cfg 2>/dev/null | head -1)
+ASEC=$(sed -n "s/^secret=//p" /etc/ShellCrash/configs/ShellCrash.cfg 2>/dev/null | head -1 | tr -d "'\"")
 CLE="%F0%9F%A4%96%20%E5%B9%B2%E5%87%80%E5%87%BA%E5%8F%A3"
 if [ -f "$RCFG" ] && grep -q "name: 🤖 干净出口" "$RCFG"; then
 	echo "OK: 运行配置含 🤖 干净出口 组"

@@ -160,8 +160,10 @@ if grep -q 'RULE-SET,cn,🎯 全球直连' "$CFG" && ! grep -q 'RULE-SET,cn,🎯
 	die "RULE-SET,cn removed"
 fi
 
-PERM=$(ls -l "$CFG" | awk '{ print substr($1, 2, 9) }')
-chmod "$PERM" "$TMP" 2>/dev/null || true
-mv -f "$TMP" "$CFG" || die "failed to replace $CFG"
+# 保留原文件权限：从 `ls -l` 截出的符号串（rw-r--r--）GNU chmod 不接受，
+# 失败被吞后产物权限会落到 umask 默认值。先 cp -p 拿到原权限再写内容。
+cp -p "$CFG" "$TMP.perm" 2>/dev/null || cp "$CFG" "$TMP.perm"
+cat "$TMP" > "$TMP.perm" && mv -f "$TMP.perm" "$CFG" || die "failed to replace $CFG"
+rm -f "$TMP"
 echo "rules-dedup: rules $RIN -> $ROUT"
 exit 0

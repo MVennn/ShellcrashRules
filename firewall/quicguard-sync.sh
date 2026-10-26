@@ -98,8 +98,11 @@ table inet quicguard {
 HDR
 	printf '%s\n' "$CN4" | fmt
 	echo "		}"
-	if [ -n "$CN6" ]; then
-		cat <<'HDR6'
+	# The cn_ip6_mirror set is referenced unconditionally by BODY below, so it
+	# must always be defined. On devices without IPv6 (or with fake-ip) CN6 is
+	# empty; emitting no set at all makes `nft -c -f` fail and the whole
+	# exemption never installs. An empty element list is valid nft.
+	cat <<'HDR6'
 	}
 	set cn_ip6_mirror {
 		type ipv6_addr
@@ -107,9 +110,10 @@ HDR
 		auto-merge
 		elements = {
 HDR6
+	if [ -n "$CN6" ]; then
 		printf '%s\n' "$CN6" | fmt
-		echo "		}"
 	fi
+	echo "		}"
 	cat <<'BODY'
 	}
 

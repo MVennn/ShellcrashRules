@@ -175,24 +175,40 @@ def main() -> int:
 
     only = {x.strip() for x in args.only.split(",") if x.strip()}
     summaries = []
-    for name, url in SOURCES:
-        if only and name not in only:
-            continue
-        try:
-            summaries.append(
-                evaluate_source(
-                    name,
-                    url,
-                    args.sample,
-                    args.batch,
-                    args.settle,
-                    args.per_type,
-                    args.per_base,
+    # 评测期间要反复 start.sh restart；看门狗并发会触发双实例/配置回退事故
+    # （见 screen.pause_watchdogs 的注释）。与 screen.run 保持同一口径。
+    paused = False
+    try:
+        screen.pause_watchdogs()
+        paused = True
+    except Exception as exc:  # noqa: BLE001 - 暂停失败不终止评测，但要留痕
+        screen.log(f"WARN: 暂停看门狗失败，评测可能与看门狗抢重启: {exc}")
+
+    try:
+        for name, url in SOURCES:
+            if only and name not in only:
+                continue
+            try:
+                summaries.append(
+                    evaluate_source(
+                        name,
+                        url,
+                        args.sample,
+                        args.batch,
+                        args.settle,
+                        args.per_type,
+                        args.per_base,
+                    )
                 )
-            )
-        except Exception as exc:  # noqa: BLE001 - 单个源失败不影响其它源
-            screen.log(f"{name}: 失败 {exc}")
-            summaries.append({"name": name, "error": str(exc)})
+            except Exception as exc:  # noqa: BLE001 - 单个源失败不影响其它源
+                screen.log(f"{name}: 失败 {exc}")
+                summaries.append({"name": name, "error": str(exc)})
+    finally:
+        if paused:
+            try:
+                screen.resume_watchdogs()
+            except Exception as exc:  # noqa: BLE001 - 恢复失败必须让人看到
+                screen.log(f"ERROR: 恢复看门狗失败，请手动把备份拷回 crontab: {exc}")
 
     print("\n=== 对比结果 ===")
     print(json.dumps(summaries, ensure_ascii=False, indent=2))
