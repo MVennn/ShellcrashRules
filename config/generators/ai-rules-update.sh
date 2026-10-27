@@ -78,15 +78,33 @@ fi
 	echo "- DOMAIN-SUFFIX,hf-mirror.com,🎯 全球直连"
 	echo "- DOMAIN-SUFFIX,kuaishouzt.com,🎯 全球直连"
 	echo "- DOMAIN-SUFFIX,images-cn.ssl-images-amazon.com,🎯 全球直连"
+	echo "# ===== G2. Steam 下载（2026-10-27 走国内 CDN）====="
+	echo "# 2026-10-27 实测：Steam 的内容服务器目录按「客户端公网 IP」分配 CDN。"
+	echo "#   CM（*.steamserver.net）走代理时，Valve 认为客户端在境外，只给 cache*-hkg1 /"
+	echo "#   tyo3（实测 43–183 Mbps）；CM 改直连后 Valve 看到真实国内 IP，分配国内 CDN"
+	echo "#   （st.dl.eccdnx.com / dl.steam.clngaa.com / xz.pphimalayanrt.com），"
+	echo "#   实测 375–390 Mbps —— 这些 IP 是 CN 段，在防火墙层就绕过 mihomo 走硬件转发。"
+	echo "# 关键：steamserver.net 必须直连，它决定 Valve 看到的客户端 IP。"
+	echo "# api.steampowered.com 是内容服务器目录接口，直连可达（偶发超时，客户端会自动重试），"
+	echo "#   它的 DNS 必须走国内解析（见 starts/clash_modify.sh 的 nameserver-policy）。"
+	echo "# steamcontent.com 保留 DIRECT 作为 SteamCache 兜底；steamstatic / steamcdn-a /"
+	echo "#   steampipe 是商店静态资源与客户端安装包，直连实测更差（见 G 段反例），留在机场组。"
+	echo "- DOMAIN-SUFFIX,steamserver.net,DIRECT"
+	echo "- DOMAIN,api.steampowered.com,DIRECT"
+	echo "- DOMAIN-SUFFIX,eccdnx.com,DIRECT"
+	echo "- DOMAIN-SUFFIX,clngaa.com,DIRECT"
+	echo "- DOMAIN-SUFFIX,pphimalayanrt.com,DIRECT"
+	echo "- DOMAIN-SUFFIX,steamcontent.com,DIRECT"
+	echo "- DOMAIN-SUFFIX,steamstatic.com,🚀 节点选择"
+	echo "- DOMAIN-SUFFIX,steamcdn-a.akamaihd.net,🚀 节点选择"
+	echo "- DOMAIN,steampipe.akamaized.net,🚀 节点选择"
+	echo "- DOMAIN,steampipe-kr.akamaized.net,🚀 节点选择"
 	echo "# ===== H. 大流量（公共池承载，2026-10-22）====="
 	echo "# 已知的大文件下载域走 📺 大流量：该组默认 🆓 公共备用，"
 	echo "# bulk-guard.sh 实测吞吐低于阈值时切回 ♻️ 自动选择（见 OpenwrtOpsToolkit）。"
 	echo "# 视频域刻意不进来：YouTube 全族必须走干净出口（Google cc 判定），"
 	echo "#   Netflix/Disney 对公共节点几乎必然判代理。"
 	echo "# proof.ovh.net 同时是 bulk-guard.sh 的探测域（Range 取前 4MB），必须固定在本组。"
-	echo "- DOMAIN-SUFFIX,steamcontent.com,📺 大流量"
-	echo "- DOMAIN-SUFFIX,steamstatic.com,📺 大流量"
-	echo "- DOMAIN-SUFFIX,steamcdn-a.akamaihd.net,📺 大流量"
 	echo "- DOMAIN-SUFFIX,epicgames-download1.akamaized.net,📺 大流量"
 	echo "- DOMAIN-SUFFIX,download.epicgames.com,📺 大流量"
 	echo "# 2026-10-23 补充 Epic/Steam 下载 CDN（Aethersailor / MetaCubeX）："
@@ -97,8 +115,6 @@ fi
 	echo "- DOMAIN,fastly-download.epicgames.com,📺 大流量"
 	echo "- DOMAIN,cloudflare.epicgamescdn.com,📺 大流量"
 	echo "- DOMAIN-SUFFIX,egdownload.fastly-edge.com,📺 大流量"
-	echo "- DOMAIN,steampipe.akamaized.net,📺 大流量"
-	echo "- DOMAIN,steampipe-kr.akamaized.net,📺 大流量"
 	echo "- DOMAIN,proof.ovh.net,📺 大流量"
 	echo "# ===== I. 视频站点 + Telegram（大流量，2026-10-22）====="
 	echo "# 纯下载型视频流量（成人站 + Telegram 媒体）走公共池："
@@ -526,9 +542,14 @@ if ! grep -q "DOMAIN,dl.google.com,🎯 全球直连" "$OUT.tmp" ||
 	echo "警告: 高带宽直连段丢失（可能被上游规则去重），请检查 $OUT.tmp"
 	exit 1
 fi
-for r in "DOMAIN-SUFFIX,steamcontent.com,📺 大流量" \
-         "DOMAIN-SUFFIX,steamstatic.com,📺 大流量" \
-         "DOMAIN-SUFFIX,steamcdn-a.akamaihd.net,📺 大流量" \
+for r in "DOMAIN-SUFFIX,steamserver.net,DIRECT" \
+         "DOMAIN,api.steampowered.com,DIRECT" \
+         "DOMAIN-SUFFIX,eccdnx.com,DIRECT" \
+         "DOMAIN-SUFFIX,clngaa.com,DIRECT" \
+         "DOMAIN-SUFFIX,pphimalayanrt.com,DIRECT" \
+         "DOMAIN-SUFFIX,steamcontent.com,DIRECT" \
+         "DOMAIN-SUFFIX,steamstatic.com,🚀 节点选择" \
+         "DOMAIN-SUFFIX,steamcdn-a.akamaihd.net,🚀 节点选择" \
          "DOMAIN-SUFFIX,epicgames-download1.akamaized.net,📺 大流量" \
          "DOMAIN-SUFFIX,download.epicgames.com,📺 大流量" \
          "DOMAIN,proof.ovh.net,📺 大流量" \

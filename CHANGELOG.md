@@ -9,6 +9,40 @@
 
 ---
 
+## [0.4.0] — 2026-10-27
+
+### Steam 下载改走国内 CDN（2026-10-27）
+
+- 调整 `config/generators/ai-rules-update.sh` + `config/generated/rules.yaml` —— 新增 G2 段：
+  `steamserver.net`（CM）、`api.steampowered.com`（内容服务器目录）、`eccdnx.com` /
+  `clngaa.com` / `pphimalayanrt.com`（国内 CDN）、`steamcontent.com` 全部 `DIRECT`；
+  `steamstatic.com`、`steamcdn-a.akamaihd.net`、`steampipe*.akamaized.net` 从 `📺 大流量`
+  挪到 `🚀 节点选择`（商店静态资源与客户端安装包，直连实测更差）
+- 调整 `config/fakeip/fake_ip_filter.list` —— `api.steampowered.com` 不再走 fake-ip
+- 调整 `config/starts/clash_modify.sh` —— `nameserver-policy` 给 `api.steampowered.com`
+  指定 `$dns_nameserver`（AliDNS/DoH.pub）。默认 `nameserver` 是 Cloudflare/Google DoH，
+  会把它解析到海外 Akamai 边缘（`23.35.148.x` / `95.101.182.x`），直连连不上
+- 根因（两步）——
+  1. `steamcontent.com` 被送进 `📺 大流量`，默认 `🆓 公共备用`（当时钉 `🆓 公共-05`，
+     SS、348 ms），下载走 PC → 免费公共节点 → 香港 CDN；
+  2. 更关键的是 **CM（`*.steamserver.net`）走代理**，Valve 从 CM 连接看到的客户端
+     公网 IP 是香港，内容服务器目录因此只分配 `cache*-hkg1` / `cache*-tyo3`。
+     只把 CDN 改直连、CM 仍走代理时，客户端依旧拿香港节点（实测 173–184 Mbps）；
+     CM 改直连后 Valve 看到真实国内 IP，立刻分配国内 CDN
+- 实测（客户端正在下 144 GB）—— 速率 43–60 Mbps（公共池）→ 173–184 Mbps（香港直连）
+  → **375–390 Mbps**（国内 CDN：`st.dl.eccdnx.com` / `dl.steam.clngaa.com` /
+  `xz.pphimalayanrt.com`）。国内 CDN 是 CN 段，在防火墙层就绕过 mihomo 走硬件转发，
+  所以能突破 mihomo DIRECT 中继约 186 Mbps 的上限（实测 32 并发：裸 WAN 462 Mbps、
+  经 mihomo 186 Mbps）
+- 历史对照 —— 客户端 `content_log.txt` 里 2026-07-21 用同一 CellID 148 走的就是这批
+  国内 CDN，峰值 568 Mbps；最后一次使用是 2026-09-23，与代理上线时间吻合
+- 已知限制 —— `api.steampowered.com` 直连会偶发超时（客户端自动重试，成功一次即可
+  拿到国内列表）；CM 直连到香港/新加坡比走机场慢（TLS 0.97s vs 0.35s），
+  换来的是下载带宽从 ~180 Mbps 提到 ~390 Mbps
+- 验证 —— 生成器 / `clash_modify.sh` `sh -n` ✓；`/rules` 实测五条 `DIRECT` 生效；
+  客户端日志 13:22:58 出现 `Created download interface of type 'CDN' to host
+  st.dl.eccdnx.com`，速率 13:23:47 起稳定在 375–390 Mbps
+
 ## [0.3.1] — 2026-10-26
 
 ### 全仓审查修复（2026-10-26）

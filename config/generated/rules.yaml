@@ -1,5 +1,5 @@
 # AI 服务分流规则 — 由 MetaCubeX/meta-rules-dat geosite category-ai-chat-!cn 生成
-# 更新于 2026-10-23 15:36:39
+# 更新于 2026-10-27 13:25:00
 # 同键规则已去重（保留首次出现；顶部覆盖优先）
 # ===== X. 𝕏 媒体（twimg.com 走 HY2，2026-10-23）=====
 # X/Twitter 图片 CDN 的并发建连在 VMess+WS 上会被串行化：
@@ -35,15 +35,33 @@
 - DOMAIN-SUFFIX,hf-mirror.com,🎯 全球直连
 - DOMAIN-SUFFIX,kuaishouzt.com,🎯 全球直连
 - DOMAIN-SUFFIX,images-cn.ssl-images-amazon.com,🎯 全球直连
+# ===== G2. Steam 下载（2026-10-27 走国内 CDN）=====
+# 2026-10-27 实测：Steam 的内容服务器目录按「客户端公网 IP」分配 CDN。
+#   CM（*.steamserver.net）走代理时，Valve 认为客户端在境外，只给 cache*-hkg1 /
+#   tyo3（实测 43–183 Mbps）；CM 改直连后 Valve 看到真实国内 IP，分配国内 CDN
+#   （st.dl.eccdnx.com / dl.steam.clngaa.com / xz.pphimalayanrt.com），
+#   实测 375–390 Mbps —— 这些 IP 是 CN 段，在防火墙层就绕过 mihomo 走硬件转发。
+# 关键：steamserver.net 必须直连，它决定 Valve 看到的客户端 IP。
+# api.steampowered.com 是内容服务器目录接口，直连可达（偶发超时，客户端会自动重试），
+#   它的 DNS 必须走国内解析（见 starts/clash_modify.sh 的 nameserver-policy）。
+# steamcontent.com 保留 DIRECT 作为 SteamCache 兜底；steamstatic / steamcdn-a /
+#   steampipe 是商店静态资源与客户端安装包，直连实测更差（见 G 段反例），留在机场组。
+- DOMAIN-SUFFIX,steamserver.net,DIRECT
+- DOMAIN,api.steampowered.com,DIRECT
+- DOMAIN-SUFFIX,eccdnx.com,DIRECT
+- DOMAIN-SUFFIX,clngaa.com,DIRECT
+- DOMAIN-SUFFIX,pphimalayanrt.com,DIRECT
+- DOMAIN-SUFFIX,steamcontent.com,DIRECT
+- DOMAIN-SUFFIX,steamstatic.com,🚀 节点选择
+- DOMAIN-SUFFIX,steamcdn-a.akamaihd.net,🚀 节点选择
+- DOMAIN,steampipe.akamaized.net,🚀 节点选择
+- DOMAIN,steampipe-kr.akamaized.net,🚀 节点选择
 # ===== H. 大流量（公共池承载，2026-10-22）=====
 # 已知的大文件下载域走 📺 大流量：该组默认 🆓 公共备用，
 # bulk-guard.sh 实测吞吐低于阈值时切回 ♻️ 自动选择（见 OpenwrtOpsToolkit）。
 # 视频域刻意不进来：YouTube 全族必须走干净出口（Google cc 判定），
 #   Netflix/Disney 对公共节点几乎必然判代理。
 # proof.ovh.net 同时是 bulk-guard.sh 的探测域（Range 取前 4MB），必须固定在本组。
-- DOMAIN-SUFFIX,steamcontent.com,📺 大流量
-- DOMAIN-SUFFIX,steamstatic.com,📺 大流量
-- DOMAIN-SUFFIX,steamcdn-a.akamaihd.net,📺 大流量
 - DOMAIN-SUFFIX,epicgames-download1.akamaized.net,📺 大流量
 - DOMAIN-SUFFIX,download.epicgames.com,📺 大流量
 # 2026-10-23 补充 Epic/Steam 下载 CDN（Aethersailor / MetaCubeX）：
@@ -54,8 +72,6 @@
 - DOMAIN,fastly-download.epicgames.com,📺 大流量
 - DOMAIN,cloudflare.epicgamescdn.com,📺 大流量
 - DOMAIN-SUFFIX,egdownload.fastly-edge.com,📺 大流量
-- DOMAIN,steampipe.akamaized.net,📺 大流量
-- DOMAIN,steampipe-kr.akamaized.net,📺 大流量
 - DOMAIN,proof.ovh.net,📺 大流量
 # ===== I. 视频站点 + Telegram（大流量，2026-10-22）=====
 # 纯下载型视频流量（成人站 + Telegram 媒体）走公共池：

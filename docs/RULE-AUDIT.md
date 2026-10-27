@@ -585,12 +585,13 @@ AAAA；原先使用的 `2408:8756::/31` 是整个联通 IPv6 大段，腾讯（Q
 ### 8.2 吸收的规则
 
 统一写进 `config/generators/ai-rules-update.sh`，再由生成器输出
-`config/generated/rules.yaml`（当前 486 条 / 610 行），**不直接手改生成物**。
+`config/generated/rules.yaml`（当前 491 条 / 626 行），**不直接手改生成物**。
 
 | 类别 | 代表规则 | 目标 |
 |---|---|---|
 | AI 自有域 | `ai.com`、`modelcontextprotocol.io`、`together.xyz`、`deepinfra.com`、`fireworks.ai`、`novita.ai`、`bfl.ai`、`stability.ai`、`runway.com`、`suno.com`、`udio.com`、`character.ai`、`you.com` 及生成/编码类 | 🤖 人工智能 |
-| 大流量 | Epic `download2/3/4`、`fastly-download`、`cloudflare.epicgamescdn`、`egdownload.fastly-edge`、`steampipe*.akamaized.net` | 📺 大流量 |
+| 大流量 | Epic `download2/3/4`、`fastly-download`、`cloudflare.epicgamescdn`、`egdownload.fastly-edge` | 📺 大流量 |
+| Steam | CM `steamserver.net`、目录 `api.steampowered.com`、国内 CDN `eccdnx.com` / `clngaa.com` / `pphimalayanrt.com`、`steamcontent.com` → **DIRECT**（2026-10-27，CM 直连才拿得到国内 CDN）；`steamstatic.com`、`steamcdn-a.akamaihd.net`、`steampipe*.akamaized.net` → 🚀 节点选择 | — |
 | 游戏补丁 | `cdn.blizzard.com`、`blzddistkr1`、`prod.cloudflare.cdn.ea.com`、`dyn.riotcdn.net`、`gamedownloads-rockstargames-com.akamaized.net`、`cdp.bethesda.net`、`uplaypc-s-ubisoft*.cdn.ubi.com`、`assets1/2.xboxlive.com`、`gog-cdn.akamaized.net` | 📺 大流量 |
 | 媒体 CDN | `i/v/preview.redd.it`、`i.imgur.com`、`i.pximg.net`、`vimeocdn.com`、`dmcdn.net`、`ttvnw.net`、`static-cdn.jtvnw.net`、`sourceforge.net`、`replicate.delivery`、`image.civitai.com` | 📺 大流量 |
 | Civitai | 主站 `civitai.com` → 🚀 节点选择；图片 CDN → 📺 大流量（`image.*` 必须排在主站之前） | — |

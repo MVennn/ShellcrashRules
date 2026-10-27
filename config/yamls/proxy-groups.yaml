@@ -203,8 +203,10 @@
 # ============================================================
 # 📺 大流量 —— 已知的大文件下载走公共池，省机场流量
 #
-# 由 rules.yaml 的三段指进来：
-#   H. 大流量：Steam / Epic 下载 CDN、proof.ovh.net（守卫探测域，Range 取前 4MB）
+# 由 rules.yaml 的几段指进来：
+#   H. 大流量：Epic 下载 CDN、proof.ovh.net（守卫探测域，Range 取前 4MB）
+#   Steam 于 2026-10-27 移出本组：depot CDN（steamcontent.com）改直连，
+#     steamstatic / steamcdn-a / steampipe 改走 🚀 节点选择（见 rules.yaml G2 段）
 #   I. 视频站点 + Telegram：成人站与其自有 CDN、Telegram 的两个 DC 段
 #      （媒体与消息走同一条 MTProto 连接，没法只挑视频，只能整段接）
 #   K. 大流量补充：HuggingFace LFS / GitHub 发布包 / NVIDIA+AMD 驱动 /

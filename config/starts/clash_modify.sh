@@ -58,7 +58,7 @@ EOF
             [ -z "$BILI_DNS" ] && BILI_DNS=$(echo "$dns_nameserver" | cut -d, -f1 | sed 's/^ *//')
             cat >>"$TMPDIR"/dns.yaml <<EOF
   respect-rules: true
-  nameserver-policy: {'rule-set:cn': [ $dns_nameserver ], '+.bilivideo.com': [ $BILI_DNS ], '+.bilivideo.cn': [ $BILI_DNS ], '+.hdslb.com': [ $BILI_DNS ], '+.biliimg.com': [ $BILI_DNS ], '+.acgvideo.com': [ $BILI_DNS ], 'upos-hz-mirrorakam.akamaized.net': [ $BILI_DNS ]}
+  nameserver-policy: {'api.steampowered.com': [ $dns_nameserver ], 'rule-set:cn': [ $dns_nameserver ], '+.bilivideo.com': [ $BILI_DNS ], '+.bilivideo.cn': [ $BILI_DNS ], '+.hdslb.com': [ $BILI_DNS ], '+.biliimg.com': [ $BILI_DNS ], '+.acgvideo.com': [ $BILI_DNS ], 'upos-hz-mirrorakam.akamaized.net': [ $BILI_DNS ]}
   proxy-server-nameserver : [ $dns_proxy_server ]
   nameserver: [ $dns_final ]
 EOF

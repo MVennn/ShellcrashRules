@@ -75,6 +75,7 @@ localhost.*.weixin.qq.com
 #Game
 #Steam
 +.steamcontent.com
+api.steampowered.com
 #Nintendo Switch
 +.srv.nintendo.net
 *.n.n.srv.nintendo.net
