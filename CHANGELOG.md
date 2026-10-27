@@ -9,6 +9,18 @@
 
 ---
 
+## [未发布]
+
+### 🤖 AI接口 复测间隔压到 60s（2026-10-27）
+
+- 调整 `config/yamls/proxy-groups.yaml` —— `🤖 AI接口` 显式写 `interval: 60` +
+  `timeout: 5000`。此前没写 `interval`，吃 mihomo 默认 300s：节点一进坏态，
+  url-test 最长 5 分钟才会换掉它，这段时间所有 `opencode.ai` 请求都压在死路上
+  （实测 `🇺🇸 美国LA-优化-GPT` 根路径与 `/zen/go/v1/models` 同时超时，面板却仍显示 alive）
+- 不改组成员、不动 `tolerance` —— 坏窗口是**间歇性**的（同一批 LA 节点复测仍是
+  300–368ms），永久剔除会白白丢掉最快的节点；缩短复测间隔才是对的杠杆
+- 现象 / 根因 / 验证见 `docs/PITFALLS.md` 第 42 条
+
 ## [0.4.0] — 2026-10-27
 
 ### Steam 下载改走国内 CDN（2026-10-27）

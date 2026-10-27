@@ -950,3 +950,21 @@ HTTP 200 **且响应体含 `"delay"`**；`pool_health()`、`pick_live_node()`、
   过滤伪节点也别用单独的高频词（「流量」会误杀「大流量专线」）。
 - **验证**：拿含空格节点的订阅跑一次 `sub-sync.sh`，确认 `proxies.yaml` 无重名、
   `CrashCore -t` 通过。
+
+## 42. `url-test` 的健康检查通过，不代表数据面能用
+
+- **现象**：2026-10-27 机器人侧调用 `opencode.ai` 间歇失败 —— zgate 记
+  `TLS handshake timeout` 后 502，回落 WorkBuddy 免费池又撞 429，一次回复拖到 22–32s。
+  同一时刻控制面板上 `🤖 AI接口` 显示 alive、组延迟 1068ms；`github.com` 走同一
+  fake-IP 段 20/20 正常，路由器直连 `opencode.ai` 200 / 0.44s。
+- **根因**：`🤖 AI接口` 的健康检查打的就是 `https://opencode.ai/`，但**没写 `interval`**，
+  吃 mihomo 默认 300s。被选中的 `🇺🇸 美国LA-优化-GPT` 在故障窗口内根路径与
+  `/zen/go/v1/models` 同时死（`/proxies/<节点>/delay?url=https://opencode.ai/` 返回
+  `{"message":"Timeout"}`），而 url-test 要等下一轮复测才换节点 —— 最长 5 分钟里
+  所有 AI API 流量都压在这条死路上。复测切到 `🇯🇵 日本JP-HY2` 后客户端 25/25、
+  路由器 25/25 全部 200，TLS 0.32s，证明服务端、DNS、fake-IP 层都没问题。
+- **解法**：`config/yamls/proxy-groups.yaml` 给 `🤖 AI接口` 显式写 `interval: 60`
+  （顺带 `timeout: 5000`，与 `🔗 GitHub 出口` 一致）。**别用 `put` 切 url-test 组**：
+  那会写 `fixed` 把自动选路永久钉死，症状缓解但根因还在。
+- **验证**：`grep -A12 'name: 🤖 AI接口' /tmp/ShellCrash/config.yaml` 应看到
+  `interval: 60`；故障窗口内客户端连续探测的失败样本应在 1 分钟内收敛。

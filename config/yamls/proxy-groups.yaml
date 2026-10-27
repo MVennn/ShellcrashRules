@@ -19,6 +19,14 @@
 - name: 🤖 AI接口#🚀 节点选择
   type: url-test
   url: https://opencode.ai/
+  # 复测间隔 60s（默认 300s）：健康检查打的就是 opencode.ai，节点一进坏态
+  #   下一分钟就被换掉。2026-10-27 实测「🇺🇸 美国LA-优化-GPT」面板 alive、
+  #   能过健康检查，但数据面已死（根路径与 /zen/go/v1/models 同时超时）：
+  #   zgate 侧表现为 15s TLS 握手超时后 502，回落 WorkBuddy 免费池再撞 429。
+  #   默认 300s 会让坏节点最长服务 5 分钟，60s 压到 1 分钟；timeout 5000
+  #   与 🔗 GitHub 出口 组一致。
+  interval: 60
+  timeout: 5000
   # 容差 50ms: 延迟差小于 50ms 不换节点 —— 出口 IP 稳定, 避免 API 会话中途换 IP
   tolerance: 50
   include-all-proxies: true
