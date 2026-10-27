@@ -16,6 +16,8 @@
 - [x] 定位：客户端 / 路由器 / 节点三方对照，排除 fake-IP、DNS、conntrack、内存、Wi-Fi 丢包
 - [x] ShellcrashRules：`config/yamls/proxy-groups.yaml` 给 `🤖 AI接口` 加
       `interval: 60` + `timeout: 5000`
+- [x] 同组健康检查 URL 首页 → `https://opencode.ai/robots.txt`（70 KB → 220 B）：
+      24 个成员按 60s 复测原本要白烧约 2.4 GB/天机场流量，改后约 8 MB/天
 - [x] 部署到路由器 `/etc/ShellCrash/yamls/proxy-groups.yaml`（备份在 `/root/backup/`），
       用 `task.sh hotupdate` 热重载（不重启服务）
 - [x] 验证 live 配置里 `interval: 60`；之后客户端 35/35、路由器 35/35 全 200（TLS 0.31–0.41s）

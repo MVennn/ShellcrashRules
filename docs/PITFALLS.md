@@ -966,5 +966,10 @@ HTTP 200 **且响应体含 `"delay"`**；`pool_health()`、`pick_live_node()`、
 - **解法**：`config/yamls/proxy-groups.yaml` 给 `🤖 AI接口` 显式写 `interval: 60`
   （顺带 `timeout: 5000`，与 `🔗 GitHub 出口` 一致）。**别用 `put` 切 url-test 组**：
   那会写 `fixed` 把自动选路永久钉死，症状缓解但根因还在。
+- **同一处还有第二个坑**：健康检查 URL 原来是首页 `https://opencode.ai/`，**70 KB**。
+  mihomo 复测会把响应体整个读完，24 个成员按 60s 复测 ≈ **2.4 GB/天**（300s 时也有
+  0.5 GB/天）—— 全是白烧的机场流量。改成 `https://opencode.ai/robots.txt`
+  （220 B、固定 200、不重定向、不需要鉴权）后降到约 8 MB/天；口径与
+  `🔗 GitHub 出口`（同样用 `robots.txt`）一致。**缩短 interval 前先看探针多大**。
 - **验证**：`grep -A12 'name: 🤖 AI接口' /tmp/ShellCrash/config.yaml` 应看到
   `interval: 60`；故障窗口内客户端连续探测的失败样本应在 1 分钟内收敛。
