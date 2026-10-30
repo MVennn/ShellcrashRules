@@ -259,6 +259,19 @@ fi
 	echo "# Maven 中央仓库：单个 jar 几十 MB，无 IP 限流。"
 	echo "- DOMAIN-SUFFIX,repo1.maven.org,📺 大流量"
 	echo "- DOMAIN-SUFFIX,repo.maven.apache.org,📺 大流量"
+	echo "# L. 容器镜像 / 网盘 / 模型权重的正文域（2026-10-30）"
+	echo "#   只摘 blob/CDN 域（无凭证、可续传）；登录与 API 留在各自机型组 ——"
+	echo "#   🆓 公共备用 是陌生人出口，不能过凭证，理由同 AI 组排除公共节点。"
+	echo "#   游戏下载域不在此列：Steam depot 走 DIRECT、其余按 G2/H 段，刻意不进公共池。"
+	echo "- DOMAIN-SUFFIX,production.cloudflare.docker.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,pkg-containers.githubusercontent.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,cdn01.quay.io,📺 大流量"
+	echo "- DOMAIN-SUFFIX,cdn02.quay.io,📺 大流量"
+	echo "- DOMAIN-SUFFIX,cdn03.quay.io,📺 大流量"
+	echo "- DOMAIN-SUFFIX,cloudflarestorage.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,userstorage.mega.co.nz,📺 大流量"
+	echo "- DOMAIN-SUFFIX,dl.dropboxusercontent.com,📺 大流量"
+	echo "- DOMAIN-SUFFIX,cas-bridge.xethub.hf.co,📺 大流量"
 	echo "# 模型 API / 账号 Token（必须排在 geosite 规则之前）"
 	echo "# opencode.ai：26 个型号国内直连可用，省掉机场流量；地区受限的 5 个 id"
 	echo "#   由 zgate 走 hop.proxy（路由器 7896，强制 🤖 AI接口），不在这里分。"
@@ -532,6 +545,10 @@ if ! grep -q "z.ai,🎯 全球直连" "$OUT.tmp"; then
 fi
 if ! grep -q "bigmodel.cn,🎯 全球直连" "$OUT.tmp"; then
 	echo "警告: bigmodel.cn 直连覆盖规则丢失，请检查 $OUT.tmp"
+	exit 1
+fi
+if ! grep -q "production.cloudflare.docker.com,📺 大流量" "$OUT.tmp"; then
+	echo "警告: 容器镜像 CDN 的大流量规则丢失，请检查 $OUT.tmp"
 	exit 1
 fi
 if ! grep -q "play.googleapis.com,$CL" "$OUT.tmp"; then

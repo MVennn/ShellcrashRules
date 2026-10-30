@@ -11,6 +11,20 @@
 
 ## [未发布]
 
+### 📺 大流量 补容器镜像/网盘/模型权重的正文域（2026-10-30）
+
+- `config/generators/ai-rules-update.sh` 的 K 段后新增 L 段 9 条：
+  `production.cloudflare.docker.com`、`pkg-containers.githubusercontent.com`、
+  `cdn01/02/03.quay.io`、`cloudflarestorage.com`、`userstorage.mega.co.nz`、
+  `dl.dropboxusercontent.com`、`cas-bridge.xethub.hf.co`
+- 只摘 **blob/CDN 正文域**（无凭证、可续传）；登录与 API 留在各自机型组 ——
+  `🆓 公共备用` 是陌生人出口，不能过凭证（同 `🤖 AI接口` 排除公共节点的理由）
+- 游戏下载域刻意不进公共池：Steam depot 仍 `DIRECT`，Steam 静态/CDN 仍 `🚀 节点选择`
+- 写后校验加一条 `production.cloudflare.docker.com,📺 大流量`
+- 文档：`docs/ARCHITECTURE.md` §3 补一行归属 —— 路由器侧守护脚本
+  （`bulk-guard.sh` / `guardian.sh` / `recover-now.sh`）的正本在 **`OpenwrtOpsToolkit` 仓**，
+  不在本仓；此前只在路由器上找，容易误判成「仓库里没有」
+
 ### opencode.ai / workbuddy.ai 改直连，机场只留给地区受限型号（2026-10-30）
 
 - `config/generators/ai-rules-update.sh` + `config/generated/rules.yaml`：

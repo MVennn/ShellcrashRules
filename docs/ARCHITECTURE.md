@@ -166,6 +166,7 @@ mihomo 校验（CrashCore -t）→ 加载
 | `firewall/tables/*.nft` | **本仓**（内容） | 人工维护 | **`rc.local`（`AX3000TOpenwrt` 仓）** 开机加载 + 守护进程补载 |
 | `tools/latency/archive/**` | **本仓**（归档件） | 人工维护 | 不部署，仅留档 |
 | `mihomo/` `cdn/` 诊断工具（规则审计 / 控制面诊断 / 站点可达性专项） | **`OpenwrtOpsToolkit` 仓**（公开） | 那边维护 | PC 侧人工执行，不上设备 |
+| `openwrt/*.sh` 路由器侧守护脚本（`bulk-guard.sh` / `guardian.sh` / `recover-now.sh`） | **`OpenwrtOpsToolkit` 仓**（公开） | 那边维护 | 部署到 `/etc/ShellCrash/`，cron 触发 |
 | `docs/**` | **本仓** | 人工维护 | — |
 | `rc.local` | **`AX3000TOpenwrt` 仓** | 那边 | 开机加载本仓三张 nft 表 |
 | `guardian.sh`（守护进程） | **`AX3000TOpenwrt` 仓** | 那边 | cron 每 5 分钟：补载三表、节点劣化复位、干净出口守护 |

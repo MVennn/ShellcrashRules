@@ -1,5 +1,5 @@
 # AI 服务分流规则 — 由 MetaCubeX/meta-rules-dat geosite category-ai-chat-!cn 生成
-# 更新于 2026-10-30 20:19:29
+# 更新于 2026-10-30 21:17:26
 # 同键规则已去重（保留首次出现；顶部覆盖优先）
 # ===== X. 𝕏 媒体（twimg.com 走 HY2，2026-10-23）=====
 # X/Twitter 图片 CDN 的并发建连在 VMess+WS 上会被串行化：
@@ -213,6 +213,18 @@
 # Maven 中央仓库：单个 jar 几十 MB，无 IP 限流。
 - DOMAIN-SUFFIX,repo1.maven.org,📺 大流量
 - DOMAIN-SUFFIX,repo.maven.apache.org,📺 大流量
+# L. 容器镜像 / 网盘 / 模型权重的正文域（2026-10-30）
+#   只摘 blob/CDN 域（无凭证、可续传）；登录与 API 留在各自机型组 ——
+#   🆓 公共备用 是陌生人出口，不能过凭证，理由同 AI 组排除公共节点。
+#   游戏下载域不在此列：Steam depot 走 DIRECT、其余按 G2/H 段，刻意不进公共池。
+- DOMAIN-SUFFIX,production.cloudflare.docker.com,📺 大流量
+- DOMAIN-SUFFIX,pkg-containers.githubusercontent.com,📺 大流量
+- DOMAIN-SUFFIX,cdn01.quay.io,📺 大流量
+- DOMAIN-SUFFIX,cdn02.quay.io,📺 大流量
+- DOMAIN-SUFFIX,cdn03.quay.io,📺 大流量
+- DOMAIN-SUFFIX,cloudflarestorage.com,📺 大流量
+- DOMAIN-SUFFIX,userstorage.mega.co.nz,📺 大流量
+- DOMAIN-SUFFIX,dl.dropboxusercontent.com,📺 大流量
 # 模型 API / 账号 Token（必须排在 geosite 规则之前）
 # opencode.ai：26 个型号国内直连可用，省掉机场流量；地区受限的 5 个 id
 #   由 zgate 走 hop.proxy（路由器 7896，强制 🤖 AI接口），不在这里分。
