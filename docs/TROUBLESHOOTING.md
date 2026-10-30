@@ -159,6 +159,7 @@ python mihomo/mihomo_api.py delay https://opencode.ai/ "🤖 AI接口" "🚀 节
 | 组的探测 URL 在当前网络不可达 | 换 URL 后节点就正常 | url-test 的 url 要选**确实能通**的（如 `http://www.gstatic.com/generate_204`）；🤖 AI接口 用 `https://opencode.ai/` |
 | 节点本身失效 / 机场停用 | 逐节点测，多个组同时红 | 换节点；长期靠 `EXIT_HEALTH` 守卫（`AX3000TOpenwrt` 仓的守护进程） |
 | 组的当前选择被钉死在坏节点 | `now` 指向一个红节点 | 复位到 `♻️ 自动选择`；见 [PITFALLS.md](PITFALLS.md) §17 |
+| url-test 组的 `fixed` 被 PUT 钉住（健康检查却全绿） | 响应里 `fixed` 非空、`now` 等于 `fixed` | **`curl -X DELETE` 能解钉**（v1.19.28 实测返回 204，`fixed` 变空字符串、url-test 恢复自动）；`PUT {"name":""}` 不行，会报 `proxy not exist`。`profile.store-selected: true` 会把 `fixed` 写进 cache.db，所以**重启核心不会清掉它** |
 | 干净出口组（🤖 干净出口 / 🤖 AI网页）全红 | 印度入口塌陷 | 三条入口轮换；**全劣化时只告警，不降级到非印度节点** |
 | 组是空的（成员为空） | `all` 数组为空 | 订阅更新后节点改名 → 靠 `filter` 正则跟随，或检查 `exclude-filter` 是不是把节点全排除了 |
 
