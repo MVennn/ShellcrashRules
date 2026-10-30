@@ -5,8 +5,12 @@
 # 用法: sh /etc/ShellCrash/ai-rules-update.sh
 #       之后重启生效: /etc/ShellCrash/start.sh start
 #
-# 注意：opencode.ai（模型 API）固定指向 "🤖 AI接口" 专用组；
-#       z.ai / bigmodel.cn（ZCode 账号/项目 Token）固定直连，避免落到默认代理
+# 注意：opencode.ai（模型 API）与 workbuddy.ai（WorkBuddy global 汇聚）固定直连。
+#       2026-10-30 实测：26 个 opencode 型号从中国 IP 直连 200，只有 gpt-*/
+#       beam-free/muse-spark-* 拿 403 地区限制；workbuddy.ai 直连 0.25s。
+#       真正进不去的型号由 zgate 的 alias map 用 hop.proxy 指到路由器上
+#       「强制机场」入站口 7896（yamls/user.yaml 的 listeners），不在规则层分。
+#       z.ai / bigmodel.cn（ZCode 账号/项目 Token）同样直连，避免落到默认代理
 #       的香港出口（2026-10-22 实测：直连 0.34s，默认代理下 project token 15s 超时）。
 #       这些覆盖必须写在最前面；opencode.ai 生成时跳过 geosite 同名条目，
 #       z.ai/bigmodel.cn 靠“顶部优先 + 同键去重”保留。
@@ -18,7 +22,6 @@
 SRC="https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/category-ai-chat-!cn.yaml"
 OUT=/etc/ShellCrash/yamls/rules.yaml
 GROUP="🤖 人工智能"
-API_GROUP="🤖 AI接口"
 GOOGLE_GROUP="🚀 节点选择"
 # 干净出口组：只服务 Google 家族（cc≠CN + Gemini 吞吐都合格）
 CL="🤖 干净出口"
@@ -257,7 +260,11 @@ fi
 	echo "- DOMAIN-SUFFIX,repo1.maven.org,📺 大流量"
 	echo "- DOMAIN-SUFFIX,repo.maven.apache.org,📺 大流量"
 	echo "# 模型 API / 账号 Token（必须排在 geosite 规则之前）"
-	echo "- DOMAIN-SUFFIX,opencode.ai,${API_GROUP}"
+	echo "# opencode.ai：26 个型号国内直连可用，省掉机场流量；地区受限的 5 个 id"
+	echo "#   由 zgate 走 hop.proxy（路由器 7896，强制 🤖 AI接口），不在这里分。"
+	echo "- DOMAIN-SUFFIX,opencode.ai,🎯 全球直连"
+	echo "# WorkBuddy global（deepseek 的第二跳）：直连 0.25s，不必过机场"
+	echo "- DOMAIN-SUFFIX,workbuddy.ai,🎯 全球直连"
 	echo "# ZCode 账号/项目 Token：直连，避免默认代理（香港出口）拖到 15s 超时"
 	echo "- DOMAIN-SUFFIX,z.ai,🎯 全球直连"
 	echo "- DOMAIN-SUFFIX,bigmodel.cn,🎯 全球直连"
@@ -511,8 +518,12 @@ if [ "$n" -lt 50 ]; then
 	echo "警告: 规则条数异常($n)，请检查 $OUT.tmp"
 	exit 1
 fi
-if ! grep -q "opencode.ai,${API_GROUP}" "$OUT.tmp"; then
-	echo "警告: opencode.ai 覆盖规则丢失，请检查 $OUT.tmp"
+if ! grep -q "opencode.ai,🎯 全球直连" "$OUT.tmp"; then
+	echo "警告: opencode.ai 直连覆盖规则丢失，请检查 $OUT.tmp"
+	exit 1
+fi
+if ! grep -q "workbuddy.ai,🎯 全球直连" "$OUT.tmp"; then
+	echo "警告: workbuddy.ai 直连覆盖规则丢失，请检查 $OUT.tmp"
 	exit 1
 fi
 if ! grep -q "z.ai,🎯 全球直连" "$OUT.tmp"; then

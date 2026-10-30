@@ -6,8 +6,21 @@
 # 2026-10-20 新增：
 #   store-selected  - 策略组选择写入 cache.db。干净出口组的成员会随订阅变化，
 #                     没有它重启后会被重置成第一个成员（实测恰是那条不稳定的订阅入口）。
+# 2026-10-30 新增：
+#   listeners       - 「强制机场」入站口 7896，绑定 🤖 AI接口 组，不看规则匹配。
+#                     给地区受限的模型（opencode 侧的 gpt / beam / muse）留一条固定走机场的
+#                     通路，其余 AI 流量按规则走直连。zgate 的 alias map 用 hop.proxy 指到这里。
+#                     背景与验收：OpenwrtConsole/.work/egress-split/
 tcp-concurrent: true
 find-process-mode: "off"
+log-level: warning
+external-ui-url: ""
 profile:
   store-fake-ip: true
   store-selected: true
+listeners:
+  - name: ai-airport
+    type: http
+    port: 7896
+    listen: 0.0.0.0
+    proxy: 🤖 AI接口

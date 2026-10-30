@@ -93,7 +93,7 @@ mihomo 校验（CrashCore -t）→ 加载
 
 | 组件 | 说明 |
 |---|---|
-| mihomo（`CrashCore`） | ShellCrash 拉起。监听 redir **7892**、mixed **7890**、控制 API **9999**、DNS **1053** |
+| mihomo（`CrashCore`） | ShellCrash 拉起。监听 redir **7892**、mixed **7890**、控制 API **9999**、DNS **1053**；另有 **7896** 入站（`yamls/user.yaml` 的 `listeners`，固定绑 🤖 AI接口，供 zgate 的 `hop.proxy` 使用，见 §2.2「AI 出口分离」） |
 | **单一主人** | procd 的 `S99shellcrash` 已 `disable`，只保留看门狗 legacy 路径。两个主人会同时拉起两个实例（抢不到端口但白占 ~50 MB 内存，实测 MemAvailable 从 86 MB 掉到 12 MB） |
 | 看门狗 | cron 每分钟 `starts/start_legacy_wd.sh shellcrash`；必须先 `mkdir -p /tmp/ShellCrash`（`/tmp` 是 tmpfs，重启后目录不存在 → 锁目录永远建不出来 → 代理离线 6 分钟） |
 
@@ -107,6 +107,22 @@ mihomo 校验（CrashCore -t）→ 加载
 - **路由器本机流量走 OUTPUT，不走 PREROUTING** → 本仓三张表的 prerouting 规则
   对路由器自己无效；验证 LAN 行为必须从客户端发起。
 - **路由器自己的 `curl` 不走透明代理** → 测 API 必须显式 `-x http://127.0.0.1:7890`。
+
+#### AI 出口分离（2026-10-30）
+
+`opencode.ai` 与 `workbuddy.ai` 在规则层固定 `🎯 全球直连`：前者 26 个型号从中国 IP
+直连 200（2026-10-30 实测），后者直连 0.25s。**规则层分不了模型** —— opencode 的
+型号共用 `opencode.ai` 一个 host，而真正地区受限的只有 `gpt-5.6-luna` / `gpt-6-luna` /
+`beam-free` / `muse-spark-*`（403 `unsupported_country_region_territory` / `RegionError`）。
+
+这些型号靠 **zgate 的 `hop.proxy`** 单独走机场：alias map 给 OC 跳补一条同上游的
+孪生跳（`proxy: http://10.0.0.1:7896`），路由器上的 7896 是 `yamls/user.yaml` 的
+`listeners` 入站，**固定绑 🤖 AI接口 组、不看规则匹配**。zgate 把地区受限的
+403 当「换出口」处理（`chainAccept` / `regionBlocked`），直连被拒就自动落到机场跳 ——
+以后新出现的受限型号不需要动规则。
+
+前提：7896 必须在（`start.sh restart` 后 `netstat -ltn | grep 7896`）。它没了
+只会让那几个型号失败，其它模型不受影响。
 
 ### 2.3 三张独立 nft 表
 
@@ -172,6 +188,7 @@ mihomo 校验（CrashCore -t）→ 加载
 |---|---|---|---|
 | mixed-port | `7890` | ShellCrash 内置 | 本地混合口。**测 API 必须 `-x http://127.0.0.1:7890`**；LAN 侧由 `inet mixedport` 表收口（input priority -200） |
 | redir-port | `7892` | ShellCrash 内置 | 透明代理重定向端口；`googlecn.nft` / `googleroute.nft` 都 redirect 到它 |
+| ai-airport 入站 | `7896` | `config/yamls/user.yaml`（`listeners`） | `type: http` + `proxy: 🤖 AI接口` —— 入站固定出口，**不看规则匹配**。只给 zgate 的 `hop.proxy` 用（地区受限的 opencode 型号），LAN 侧没有其它消费者 |
 | external-controller | `9999` | ShellCrash 内置 | 控制 API / zashboard 面板；**带 `secret`**，面板侧密码为空会 401 |
 | DNS 监听 | `1053` | mihomo | `googleroute.nft` 把 LAN 53 重定向到它；`rc.local` 加载该表前必须等它就绪 |
 | 代理端口集 | `{22,80,443,8080,8443}` + `5228`(FCM) + `19302`(DoQ) | `config/starts/fw_nftables.sh` | 只有这些端口进代理；其余真实 IP 目标直连 |

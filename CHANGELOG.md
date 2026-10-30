@@ -11,6 +11,22 @@
 
 ## [未发布]
 
+### opencode.ai / workbuddy.ai 改直连，机场只留给地区受限型号（2026-10-30）
+
+- `config/generators/ai-rules-update.sh` + `config/generated/rules.yaml`：
+  `DOMAIN-SUFFIX,opencode.ai` 由 `🤖 AI接口` 改为 `🎯 全球直连`，新增
+  `DOMAIN-SUFFIX,workbuddy.ai,🎯 全球直连`；去掉因此不再使用的 `API_GROUP` 变量
+  （写后校验同步改成断言这两条直连规则）
+- 依据：带真实 key 从中国 IP 实测 26 个 opencode 型号直连 200（只有 `gpt-*` /
+  `beam-free` / `muse-spark-*` 拿 403 地区限制）；`workbuddy.ai` 直连 0.25s。
+  DeepSeek 之前每次 429 都会回落到这两跳，机场流量就是这么烧掉的
+- `config/yamls/user.yaml` 新增 `listeners`：`ai-airport`（`type: http`，`port 7896`，
+  `proxy: 🤖 AI接口`）—— **入站固定出口，不看规则匹配**，只给 zgate 的
+  `chain[].proxy` 用（地区受限型号的兜底跳）
+- 实测：经 7896 的出口是日本节点、路由器直连是广东联通；`start.sh restart` 后
+  `ai-api-check.sh` 18 段全部通过
+- 文档：`docs/ARCHITECTURE.md` §2.1 / §2.2 / §4（端口与出口分离机制）
+
 ### 🤖 AI接口 复测间隔压到 60s、健康检查换 robots.txt（2026-10-27）
 
 - 调整 `config/yamls/proxy-groups.yaml` —— `🤖 AI接口` 显式写 `interval: 60` +
