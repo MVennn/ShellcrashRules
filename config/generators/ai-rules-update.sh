@@ -108,16 +108,20 @@ fi
 	echo "# 视频域刻意不进来：YouTube 全族必须走干净出口（Google cc 判定），"
 	echo "#   Netflix/Disney 对公共节点几乎必然判代理。"
 	echo "# proof.ovh.net 同时是 bulk-guard.sh 的探测域（Range 取前 4MB），必须固定在本组。"
-	echo "- DOMAIN-SUFFIX,epicgames-download1.akamaized.net,📺 大流量"
-	echo "- DOMAIN-SUFFIX,download.epicgames.com,📺 大流量"
-	echo "# 2026-10-23 补充 Epic/Steam 下载 CDN（Aethersailor / MetaCubeX）："
-	echo "#   这些域在模板里分别落到 ChinaDomain 直连（Epic 403）或 MATCH，补进来才能走公共池。"
-	echo "- DOMAIN,download2.epicgames.com,📺 大流量"
-	echo "- DOMAIN,download3.epicgames.com,📺 大流量"
-	echo "- DOMAIN,download4.epicgames.com,📺 大流量"
-	echo "- DOMAIN,fastly-download.epicgames.com,📺 大流量"
-	echo "- DOMAIN,cloudflare.epicgamescdn.com,📺 大流量"
-	echo "- DOMAIN-SUFFIX,egdownload.fastly-edge.com,📺 大流量"
+	echo "# 游戏补丁/下载域 2026-10-30 全部移出本组改 🎯 全球直连：这些 CDN 有自己的"
+	echo "#   下载体系，不该占公共池。实测（AliDNS，见 CHANGELOG）它们解析到境外 Akamai/"
+	echo "#   Fastly 边缘，TCP connect 0.07–0.9s 可达；若某个客户端直连明显慢，"
+	echo "#   把那条域改回 📺 大流量即可（公共池是免费兜底）。"
+	echo "- DOMAIN-SUFFIX,epicgames-download1.akamaized.net,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,download.epicgames.com,🎯 全球直连"
+	echo "# 2026-10-23 补充 Epic 下载 CDN（Aethersailor / MetaCubeX）："
+	echo "#   这些域在模板里分别落到 ChinaDomain 直连（Epic 403）或 MATCH，必须显式写出。"
+	echo "- DOMAIN,download2.epicgames.com,🎯 全球直连"
+	echo "- DOMAIN,download3.epicgames.com,🎯 全球直连"
+	echo "- DOMAIN,download4.epicgames.com,🎯 全球直连"
+	echo "- DOMAIN,fastly-download.epicgames.com,🎯 全球直连"
+	echo "- DOMAIN,cloudflare.epicgamescdn.com,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,egdownload.fastly-edge.com,🎯 全球直连"
 	echo "- DOMAIN,proof.ovh.net,📺 大流量"
 	echo "# ===== I. 视频站点 + Telegram（大流量，2026-10-22）====="
 	echo "# 纯下载型视频流量（成人站 + Telegram 媒体）走公共池："
@@ -235,27 +239,30 @@ fi
 	echo "- DOMAIN-SUFFIX,drivers.amd.com,📺 大流量"
 	echo "- DOMAIN-SUFFIX,download.amd.com,📺 大流量"
 	echo "# 游戏平台补丁（Steam / Epic 见 H 段）：补丁几十 GB，全部签名。"
+	echo "#   2026-10-30 起全部改 🎯 全球直连、不再占公共池：这些平台各有自己的下载体系，"
+	echo "#   实测（AliDNS）域名解析到境外 Akamai/Fastly 边缘、connect 0.07–0.9s；"
+	echo "#   某条直连慢就单独改回 📺 大流量。"
 	echo "#   已剔除 NXDOMAIN 的 blizzard.vo.llnwd.net / ubisoft-a.akamaihd.net / riotcdn.net。"
-	echo "- DOMAIN-SUFFIX,blzddist1-a.akamaihd.net,📺 大流量"
-	echo "- DOMAIN-SUFFIX,blzddist2-a.akamaihd.net,📺 大流量"
-	echo "- DOMAIN-SUFFIX,blzddist3-a.akamaihd.net,📺 大流量"
-	echo "- DOMAIN-SUFFIX,cdn.gog.com,📺 大流量"
-	echo "- DOMAIN-SUFFIX,gog-cdn-fastly.gog.com,📺 大流量"
-	echo "- DOMAIN-SUFFIX,origin-a.akamaihd.net,📺 大流量"
-	echo "- DOMAIN-SUFFIX,eaassets-a.akamaihd.net,📺 大流量"
-	echo "- DOMAIN-SUFFIX,ubistatic-a.akamaihd.net,📺 大流量"
+	echo "- DOMAIN-SUFFIX,blzddist1-a.akamaihd.net,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,blzddist2-a.akamaihd.net,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,blzddist3-a.akamaihd.net,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,cdn.gog.com,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,gog-cdn-fastly.gog.com,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,origin-a.akamaihd.net,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,eaassets-a.akamaihd.net,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,ubistatic-a.akamaihd.net,🎯 全球直连"
 	echo "# 2026-10-23 补充游戏平台补丁 CDN（MetaCubeX category-game-platforms-download）："
 	echo "#   只收补丁/资源域，登录与商店域保持在通用代理；全部有签名/可续传。"
-	echo "- DOMAIN-SUFFIX,cdn.blizzard.com,📺 大流量"
-	echo "- DOMAIN,blzddistkr1-a.akamaihd.net,📺 大流量"
-	echo "- DOMAIN,prod.cloudflare.cdn.ea.com,📺 大流量"
-	echo "- DOMAIN-SUFFIX,dyn.riotcdn.net,📺 大流量"
-	echo "- DOMAIN,gamedownloads-rockstargames-com.akamaized.net,📺 大流量"
-	echo "- DOMAIN-SUFFIX,cdp.bethesda.net,📺 大流量"
-	echo "- DOMAIN-SUFFIX,uplaypc-s-ubisoft.cdn.ubi.com,📺 大流量"
-	echo "- DOMAIN,assets1.xboxlive.com,📺 大流量"
-	echo "- DOMAIN,assets2.xboxlive.com,📺 大流量"
-	echo "- DOMAIN-SUFFIX,gog-cdn.akamaized.net,📺 大流量"
+	echo "- DOMAIN-SUFFIX,cdn.blizzard.com,🎯 全球直连"
+	echo "- DOMAIN,blzddistkr1-a.akamaihd.net,🎯 全球直连"
+	echo "- DOMAIN,prod.cloudflare.cdn.ea.com,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,dyn.riotcdn.net,🎯 全球直连"
+	echo "- DOMAIN,gamedownloads-rockstargames-com.akamaized.net,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,cdp.bethesda.net,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,uplaypc-s-ubisoft.cdn.ubi.com,🎯 全球直连"
+	echo "- DOMAIN,assets1.xboxlive.com,🎯 全球直连"
+	echo "- DOMAIN,assets2.xboxlive.com,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,gog-cdn.akamaized.net,🎯 全球直连"
 	echo "# Maven 中央仓库：单个 jar 几十 MB，无 IP 限流。"
 	echo "- DOMAIN-SUFFIX,repo1.maven.org,📺 大流量"
 	echo "- DOMAIN-SUFFIX,repo.maven.apache.org,📺 大流量"
@@ -578,8 +585,8 @@ for r in "DOMAIN-SUFFIX,steamserver.net,DIRECT" \
          "DOMAIN-SUFFIX,steamcontent.com,DIRECT" \
          "DOMAIN-SUFFIX,steamstatic.com,🚀 节点选择" \
          "DOMAIN-SUFFIX,steamcdn-a.akamaihd.net,🚀 节点选择" \
-         "DOMAIN-SUFFIX,epicgames-download1.akamaized.net,📺 大流量" \
-         "DOMAIN-SUFFIX,download.epicgames.com,📺 大流量" \
+         "DOMAIN-SUFFIX,epicgames-download1.akamaized.net,🎯 全球直连" \
+         "DOMAIN-SUFFIX,download.epicgames.com,🎯 全球直连" \
          "DOMAIN,proof.ovh.net,📺 大流量" \
          "DOMAIN-SUFFIX,pornhub.com,📺 大流量" \
          "RULE-SET,porn,📺 大流量" \
@@ -598,7 +605,7 @@ for r in "DOMAIN-SUFFIX,cdn-lfs.huggingface.co,📺 大流量" \
          "DOMAIN-SUFFIX,objects.githubusercontent.com,📺 大流量" \
          "DOMAIN-SUFFIX,codeload.github.com,📺 大流量" \
          "DOMAIN-SUFFIX,us.download.nvidia.com,📺 大流量" \
-         "DOMAIN-SUFFIX,blzddist1-a.akamaihd.net,📺 大流量" \
+         "DOMAIN-SUFFIX,blzddist1-a.akamaihd.net,🎯 全球直连" \
          "DOMAIN-SUFFIX,repo1.maven.org,📺 大流量"; do
 	if ! grep -qF -- "- $r" "$OUT.tmp"; then
 		echo "警告: 大流量补充段丢失: $r"
@@ -672,10 +679,10 @@ done
 for r in "DOMAIN-SUFFIX,image.civitai.com,📺 大流量" \
          "DOMAIN-SUFFIX,civitai.com,🚀 节点选择" \
          "DOMAIN-SUFFIX,hf-mirror.com,🎯 全球直连" \
-         "DOMAIN,download2.epicgames.com,📺 大流量" \
-         "DOMAIN,fastly-download.epicgames.com,📺 大流量" \
-         "DOMAIN-SUFFIX,cdn.blizzard.com,📺 大流量" \
-         "DOMAIN-SUFFIX,dyn.riotcdn.net,📺 大流量" \
+         "DOMAIN,download2.epicgames.com,🎯 全球直连" \
+         "DOMAIN,fastly-download.epicgames.com,🎯 全球直连" \
+         "DOMAIN-SUFFIX,cdn.blizzard.com,🎯 全球直连" \
+         "DOMAIN-SUFFIX,dyn.riotcdn.net,🎯 全球直连" \
          "DOMAIN-SUFFIX,i.pximg.net,📺 大流量" \
          "DOMAIN-SUFFIX,replicate.delivery,📺 大流量" \
          "DOMAIN-SUFFIX,runway.com,🤖 人工智能" \
