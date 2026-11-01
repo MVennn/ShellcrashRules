@@ -463,11 +463,12 @@ if [ -f "$RCFG" ]; then
 	fi
 fi
 # 2026-10-23 吸收段：AI / 大流量 / GitHub / 媒体 CDN（生成器校验之外的第二道）
+# 2026-10-30 e0aa4b3 起游戏补丁/下载 CDN（Epic/暴雪/Riot）改 🎯 全球直连，预期随之对齐
 for r in "DOMAIN-SUFFIX,image.civitai.com,📺 大流量" \
          "DOMAIN-SUFFIX,civitai.com,🚀 节点选择" \
-         "DOMAIN,download2.epicgames.com,📺 大流量" \
-         "DOMAIN-SUFFIX,cdn.blizzard.com,📺 大流量" \
-         "DOMAIN-SUFFIX,dyn.riotcdn.net,📺 大流量" \
+         "DOMAIN,download2.epicgames.com,🎯 全球直连" \
+         "DOMAIN-SUFFIX,cdn.blizzard.com,🎯 全球直连" \
+         "DOMAIN-SUFFIX,dyn.riotcdn.net,🎯 全球直连" \
          "DOMAIN-SUFFIX,i.pximg.net,📺 大流量" \
          "DOMAIN-SUFFIX,replicate.delivery,📺 大流量" \
          "DOMAIN-SUFFIX,runway.com,🤖 人工智能" \

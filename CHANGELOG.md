@@ -11,6 +11,19 @@
 
 ## [未发布]
 
+### 自检脚本预期对齐 10-30 生成器（2026-11-01）
+
+- `config/ai-api-check.sh` §17「2026-10-23 吸收段」三条预期
+  （`download2.epicgames.com` / `cdn.blizzard.com` / `dyn.riotcdn.net`）
+  由 `📺 大流量` 改 `🎯 全球直连`，对齐 e0aa4b3 的生成器现值 ——
+  此前每日 05:05 cron 自检这三条必 FAIL（误报），今日 LAST_FAILURE 即此
+- 只改自检预期集合，`config/generated/rules.yaml` 与生成器一字不动（规则行为无变化）；
+  全量核对脚本预期集合 vs 生成物同前缀条目（39 条字面 + 14 条 for-d 展开 +
+  生成器自检段），除这三条外无其它漂移
+- 离线干跑验证：mock mihomo API（127.0.0.1）/ nft / jsonfilter，
+  rules.yaml 用 `config/generated/rules.yaml` 副本，18 段全部 OK、退出码 0，
+  全程不触网；真实 cron 明日 05:05 自然复验
+
 ### 清理（2026-11-01）
 
 - 删除 `__pycache__/` 三处（`tools/`、`tools/latency/archive/`、`tools/public-nodes/`，
