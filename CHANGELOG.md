@@ -9,7 +9,20 @@
 
 ---
 
-## [未发布]
+## [0.5.0] — 2026-11-01
+
+### 守卫脚本 bug 奇偶同步（2026-11-01）
+
+- `tools/check-secrets.py` 对齐 ClientTriage `c3a3952` 已修的漏报 ——
+  `re.search` 改 `finditer`（同一行多个命中全查）、`--all` 遵循 `.gitignore`；
+  分叉差异保留，加出处头注释（`195c31d`）
+- `tools/check-docs.py` 对齐 ClientTriage `c3a3952` / WindowsRemoteOps
+  `156562c` 已修的四处功能性 bug —— BOM 首锚点、跨盘符 relpath 崩溃、
+  冻结锚点误报、引言块只认头部；分叉差异保留，加出处头注释（`955d56d`）
+- 文档脱敏 —— 守卫文档示例中的本机用户名改占位（`e2cf7dc`）
+- 文档 —— CHANGELOG 直连条数 21→26、RULE-AUDIT 内联数对齐 197（`c354b87`）；
+  TROUBLESHOOTING 补「mihomo 组被 PUT 钉住时用 DELETE 解钉（v1.19.28 实测 204，
+  重启不清 fixed）」（`b368984`）
 
 ### 自检脚本预期对齐 10-30 生成器（2026-11-01）
 
