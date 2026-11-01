@@ -11,6 +11,17 @@
 
 ## [未发布]
 
+### 清理（2026-11-01）
+
+- 删除 `__pycache__/` 三处（`tools/`、`tools/latency/archive/`、`tools/public-nodes/`，
+  共 8 个 `.pyc`、143,764 字节 ≈ 140 KB）—— `.gitignore` 已覆盖、
+  [docs/MAINTENANCE.md](docs/MAINTENANCE.md) §5.3 明说的可再生产物；上轮清完随本地跑脚本再生，属例行卫生
+- 核查 `config/generated/rules.yaml` 文件头标注（§4）：首行「由谁生成」、次行「更新时间」
+  均在且格式正确，无需改动
+- 保留 `.work/` —— `private-evidence/`、`audit-20261022/`、`public-nodes/`、
+  `private-history.bundle` 与 `PROGRESS.md`，按既有口径均不删；
+  根目录 `PROGRESS.md` 另被 `tools/check-secrets.py` 的 `DOC_FILES` 引用，必须留
+
 ### 游戏补丁/下载 CDN 移出 大流量，改直连（2026-10-30）
 
 - H 段与「游戏平台补丁」段共 21 条（Epic / 暴雪 / GOG / EA / 育碧 / Xbox / Riot /
