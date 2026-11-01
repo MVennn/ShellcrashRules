@@ -323,7 +323,7 @@ Microsoft/Apple/Telegram 在它之前（显式服务策略优先）；ProxyMedia
 |---|---|---|
 | cn | geosite:cn（已有） | DIRECT |
 | ads | geosite:category-ads-all | REJECT |
-| ai | geosite:category-ai-chat-!cn（已有 192 条内联，可转 provider） | 人工智能 |
+| ai | geosite:category-ai-chat-!cn（已有 197 条内联，2026-10-30 时点，随上游日更浮动；可转 provider） | 人工智能 |
 | google | geosite:google + 自定义 Google 服务覆盖 | 节点选择 |
 | global | geosite:geolocation-!cn | 节点选择 |
 | services | Netflix/Disney/Telegram/Microsoft/Apple 的本地 provider | 各自组 |

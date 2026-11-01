@@ -24,7 +24,7 @@
 
 ### 游戏补丁/下载 CDN 移出 大流量，改直连（2026-10-30）
 
-- H 段与「游戏平台补丁」段共 21 条（Epic / 暴雪 / GOG / EA / 育碧 / Xbox / Riot /
+- H 段与「游戏平台补丁」段共 26 条（Epic / 暴雪 / GOG / EA / 育碧 / Xbox / Riot /
   Rockstar / Bethesda）由 `📺 大流量` 改成 `🎯 全球直连`
 - 依据：`nslookup`（AliDNS）实测这些域全部解析到境外 Akamai/Fastly/暴雪边缘
   （23.x / 146.75.x / 137.221.x），TCP connect 0.07–0.9s 可达 —— 「各有国内 CDN」
