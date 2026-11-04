@@ -39,10 +39,7 @@ SOURCES = [
         "ermaozi-all",
         "https://raw.githubusercontent.com/ermaozi/get_subscribe/main/subscribe/clash.yml",
     ),
-    (
-        "epodonios",
-        "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_base64_Sub.txt",
-    ),
+    # 2026-11-03 移除 epodonios：仓库整体 404（已删库）。
     (
         "pawdroid",
         "https://raw.githubusercontent.com/Pawdroid/Free-servers/main/sub",

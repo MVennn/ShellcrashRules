@@ -1,6 +1,6 @@
 # 公开节点筛选器（PC 侧）
 
-> **一句话**：每天自动拉取六个公开节点源，在本地过滤后推到路由器用 mihomo 实测，
+> **一句话**：每天自动拉取五个公开节点源，在本地过滤后推到路由器用 mihomo 实测，
 > 只把存活且低延迟的节点留在 `🆓 公共备用` 组里。
 
 ## 为什么在 PC 上跑
@@ -14,14 +14,17 @@
 | 源 | 规模 | 说明 |
 |---|---|---|
 | `chengaopan/AutoMergePublicNodes` | ~410 条 | NoMoreWalls fork，存活率最高 |
-| `Epodonios/v2ray-configs` | ~6800 条 | Base64 URI 订阅，池子最大 |
 | `ermaozi/get_subscribe` | ~520 条 | Clash YAML |
 | `peasoft/NoMoreWalls` | ~430 条 | 上游主仓，更新更及时（2026-10-23 新增） |
 | `Au1rxx/free-vpn-subscriptions` | ~1500 条 | Clash YAML，协议全（2026-10-23 新增） |
 | `zhuhaiuk/free-nodes` | ~30 条 | 每日更新，补新鲜节点（2026-10-23 新增） |
 
-六个源**按源轮转**合并后再进多样性池，避免第一个源把协议配额吃满。
+五个源**按源轮转**合并后再进多样性池，避免第一个源把协议配额吃满。
 任一源拉取失败只跳过它，不影响整轮。
+
+> 2026-11-03：`Epodonios/v2ray-configs` 整仓 404（删库），已从源列表移除 ——
+> 之前它一个源就占候选池一半以上；移除后单轮候选仍有 2900+ 条、多样性池 700+，
+> 覆盖 200 条/天的增量足够。
 
 ## 前置条件
 
@@ -61,6 +64,21 @@ python tools/public-nodes/screen.py --max-new 200 --max-keep 16 --batch-size 45 
 `/tmp/ShellCrash/.bulk_guard_speed` 与 `.bulk_guard_tried`，因为正式节点的编号
 每轮都会重排，旧测速缓存不能跨轮复用。
 
+## 写入安全（2026-11-04）
+
+路由器上 `/tmp` 是 tmpfs、`/etc` 是 UBIFS overlay，**跨文件系统 `mv` 不是原子操作**
+（复制 + 删除）。原来把临时文件写 `/tmp` 再 `mv` 过去，11-04 写入一分钟内路由器
+硬复位，`proxies.yaml` 直接变成 0 字节，公共池空了、Telegram 走直连断线一整天。
+
+现在两层兜底：
+
+1. **原子写**：staging 文件放在 `yamls/` 同目录（`.public-nodes.<pid>.tmp`），
+   `sync` 后再 rename —— 断电只会看到旧文件或新文件，不会看到空文件；
+2. **收尾自检**：每轮结束检查 `proxies.yaml` 是否至少 1 条公共节点。若设备中途
+   重启导致 SSH 断线，先等它回来（最多 600s），仍为空就从最近一份
+   `proxies.yaml.bak-public-screen-*` 恢复并重启核心。日志里能看到 `收尾自检：…`
+   的结论；真到「找不到备份」那一步会打 `ERROR`，需要人工处理。
+
 想强制重测所有 dead 节点（忽略冷却），删掉状态文件再跑：
 
 ```bash
@@ -73,7 +91,7 @@ python tools/public-nodes/screen.py --full
 `evaluate.py` 用同一批大小、同一台路由器实测多个源，测完自动恢复现有兜底节点：
 
 ```bash
-python tools/public-nodes/evaluate.py --only ermaozi-reachable,epodonios --sample 120
+python tools/public-nodes/evaluate.py --only ermaozi-reachable,ermaozi-all --sample 120
 python tools/public-nodes/evaluate.py --only pawdroid,ripaojiedian --sample 120
 ```
 
@@ -90,8 +108,8 @@ python tools/public-nodes/evaluate.py --only pawdroid,ripaojiedian --sample 120
 | Pawdroid | 20 / 19 | 9 | 2 | 22%（样本太小） | 421 / 959 / 1498 ms |
 | ripaojiedian | 14 / 14 | 4 | 0 | 0% | — |
 
-结论：没有明显更优的源。NoMoreWalls 的存活率最高；Epodonios 池子大但存活率同水平；
-ripaojiedian 已过期（最后更新 2026-09-30）。
+结论：没有明显更优的源。NoMoreWalls 的存活率最高；Epodonios 池子大但存活率同水平
+（该仓 2026-11-03 已删库，此表仅作历史记录）；ripaojiedian 已过期（最后更新 2026-09-30）。
 
 2026-10-23 六源实跑（当前网络）：
 
@@ -103,7 +121,7 @@ ripaojiedian 已过期（最后更新 2026-09-30）。
 
 ## 它做了什么
 
-1. 从六个源拉取（每个源多镜像兜底），按源轮转合并；
+1. 从五个源拉取（每个源多镜像兜底），按源轮转合并；
 2. 过滤：只留 `vless/vmess/trojan/ss/hysteria2`，去掉诱饵、私网地址、
    占位 UUID、含 `#` 的字段（会被 `clash_modify.sh` 的 sed 截断）；
 3. 去重 + 按协议/根域限流，按协议轮转排序；
@@ -125,6 +143,35 @@ ripaojiedian 已过期（最后更新 2026-09-30）。
 - `.work/public-nodes/task.log`：计划任务的 stdout/stderr。
 
 这两个目录都在 `.gitignore` 里（`/.work/`），不会入库。
+
+## 失灵排查
+
+**现象**：`screen.log` 里每批都是
+
+```
+批次 N 预检失败，二分定位坏节点：ash: /tmp/ShellCrash/CrashCore: not found
+批次 N 剔除 50 条无法加载的节点（记 dead，3 天内不再测）
+本轮存活 0 条；最终保留 0 条
+```
+
+**含义**：不是候选节点坏了，是路由器上的内核文件没了。ShellCrash 的内核装在
+`/etc/ShellCrash/CrashCore.{upx,raw}`，启动时软链到 `/tmp/ShellCrash/CrashCore`
+（tmpfs，省 RAM）；`start.sh stop` 会删掉这条软链，而内核进程已从 memfd 运行，
+业务看不出异常 —— 但所有依赖该路径的 `CrashCore -t` 预检都会失败。
+
+**现在不会再误伤**：`prevalidate()` 动态解析内核路径，`/tmp` 软链缺失时用
+`$CRASHDIR/CrashCore.*` 就地补回；真找不到就**中止本轮**（`exit 2`）且不写
+`state.json`，不会再出现「内核没了 → 整批节点记 dead」。
+
+手工确认 / 修复：
+
+```bash
+ssh root@10.0.0.1 'ls -l /tmp/ShellCrash/CrashCore'
+ssh root@10.0.0.1 'ln -sf /etc/ShellCrash/CrashCore.upx /tmp/ShellCrash/CrashCore'
+```
+
+**判据**：一轮跑完应该看到 `本轮存活 X 条；最终保留 Y 条` 且 `Y > 0`。
+如果 `Y=0`，脚本现在返回 `1`，计划任务的 `LastTaskResult` 不再是 0。
 
 ## 定时任务（Windows）
 

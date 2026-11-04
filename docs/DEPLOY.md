@@ -51,6 +51,7 @@ ShellcrashRules/
 | `config/archive/rules-dedup.sh` | **不部署（离线工具）** | 人工：在 PC 上对 scp 下来的 config.yaml 副本跑 | **禁止在路由器上跑** —— O(N²) 扫描会拖垮 CPU/内存（2026-10-22 实测断网） |
 | `config/starts/fw_nftables.sh` | `/etc/ShellCrash/starts/fw_nftables.sh` | ShellCrash 启动；`post-sc-update.sh` 恢复 | 从 `/etc/ShellCrash/local-patches/` 恢复；上游副本存为 `starts/*.upstream.*` |
 | `config/starts/start_legacy_wd.sh` | `/etc/ShellCrash/starts/start_legacy_wd.sh` | cron 每分钟 | 同上（local-patches 恢复） |
+| `config/starts/sub-sync.sh` | `/etc/ShellCrash/starts/sub-sync.sh`（**同时**放 `/etc/ShellCrash/local-patches/sub-sync.sh`） | `starts/clash_modify.sh` 生成配置前调用 | 删文件 → 回到转换器丢节点的老状态；回退用同目录 `.bak-<时间戳>`。写 `proxies.yaml` 用同目录 staging + `sync` + rename（跨文件系统 `mv` 非原子，2026-11-04 因此被硬复位清空过） |
 | `guardian/memgate.sh`（**不在本仓**，来自 AX3000TOpenwrt 仓 `guardian/`） | `/etc/ShellCrash/memgate.sh` | `config/starts/start_legacy_wd.sh` 拉起前调用（`$CRASHDIR/memgate.sh check`，内存不足则跳过本轮） | 删文件 → 回到 U13 前行为（无内存闸门）；脚本缺失时 fail-open 并告警一次 |
 | `config/starts/clash_modify.sh` | `/etc/ShellCrash/starts/clash_modify.sh` | ShellCrash 启动 / 订阅更新 | 本仓维护（与设备侧哈希一致） |
 | `config/post-sc-update.sh` | `/etc/ShellCrash/post-sc-update.sh` | 人工（ShellCrash 官方脚本更新后） | 删 `local-patches/` 即不再恢复 |

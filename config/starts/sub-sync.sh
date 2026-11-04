@@ -43,7 +43,10 @@ URL=$(echo "$URL" | sed 's/%26/\&/g')
 CURL=/usr/bin/curl
 [ -x "$CURL" ] || CURL=curl
 
-TMP=/tmp/subsync.$$
+# 中间文件放目标同目录：/tmp 是 tmpfs，与 /etc 的 UBIFS 跨文件系统，
+# 跨设备 mv 是「复制 + 删除」而非原子 rename —— 断电时目标可能只剩半截
+# （2026-11-04 筛节点写入途中硬复位，proxies.yaml 就这样变成空文件）。
+TMP="${TARGET%/*}/.subsync.$$"
 trap 'rm -f "$TMP".raw "$TMP".have "$TMP".all "$TMP".nodes "$TMP".new' EXIT
 
 # 转换后配置是「已有什么」的基准；读不到就宁可不动
@@ -102,6 +105,14 @@ fi
 # 兼容旧标记 HY2-AUTO（首次升级时原地换成 SUB-SYNC）。
 OLD_B='# >>> HY2-AUTO'
 OLD_E='# <<< HY2-AUTO'
+# 文件空了 / 没有公共节点时必须留下证据：2026-11-04 写入途中路由器硬复位，
+# proxies.yaml 变成 0 字节，这里照常补 SUB-SYNC 块并把日志写成 OK ——
+# 事故在日志里完全看不出来，公共池空了一整天。
+if [ ! -s "$TARGET" ]; then
+    log "WARN: $TARGET 为空或缺失（写入中断/断电？），本次只能补 SUB-SYNC 块；公共节点需 PC 侧重推"
+elif ! grep -q '🆓 公共' "$TARGET"; then
+    log "WARN: $TARGET 里没有公共节点（🆓 公共-*），公共池可能为空"
+fi
 if grep -qF "$BEGIN" "$TARGET"; then
     awk -v b="$BEGIN" -v e="$END" -v f="$TMP.nodes" '
         index($0, b) == 1 { print; while ((getline l < f) > 0) print l; close(f); skip = 1; next }
@@ -121,6 +132,7 @@ else
     printf '%s\n' "$END" >> "$TMP.new"
 fi
 
+sync
 mv -f "$TMP.new" "$TARGET"
 echo "$NOW" > "$TSF"
 log "OK: 转换后缺 $N 个节点，已同步（基准 $HAVE_N 个）"

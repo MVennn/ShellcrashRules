@@ -9,6 +9,40 @@
 
 ---
 
+## [未发布]
+
+### 公共池被硬复位清空：写入原子化与收尾兜底（2026-11-04）
+
+- `tools/public-nodes/screen.py` —— `write_remote()` 改**同目录 staging + `sync` + rename**：
+  原来 staging 放 `/tmp`（tmpfs）、目标在 `/etc/ShellCrash/yamls`（UBIFS overlay），
+  跨文件系统 `mv` 是「复制 + 删除」而非原子操作。11-04 10:58 筛出 16 条写入后
+  路由器 11:01 硬复位（`boot-history`：`hard-reset` / `marker=absent` /
+  `UBIFS recovery needed`），`proxies.yaml` 变成 0 字节，公共池全空、Telegram
+  走直连断线一整天
+- `tools/public-nodes/screen.py` —— 新增收尾自检 `ensure_pool_present()`：
+  跑完确认 `proxies.yaml` 至少 1 条公共节点；设备中途硬复位时先 `wait_router()`
+  等它回来（最多 600s），再查一次，仍为空就从最近 `bak-public-screen-*` 恢复并重启核心。
+  回滚与看门狗恢复失败不再让整轮直接抛异常退出（11-04 就是这样丢掉最后兜底的）
+- `tools/public-nodes/screen.py` —— `main()` 的顺序调整为「收尾自检 → 恢复看门狗」：
+  设备重启后从 flash 读到的是「已暂停」的 crontab，看门狗不会跑，自检里的重启不会打架
+- `config/starts/sub-sync.sh` —— 中间文件从 `/tmp/subsync.$$` 改到目标同目录
+  （同一个跨文件系统 `mv` 隐患），`mv` 前 `sync`；`proxies.yaml` 为空或没有
+  `🆓 公共-*` 时记 `WARN`（此前照常写 `OK`，事故在日志里完全看不出来）
+
+### 公共节点筛选器失灵（2026-11-03）
+
+- `tools/public-nodes/screen.py` —— 预检不再写死 `/tmp/ShellCrash/CrashCore`：
+  改为动态解析（`/tmp` 软链 → `$CRASHDIR/CrashCore.{upx,raw}`），缺失时就地补软链；
+  内核路径不可用时**中止本轮且不写 state**，不再把整批候选记 dead
+  （11/1–11/3 因此误标 437 条，已从 `state.json` 清除）
+- `tools/public-nodes/screen.py` —— 「0 条存活」由 `return 0` 改 `return 1`：
+  此前计划任务连续三天显示成功，公共池烂掉无人察觉
+- `tools/public-nodes/screen.py` / `evaluate.py` —— 移除 `Epodonios/v2ray-configs`
+  （整仓 404，已删库）；`README.md` 源列表同步改为五个
+- 现场处置 —— 恢复路由器 `/tmp/ShellCrash/CrashCore` 软链后手动重刷一轮：
+  公共池 12 条（9 死）→ 13 条（10 活），实测延迟 700–800ms → 99–449ms；
+  `📺 大流量` 按原设计仍走公共池，GitHub release 下载复测 12.3MB / 14.4s
+
 ## [0.5.0] — 2026-11-01
 
 ### 守卫脚本 bug 奇偶同步（2026-11-01）

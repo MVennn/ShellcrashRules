@@ -2,15 +2,15 @@
 """公开节点筛选器（PC 侧执行）。
 
 流程：
-  1. 拉取多个公开节点源（AutoMergePublicNodes / Epodonios / ermaozi /
-     NoMoreWalls / Au1rxx / zhuhaiuk，各自多镜像兜底）；
+  1. 拉取多个公开节点源（AutoMergePublicNodes / ermaozi / NoMoreWalls /
+     Au1rxx / zhuhaiuk，各自多镜像兜底）；
   2. 按源轮转合并后本地过滤：协议白名单、去诱饵、去重、按协议/网段限流；
   3. 分批推到路由器 /etc/ShellCrash/yamls/proxies.yaml，重启 ShellCrash
      让 mihomo 的健康检查实测每条节点；
   4. 只保留本轮存活的节点，其余记为 dead，进入冷却期；
   5. 下次只测「存活 + 从未见过 + 冷却期已过」的节点，避免重复测死节点。
 
-多源轮转的意义：单源池只有约 200 条、其中大半是测过的死节点；六个源轮转
+多源轮转的意义：单源池只有约 200 条、其中大半是测过的死节点；五个源轮转
 可以把候选池扩到 2000+ 条，每天都有足够的新节点可测。轮转而不是顺序拼接，
 是为了让每个源都能拿到协议配额，不会被第一个源占满。
 
@@ -81,13 +81,7 @@ SOURCES: list[tuple[str, list[str]]] = [
             "https://ghproxy.cn/https://raw.githubusercontent.com/chengaopan/AutoMergePublicNodes/master/list.meta.yml",
         ],
     ),
-    (
-        "epodonios",
-        [
-            "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_base64_Sub.txt",
-            "https://ghproxy.net/https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_base64_Sub.txt",
-        ],
-    ),
+    # 2026-11-03 移除 epodonios：仓库整体 404（已删库），两个镜像都拉不到。
     (
         "ermaozi",
         [
@@ -204,8 +198,16 @@ def read_remote(path: str) -> str:
 
 
 def write_remote(path: str, content: str) -> None:
-    tmp = f"/tmp/public-nodes-screen-{os.getpid()}.tmp"
-    ssh(f"cat > {tmp} && mv {tmp} {shlex.quote(path)}", stdin=content, timeout=60)
+    """原子写：staging 与目标放同一目录，sync 之后再 rename。
+
+    历史事故（2026-11-04）：原来 staging 放在 /tmp（tmpfs），再 mv 到
+    /etc/ShellCrash/yamls（UBIFS overlay）—— 跨文件系统 mv 是「复制 + 删除」，
+    不是原子操作。写入 1 分钟后路由器硬复位，UBIFS recovery 丢掉刚写的文件，
+    proxies.yaml 变成 0 字节，公共池全空、Telegram 走直连断线一整天。
+    同目录 rename 才是原子的：断电只会看到「旧的」或「新的」，不会看到空文件。
+    """
+    tmp = f"{os.path.dirname(path)}/.public-nodes.{os.getpid()}.tmp"
+    ssh(f"cat > {tmp} && sync && mv {tmp} {shlex.quote(path)}", stdin=content, timeout=60)
 
 
 def fetch_text(urls: list[str], *, min_bytes: int = 1000) -> tuple[str, str]:
@@ -560,8 +562,129 @@ def backup_remote(keep: int = 20) -> str:
     return dst
 
 
-def prevalidate(block: str, runtime: str | None = None) -> tuple[bool, str]:
-    """把候选块插进当前运行配置的 proxies 段，用 CrashCore -t 预检。"""
+def public_count_in_file() -> int:
+    """路由器 proxies.yaml 里的公共节点条数（看文件，不看运行配置）。"""
+    out = ssh(
+        f"grep -c {shlex.quote(NAME_PREFIX + '-')} {shlex.quote(REMOTE_PROXIES)} 2>/dev/null",
+        check=False,
+        retries=1,
+    ).stdout.strip()
+    try:
+        return int(out)
+    except ValueError:
+        return 0
+
+
+def restore_latest_backup() -> str:
+    """把最近一份 bak-public-screen-* 恢复成 proxies.yaml，返回备份路径（没有则空串）。"""
+    out = ssh(
+        f"ls -1t {shlex.quote(REMOTE_PROXIES)}.bak-public-screen-* 2>/dev/null | head -1",
+        check=False,
+        retries=1,
+    ).stdout.strip()
+    if not out:
+        return ""
+    ssh(f"cp {shlex.quote(out)} {shlex.quote(REMOTE_PROXIES)}", retries=1)
+    return out
+
+
+def wait_router(timeout: int = 600, interval: int = 15) -> bool:
+    """等路由器回来 —— 写入途中硬复位时 SSH 会连不上，收尾自检得等它重启完。"""
+    deadline = time.time() + timeout
+    started = time.time()
+    while True:
+        try:
+            if ssh("echo ok", check=False, retries=1, timeout=20).stdout.strip() == "ok":
+                waited = int(time.time() - started)
+                if waited >= interval:
+                    log(f"路由器已恢复（等待 {waited}s）")
+                return True
+        except Exception:  # noqa: BLE001 - 离线是预期状态，继续等
+            pass
+        if time.time() >= deadline:
+            return False
+        time.sleep(interval)
+
+
+def ensure_pool_present(settle: int) -> bool:
+    """收尾自检：公共池不能是空的；空了就从最近备份恢复并重启核心。
+
+    2026-11-04 事故：筛节点写入 1 分钟后路由器硬复位，UBIFS recovery 丢掉刚写的
+    proxies.yaml，回滚又因 SSH 断线没执行 —— 公共池空了一整天，Telegram 走直连断线。
+    这里做最后一道兜底，保证「最坏情况只是这轮节点没更新」，而不是「池子空着」。
+    """
+    try:
+        n = public_count_in_file()
+        if n > 0:
+            log(f"收尾自检：proxies.yaml 含 {n} 条公共节点")
+            return True
+        log("收尾自检：proxies.yaml 里没有公共节点，尝试从最近备份恢复")
+        if not wait_router():
+            log("ERROR: 路由器没有在等待窗口内回来，无法自动恢复（开机后公共池可能仍是空的）")
+            return False
+        # 路由器刚重启完，文件可能已经被别的东西补回来了，再查一次
+        n = public_count_in_file()
+        if n > 0:
+            log(f"收尾自检：路由器恢复后已有 {n} 条公共节点，无需处理")
+            return True
+        backup = restore_latest_backup()
+        if not backup:
+            log("ERROR: 找不到 bak-public-screen-* 备份，公共池仍为空（需人工处理）")
+            return False
+        log(f"已从 {backup} 恢复 proxies.yaml")
+        if not restart_core(settle):
+            log("WARN: 恢复后重启/校验失败，请检查设备")
+            return False
+        n = public_count_in_file()
+        log(f"收尾自检：恢复后公共节点 {n} 条" + ("（OK）" if n else "（仍为空，需人工处理）"))
+        return n > 0
+    except Exception as exc:  # noqa: BLE001 - 兜底失败不能掩盖本轮结果
+        log(f"WARN: 收尾自检失败：{exc}")
+        return False
+
+
+REMOTE_CORE_LINK = "/tmp/ShellCrash/CrashCore"
+# ShellCrash 把内核存在 $CRASHDIR，启动时软链到 /tmp（tmpfs，省 RAM）。
+# .upx / .raw 都能直接执行；.gz / .tar.gz 是压缩包，不能拿来 -t。
+REMOTE_CORE_CANDIDATES = ("/etc/ShellCrash/CrashCore.upx", "/etc/ShellCrash/CrashCore.raw")
+_CORE_BIN: str | None = None
+
+
+def resolve_core() -> str:
+    """返回可用于 `-t` 的内核路径；/tmp 软链缺失时就地补回。
+
+    `start.sh stop` 会 `rm -rf /tmp/ShellCrash/CrashCore`（内核进程已从 memfd
+    跑起来，删掉软链不影响业务）。之后所有依赖该路径的预检都会以
+    `CrashCore: not found` 失败 —— 那是环境故障，不是候选节点有问题。
+    """
+    global _CORE_BIN
+    if _CORE_BIN:
+        return _CORE_BIN
+    cands = " ".join(shlex.quote(p) for p in REMOTE_CORE_CANDIDATES)
+    proc = ssh(
+        f"if [ -x {shlex.quote(REMOTE_CORE_LINK)} ]; then readlink -f {shlex.quote(REMOTE_CORE_LINK)}; exit 0; fi; "
+        f'for f in {cands}; do [ -x "$f" ] && ln -sf "$f" {shlex.quote(REMOTE_CORE_LINK)} '
+        f"&& readlink -f {shlex.quote(REMOTE_CORE_LINK)} && exit 0; done; exit 3",
+        check=False,
+    )
+    found = (proc.stdout or "").strip().splitlines()
+    if proc.returncode != 0 or not found:
+        raise RuntimeError(
+            "找不到可执行的 CrashCore（/tmp/ShellCrash/CrashCore 软链与 "
+            "/etc/ShellCrash/CrashCore.{upx,raw} 都不存在），本轮中止且不记 dead"
+        )
+    _CORE_BIN = found[-1].strip()
+    return _CORE_BIN
+
+
+def prevalidate(block: str, runtime: str | None = None, core: str | None = None) -> tuple[bool, str]:
+    """把候选块插进当前运行配置的 proxies 段，用 CrashCore -t 预检。
+
+    内核文件本身不可用（被删 / 没权限）时抛 RuntimeError：这是环境故障，
+    调用方必须中止本轮，绝不能把整批候选节点记成 dead。
+    """
+    if core is None:
+        core = resolve_core()
     if runtime is None:
         runtime = read_remote(REMOTE_RUNTIME)
     if "proxy-groups:" not in runtime:
@@ -580,7 +703,7 @@ def prevalidate(block: str, runtime: str | None = None) -> tuple[bool, str]:
     test_path = "/tmp/public-nodes-screen-test.yaml"
     write_remote(test_path, "\n".join(out) + "\n")
     proc = ssh(
-        f"/tmp/ShellCrash/CrashCore -t -d /etc/ShellCrash -f {test_path}",
+        f"{shlex.quote(core)} -t -d /etc/ShellCrash -f {test_path}",
         timeout=90,
         check=False,
     )
@@ -589,10 +712,15 @@ def prevalidate(block: str, runtime: str | None = None) -> tuple[bool, str]:
     except Exception:  # noqa: BLE001 - 清理失败不该掩盖预检结论
         pass
     detail = (proc.stdout + proc.stderr).strip().splitlines()
+    if proc.returncode != 0 and any("CrashCore: not found" in d for d in detail):
+        # 内核在这期间被清掉了（start.sh stop / 清理脚本），重解析一次再交给上层。
+        global _CORE_BIN
+        _CORE_BIN = None
+        raise RuntimeError(f"预检内核不可用：{detail[-1]}")
     return proc.returncode == 0, detail[-1] if detail else ""
 
 
-def isolate_bad_nodes(nodes: list[dict], prefix: str = "T") -> list[dict]:
+def isolate_bad_nodes(nodes: list[dict], prefix: str = "T", core: str | None = None) -> list[dict]:
     """预检失败时二分定位无法被 mihomo 接受的节点。
 
     整块预检是「一条坏节点否决整批」，而候选池顺序稳定 —— 不把坏节点挑出来
@@ -608,7 +736,7 @@ def isolate_bad_nodes(nodes: list[dict], prefix: str = "T") -> list[dict]:
         block, kept = make_block(chunk, prefix)
         if not kept:
             continue
-        ok, _ = prevalidate(block, runtime)
+        ok, _ = prevalidate(block, runtime, core)
         if ok:
             continue
         if len(kept) == 1:
@@ -741,16 +869,23 @@ def test_batches(
 ) -> dict[str, dict]:
     results: dict[str, dict] = {}
     batches = [nodes[i : i + batch_size] for i in range(0, len(nodes), batch_size)]
+    # 内核路径先解析（缺失时就地补软链）。解析不到是环境故障：直接退出本轮，
+    # 不碰路由器、不写 state —— 这里绝不能把候选节点判成坏节点。
+    try:
+        core = resolve_core()
+    except RuntimeError as exc:
+        log(f"中止本轮：{exc}")
+        raise SystemExit(2) from exc
     try:
         for bi, batch in enumerate(batches, 1):
             log(f"批次 {bi}/{len(batches)}：{len(batch)} 条")
             block, kept = make_block(batch, "T")
             if not kept:
                 continue
-            ok, detail = prevalidate(block)
+            ok, detail = prevalidate(block, core=core)
             if not ok:
                 log(f"批次 {bi} 预检失败，二分定位坏节点：{detail}")
-                bad = isolate_bad_nodes(kept)
+                bad = isolate_bad_nodes(kept, core=core)
                 bad_fps = {fingerprint(n) for n in bad}
                 if bad:
                     bad_now = int(time.time())
@@ -1038,10 +1173,20 @@ def run(args: argparse.Namespace) -> int:
                     log("重试仍失败：设备可能回退到基础配置，需人工检查")
                     return 1
                 log("重试成功")
-        return 0
+        # 0 存活要返回非零：否则计划任务永远显示成功，公共池烂三天都没人知道
+        # （2026-11-01~03 实际发生过）。
+        log("本轮失败：0 条存活（公共池未更新）")
+        return 1
 
     block, kept = make_block(survivors, "")
-    ok, detail = prevalidate(block)
+    try:
+        ok, detail = prevalidate(block)
+    except RuntimeError as exc:
+        # 内核不可用属于环境故障：本轮测试的节点可能是好的，别写进配置，原样回滚。
+        log(f"最终预检时内核不可用，回滚：{exc}")
+        write_remote(REMOTE_PROXIES, old_content)
+        restart_core(args.settle)
+        return 1
     if not ok:
         log(f"最终配置预检失败，回滚：{detail}")
         write_remote(REMOTE_PROXIES, old_content)
@@ -1095,8 +1240,16 @@ def main() -> int:
     try:
         return run(args)
     finally:
+        # 兜底放在恢复看门狗之前：写入过程中设备硬复位时，回滚和看门狗恢复都会失败。
+        # 设备重启后从 flash 读到的正是「已暂停」的 crontab，看门狗不会跑，
+        # 所以这里等设备回来、恢复配置、重启核心都不会和 guardian / bulk-guard 打架。
+        if not args.dry_run:
+            ensure_pool_present(args.settle)
         if paused:
-            resume_watchdogs()
+            try:
+                resume_watchdogs()
+            except Exception as exc:  # noqa: BLE001
+                log(f"ERROR: 恢复看门狗失败，请手动把 {CRON_BACKUP} 拷回 {CRON_FILE}：{exc}")
 
 
 if __name__ == "__main__":
