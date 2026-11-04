@@ -63,7 +63,7 @@ ShellcrashRules/
 | `firewall/tables/googlecn.nft` | `/etc/googlecn.nft` | 同上 | `nft delete table inet googlecn` |
 | `firewall/tables/googleroute.nft` | `/etc/googleroute.nft` | 同上（**等 1053 端口就绪后**才加载） | `nft delete table inet googleroute` |
 | `tools/latency/archive/**` | **不部署** | 无（早期探测残留，已归档） | 归档件，保留备查 |
-| `tools/public-nodes/screen.py` + `run-daily.cmd` | **不部署（PC 侧）** | 手动或 Windows 计划任务（默认每天 05:10，仅登录时） | 删计划任务 + 删文件；节点回滚用路由器上的 `proxies.yaml.bak-public-screen-*` |
+| `tools/public-nodes/screen.py` + `run-daily.cmd` | **不部署（PC 侧）** | 手动或 Windows 计划任务（默认每天 11:00，仅登录时） | 删计划任务 + 删文件；节点回滚用路由器上的 `proxies.yaml.bak-public-screen-*` |
 | `tools/public-nodes/evaluate.py` + `uri_parse.py` | **不部署（PC 侧）** | 手动：对比多个公开节点源（Clash YAML / V2Ray URI） | 删文件即可 |
 
 > **通用工具不在本仓**：规则审计、mihomo 控制面诊断、站点可达性专项

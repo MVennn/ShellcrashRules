@@ -175,7 +175,7 @@ ssh root@10.0.0.1 'ln -sf /etc/ShellCrash/CrashCore.upx /tmp/ShellCrash/CrashCor
 
 ## 定时任务（Windows）
 
-已注册 `ShellcrashRules-PublicNodes`：每天 05:10 跑一次增量。
+已注册 `ShellcrashRules-PublicNodes`：每天 11:00 跑一次增量。
 任务动作是 `pythonw.exe "tools\public-nodes\run-daily-hidden.pyw"`（工作目录为仓库根）——
 `run-daily-hidden.pyw` 用 `CREATE_NO_WINDOW` 转调 `run-daily.cmd`，不会弹出控制台窗口；
 **任务本体仍是 `run-daily.cmd`**（日志轮转 / UTF-8 / python 调用只在它里面维护）。
@@ -187,7 +187,7 @@ schtasks /Run /TN "ShellcrashRules-PublicNodes"     :: 手动触发
 
 「全自动」的三个关键设置（用 PowerShell 配的，不是默认值）：
 
-- `StartWhenAvailable = True` —— 05:10 时机器关机/休眠，下次开机或唤醒后补跑；
+- `StartWhenAvailable = True` —— 11:00 时机器关机/休眠，下次开机或唤醒后补跑；
 - `DisallowStartIfOnBatteries = False` —— 电池供电也跑；
 - `RestartCount = 2 / RestartInterval = 10min` —— 失败自动重试两次；
 - `ExecutionTimeLimit = 1h` —— 卡死会被终止，不会挡住第二天的运行。
@@ -198,7 +198,7 @@ schtasks /Run /TN "ShellcrashRules-PublicNodes"     :: 手动触发
 cd /d <仓库根>
 schtasks /Create /TN "ShellcrashRules-PublicNodes" ^
   /TR "\"<pythonw.exe 的绝对路径>\" \"%CD%\tools\public-nodes\run-daily-hidden.pyw\"" ^
-  /SC DAILY /ST 05:10 /IT /F
+  /SC DAILY /ST 11:00 /IT /F
 ```
 
 > 直接用 `run-daily.cmd` 也能跑，但会闪一个控制台窗口；用 `pythonw.exe` 包一层才是
