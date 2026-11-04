@@ -19,6 +19,9 @@ import re
 import subprocess
 import sys
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="replace")
+
 VAULT_DIRS = ("vault/",)
 # 私钥类文件名 —— 即使不在 vault/ 下，也不该进库
 SECRET_NAMES = re.compile(
@@ -30,7 +33,7 @@ def git(*args: str) -> str:
     try:
         r = subprocess.run(["git", *args], capture_output=True, text=True, errors="replace")
     except FileNotFoundError:
-        print("✗ 找不到 git 命令 —— CI 镜像里要先装 git（apt-get install -y git）")
+        print("[FAIL] 找不到 git 命令 —— CI 镜像里要先装 git（apt-get install -y git）")
         raise SystemExit(2)
     return r.stdout
 
@@ -57,7 +60,7 @@ def main() -> int:
                 bad.append(norm + "  （出现在历史提交里）")
 
     if bad:
-        print("✗ 发现了不该进版本库的东西：")
+        print("[FAIL] 发现了不该进版本库的东西：")
         for b in sorted(set(bad)):
             print("   ", b)
         print()
@@ -65,7 +68,7 @@ def main() -> int:
         print("  换掉凭据，并从历史里清除（git filter-repo / BFG）。")
         return 1
 
-    print(f"✓ 没有不该进库的东西（暂存 {len(staged)} 个、已跟踪 {len(tracked)} 个文件）")
+    print(f"[OK] 没有不该进库的东西（暂存 {len(staged)} 个、已跟踪 {len(tracked)} 个文件）")
     return 0
 
 
