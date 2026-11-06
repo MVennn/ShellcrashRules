@@ -19,7 +19,7 @@
 ## 3. 真值不外泄
 
 - 订阅原文、节点 UUID、策略组实名、IPv6 前缀、服务器域名：一律 `<REDACTED-…>` / `<REPLACE-…>`。
-- 真值配置走 gitignored 文件；`.work/private-evidence/`、`.work/public-nodes*/` 里的东西不进库。
+- 真值配置走 gitignored 文件；`.work/private-evidence/`、`.work/public-nodes*/` 与 `.work/private-history.bundle`（私有完整历史镜像）不进库、不恢复进公开分支。
 - 本仓 **GPL-3.0**：引入外部代码前确认许可证兼容，`third-party/` 原样保留。
 
 ## 4. 目录

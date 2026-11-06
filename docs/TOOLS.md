@@ -31,7 +31,7 @@ mihomo 控制 API 带 `secret`，工具**从环境变量读，源码里没有明
 git clone https://github.com/MVennn/OpenwrtOpsToolkit.git && cd OpenwrtOpsToolkit
 
 # 从设备上取 secret 并导出（值不落盘、不进仓库）
-export MIHOMO_SECRET="$(ssh root@10.0.0.1 'grep -m1 "^secret=" /etc/ShellCrash/configs/ShellCrash.cfg | cut -d= -f2- | tr -d "\x27\x22"')"
+export MIHOMO_SECRET="$(ssh root@<REPLACE-ROUTER-LAN-IP> 'grep -m1 "^secret=" /etc/ShellCrash/configs/ShellCrash.cfg | cut -d= -f2- | tr -d "\x27\x22"')"
 ```
 
 | 环境变量 | 作用 | 缺了会怎样 |
@@ -60,7 +60,7 @@ python mihomo/mihomo_api.py proxies
 - 路由器本机也能直接看（**路由器自己的 curl 不走透明代理**）：
 
   ```bash
-  ssh root@10.0.0.1 'curl -s -H "Authorization: Bearer <secret>" http://127.0.0.1:9999/proxies' | head -c 800
+  ssh root@<REPLACE-ROUTER-LAN-IP> 'curl -s -H "Authorization: Bearer <REDACTED-MIHOMO-SECRET>" http://127.0.0.1:9999/proxies' | head -c 800
   ```
 
 ---
@@ -69,7 +69,7 @@ python mihomo/mihomo_api.py proxies
 
 ```bash
 # 路由器上：逐段自检（策略组 / 延迟 / 钩子 / nft 表 / 规则位置 / 出口组…）
-ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-api-check.sh'
+ssh root@<REPLACE-ROUTER-LAN-IP> 'sh /etc/ShellCrash/ai-api-check.sh'
 # 退出码 0 = 全过 / 1 = 有失败项
 ```
 
@@ -86,10 +86,10 @@ ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-api-check.sh'
 ```bash
 # PC 侧，纯离线：config.yaml + proxies.json + 上游 lists/ → 报告
 # 输入从路由器取：
-scp root@10.0.0.1:/tmp/ShellCrash/config.yaml ./config.yaml
-ssh root@10.0.0.1 'curl -s http://127.0.0.1:9999/proxies' > proxies.json
-# 列表目录用本仓现成的：ShellcrashRules/third-party/ACL4SSR/Clash/
-python mihomo/rule_audit.py config.yaml proxies.json third-party/ACL4SSR/Clash REPORT.md
+scp root@<REPLACE-ROUTER-LAN-IP>:/tmp/ShellCrash/config.yaml ./config.yaml
+ssh root@<REPLACE-ROUTER-LAN-IP> 'curl -s http://127.0.0.1:9999/proxies' > proxies.json
+# 审计器在 OpenwrtOpsToolkit 仓，列表目录在 ShellcrashRules 仓；两个仓根用占位符显式给出，禁止隐式切 cwd
+python <OPS_TOOLKIT_ROOT>/mihomo/rule_audit.py config.yaml proxies.json <RULES_ROOT>/third-party/ACL4SSR/Clash REPORT.md
 ```
 
 - 审计器在工具箱仓 `mihomo/rule_audit.py`；**不写死策略组名**，用环境变量对上你自己的组：

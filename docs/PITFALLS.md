@@ -125,7 +125,7 @@ cron `30 4 * * 0` 每周重跑，生成器**整文件重写**。
 
 **解法**：一律用 `/etc/ShellCrash/start.sh start` 重启。
 需要确认是否生效，读组状态：面板里看 `🤖 AI接口` 的 `now`，
-或 `curl -s -H "Authorization: Bearer <secret>" http://127.0.0.1:9999/proxies/<组名>`。
+或 `curl -s -H "Authorization: Bearer <REDACTED-MIHOMO-SECRET>" http://127.0.0.1:9999/proxies/<组名>`。
 
 > 配套：改完配置要**重启**才生效（不只是 hotupdate）；
 > 而 hotupdate 本身有独立的路径坑，见 §6。
@@ -147,7 +147,7 @@ cron `30 4 * * 0` 每周重跑，生成器**整文件重写**。
 **解法**：
 
 - 测 API 一律显式走代理口：`-x http://127.0.0.1:7890`。
-- 判断客户端 DNS 一律用 `nslookup x 10.0.0.1` 或 `127.0.0.1:1053`（mihomo 自己的 DNS 口），
+- 判断客户端 DNS 一律用 `nslookup x <REPLACE-ROUTER-LAN-IP>` 或 `127.0.0.1:1053`（mihomo 自己的 DNS 口），
   不要用路由器本机的 `nslookup`。
 - 验证 LAN 行为**必须从客户端发起** —— 本仓三张 nft 表都是 prerouting 链，对路由器本机无效。
 
@@ -519,7 +519,7 @@ mihomo `/connections` 显示连接**确实进了 mihomo**，链路正常，DNS �
 
 ```sh
 # 从设备上取 secret 并导出（值不落盘、不进仓库）
-export MIHOMO_SECRET="$(ssh root@10.0.0.1 'grep -m1 "^secret=" /etc/ShellCrash/configs/ShellCrash.cfg | cut -d= -f2- | tr -d "\x27\x22"')"
+export MIHOMO_SECRET="$(ssh root@<REPLACE-ROUTER-LAN-IP> 'grep -m1 "^secret=" /etc/ShellCrash/configs/ShellCrash.cfg | cut -d= -f2- | tr -d "\x27\x22"')"
 ```
 
 - **报错退出是有意的，不是 bug** —— 宁可当场喊「你没给凭据」，
@@ -599,7 +599,7 @@ BEGIN { for (i = 0; i < 256; i++) ord[sprintf("%c", i)] = i }
 `googleadservices.com`、`google-analytics.com`、`googleadsserving.cn`、
 `ads/adservice/pagead*.google.com`、`mobileads.google.com`、`afd.l.google.com`、
 `badad.googleplex.com`、`csi.gstatic.com`、`collector.githubapp.com`、`app-measurement.com`），
-并让 `ai-api-check.sh` 第 18 段断言 carve-out 在 `google.com` / `google` 关键词之前。
+并让 `ai-api-check.sh` 的 carve-out 断言段（现役 17 段，原第 18 段已随第 4 段模型测试一并移除） 在 `google.com` / `google` 关键词之前。
 `googletagmanager.com` / `googletagservices.com` 改走 `🚀 节点选择`；
 `googlecommerce.com` 保留代理（Google Shopping/Merchant，不一定是广告）。
 
@@ -623,7 +623,7 @@ BEGIN { for (i = 0; i < 256; i++) ord[sprintf("%c", i)] = i }
 
 **解法**：
 
-- 规则级审计/去重**只在 PC 上跑**：`scp root@10.0.0.1:/tmp/ShellCrash/config.yaml ./`，
+- 规则级审计/去重**只在 PC 上跑**：`scp root@<REPLACE-ROUTER-LAN-IP>:/tmp/ShellCrash/config.yaml ./`，
   对副本跑 `config/archive/rules-dedup.sh` 或 `rule_audit.py`；
 - **不要**把 `rules-dedup.sh` 挂到 `starts/clash_modify.sh`，也不要部署到 `/etc/ShellCrash/`；
 - 211 条规则的收益（-5.1%）不值得在路由器上再冒一次断网风险。
@@ -789,7 +789,7 @@ CDN 规则是字面 `DIRECT`，问题依旧。
 属地会跟着变回国内。
 
 **验证陷阱**：mihomo 的 `/dns/query` API **不读 `hosts`**，改写后它仍返回真实 IP；
-要用 LAN 客户端 `nslookup <peerhost> 10.0.0.1` 查，返回 `127.0.0.1` 才算生效。
+要用 LAN 客户端 `nslookup <peerhost> <REPLACE-ROUTER-LAN-IP>` 查，返回 `127.0.0.1` 才算生效。
 `hosts` 的 `*.` 通配与 `fake_ip_filter.list` 的写法一致，mihomo 1.19.28 实测可用。
 
 **出处**：2026-10-22 B站播放卡顿排查；实测见 [RULE-AUDIT.md](RULE-AUDIT.md) §7.6。

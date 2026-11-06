@@ -29,26 +29,26 @@
 
 ```bash
 # ① 生成器自己跑一遍（cron 每周也会跑，但手动跑能马上看到错误）
-ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-rules-update.sh'
+ssh root@<REPLACE-ROUTER-LAN-IP> 'sh /etc/ShellCrash/ai-rules-update.sh'
 #    失败 = 什么都不该改（脚本设计上不会写半成品）→ 停在这里，不要 hotupdate
 
 # ② 自检 17 段（最重要的一条命令）
-ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-api-check.sh'
+ssh root@<REPLACE-ROUTER-LAN-IP> 'sh /etc/ShellCrash/ai-api-check.sh'
 #    退出码 0 = 全过；1 = 有失败项
 #    注意：部分段带**自动修复**（改 log-level、sed 修 task.sh 路径、重载 nft 表）
 
 # ③ 重启使配置生效（start_old=ON 时只能用这个）
-ssh root@10.0.0.1 '/etc/ShellCrash/start.sh start'
+ssh root@<REPLACE-ROUTER-LAN-IP> '/etc/ShellCrash/start.sh start'
 
 # ④ 再跑一次自检（重启可能暴露新的问题，比如钩子没挂上）
-ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-api-check.sh'
+ssh root@<REPLACE-ROUTER-LAN-IP> 'sh /etc/ShellCrash/ai-api-check.sh'
 
 # ⑤ 离线规则回归（PC 侧；审计工具在 OpenwrtOpsToolkit 仓）
-scp root@10.0.0.1:/tmp/ShellCrash/config.yaml ./config.yaml
-ssh root@10.0.0.1 'curl -s http://127.0.0.1:9999/proxies' > proxies.json
-python mihomo/rule_audit.py config.yaml proxies.json third-party/ACL4SSR/Clash REPORT.md
+scp root@<REPLACE-ROUTER-LAN-IP>:/tmp/ShellCrash/config.yaml ./config.yaml
+ssh root@<REPLACE-ROUTER-LAN-IP> 'curl -s http://127.0.0.1:9999/proxies' > proxies.json
+python <OPS_TOOLKIT_ROOT>/mihomo/rule_audit.py config.yaml proxies.json <RULES_ROOT>/third-party/ACL4SSR/Clash REPORT.md
 #    基线：139 个代表域名 0 异常；剩余 13 条 severe 全是有意覆盖
-#    工具在 OpenwrtOpsToolkit 仓；策略组名用 AUDIT_* 环境变量对上本设备的组名
+#    两个仓根用占位符显式给出；策略组名用 AUDIT_* 环境变量对上本设备的组名
 ```
 
 > 每条命令**单独怎么跑、要传哪些参数**见 [TOOLS.md](TOOLS.md)；
@@ -125,7 +125,7 @@ python mihomo/rule_audit.py config.yaml proxies.json third-party/ACL4SSR/Clash R
 
 ```bash
 TS=$(date '+%Y%m%d-%H%M%S')
-ssh root@10.0.0.1 "mkdir -p /root/backup/pre-yamls-$TS && \
+ssh root@<REPLACE-ROUTER-LAN-IP> "mkdir -p /root/backup/pre-yamls-$TS && \
   cp -a /etc/ShellCrash/yamls /root/backup/pre-yamls-$TS/"
 ```
 
@@ -145,8 +145,8 @@ ssh root@10.0.0.1 "mkdir -p /root/backup/pre-yamls-$TS && \
 ### 3.3 回退后必做
 
 ```bash
-ssh root@10.0.0.1 '/etc/ShellCrash/start.sh start'
-ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-api-check.sh'
+ssh root@<REPLACE-ROUTER-LAN-IP> '/etc/ShellCrash/start.sh start'
+ssh root@<REPLACE-ROUTER-LAN-IP> 'sh /etc/ShellCrash/ai-api-check.sh'
 ```
 
 **回退不是「撤销一次改动」，是「恢复到一个已知能跑的状态」** ——

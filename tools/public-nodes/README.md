@@ -175,7 +175,7 @@ ssh root@10.0.0.1 'ln -sf /etc/ShellCrash/CrashCore.upx /tmp/ShellCrash/CrashCor
 
 ## 定时任务（Windows）
 
-已注册 `ShellcrashRules-PublicNodes`：每天 11:00 跑一次增量。
+已注册 `ShellcrashRules-PublicNodes`：每天 11:00 跑一次增量（原 05:10，2026-11-06 起改；见 `docs/release-notes/0.6.0.md`）。
 任务动作是 `pythonw.exe "tools\public-nodes\run-daily-hidden.pyw"`（工作目录为仓库根）——
 `run-daily-hidden.pyw` 用 `CREATE_NO_WINDOW` 转调 `run-daily.cmd`，不会弹出控制台窗口；
 **任务本体仍是 `run-daily.cmd`**（日志轮转 / UTF-8 / python 调用只在它里面维护）。
@@ -185,7 +185,7 @@ schtasks /Query /TN "ShellcrashRules-PublicNodes" /V /FO LIST
 schtasks /Run /TN "ShellcrashRules-PublicNodes"     :: 手动触发
 ```
 
-「全自动」的三个关键设置（用 PowerShell 配的，不是默认值）：
+「全自动」的四个关键设置（用 PowerShell 配的，不是默认值）：
 
 - `StartWhenAvailable = True` —— 11:00 时机器关机/休眠，下次开机或唤醒后补跑；
 - `DisallowStartIfOnBatteries = False` —— 电池供电也跑；
@@ -223,8 +223,8 @@ Set-ScheduledTask -TaskName 'ShellcrashRules-PublicNodes' -Settings $t.Settings
 schtasks /Delete /TN "ShellcrashRules-PublicNodes" /F
 ```
 
-> 计划任务只在用户登录时跑；PC 关机/休眠错过的那次不会补跑。
-> 需要补跑时手动执行 `run-daily.cmd` 或上面的 `python ...` 命令。
+> 计划任务以 `/IT` 注册，仅在交互式登录会话中运行；11:00 时若机器关机/休眠，`StartWhenAvailable = True` 会在下次开机/唤醒后补跑（与上文设置一致）。
+> 手动补跑可执行 `run-daily.cmd`、`schtasks /Run /TN "ShellcrashRules-PublicNodes"` 或 `python tools/public-nodes/screen.py`。
 > 不要并发跑两个实例（会同时改路由器的 `proxies.yaml`）。
 
 ## 回滚

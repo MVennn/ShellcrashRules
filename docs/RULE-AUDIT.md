@@ -340,7 +340,7 @@ mihomo 拒载），必须在一个独立配置上先做 `mihomo -t` 和回归，
 
 ```bash
 # 1) 从路由器取运行配置和组状态
-scp root@10.0.0.1:/tmp/ShellCrash/config.yaml ./config.yaml
+scp root@<REPLACE-ROUTER-LAN-IP>:/tmp/ShellCrash/config.yaml ./config.yaml
 curl -s 127.0.0.1:9999/proxies > proxies.json   # 需在路由器上执行后取回
 
 # 2) 下载模板对应的 17 个上游列表（脚本已按 ShellClash.ini 自动下载）
@@ -428,7 +428,7 @@ sentry/intercom/auth0/statsig 是同一类问题：
 | `liveperson.net` / `lpsnmedia.net` | 客服聊天组件 | 🚀 节点选择 |
 | `browser-intake-datadoghq.com` | Datadog RUM | 🚀 节点选择 |
 
-### 7.4 回归结果（2026-10-22）
+### 7.4 回归结果（2026-10-22 历史快照；当时自检 18 段，现役为 17 段，第 4 段模型测试已移除）
 
 - 运行配置 4,154 条；`RULE-SET,cn` 在 #3227，仍在 ProxyMedia 之前；`RULE-SET,cnip` 在 #877
 - `pagead2.googlesyndication.com` / `www.google-analytics.com` / `googleads.g.doubleclick.net` /
@@ -516,7 +516,7 @@ AAAA；原先使用的 `2408:8756::/31` 是整个联通 IPv6 大段，腾讯（Q
 - 解法：`clash_modify.sh` 生成的 `hosts:` 把 `'*.mcdn.bilivideo.cn'` / `'*.edge.mountaintoys.cn'`
   指到 `127.0.0.1`；播放器回落 `upos-*`（实测 6.5–20 MB/s）。API 仍走香港，属地不变。
 - **验证陷阱**：mihomo 的 `/dns/query` API 不读 `hosts`，仍返回真实 IP；要在 LAN 客户端用
-  `nslookup <peerhost> 10.0.0.1` 验证，返回 `127.0.0.1` 才算生效。
+  `nslookup <peerhost> <REPLACE-ROUTER-LAN-IP>` 验证，返回 `127.0.0.1` 才算生效。
 
 | 类别 | 域名 | 目标 |
 |---|---|---|

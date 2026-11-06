@@ -12,6 +12,7 @@
 - 文档与模板里出现的是 `<REDACTED-...>` / `<YOUR-...>` / `<REPLACE-...>` 占位符；
 - 脚本从**环境变量**或**设备侧真源**读取；
 - `.gitignore` 排除 `proxies.yaml`、订阅原文、私钥与本机工作区。
+- `.work/private-history.bundle` 是私有完整历史镜像，与 `.work/private-evidence/` 同由 `/.work/` 排除，**不发布、不恢复进公开分支**。
 
 **占位符不是真实值** —— 拿 `<REPLACE-VMESS-UUID>` 去连接一定失败，那不是 bug，是设计。
 
@@ -177,7 +178,7 @@ python tools/check-secrets.py
 ### 3.3 占位用户名不算命中
 
 示例文件里的 `C:/Users/You/...`、`C:/Users/User/...`、`C:/Users/你的用户名/...`
-是给用户照着改的模板，不是本机路径。
+是给用户照着改的模板，不是本机路径；以下路径串仅作守卫正则示例，必须保持截断 / 占位形式。
 
 ---
 

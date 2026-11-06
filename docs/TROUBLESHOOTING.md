@@ -13,7 +13,7 @@
 **拿 secret**（后面每条都要用）：
 
 ```bash
-ssh root@10.0.0.1 'grep -m1 "^secret=" /etc/ShellCrash/configs/ShellCrash.cfg | cut -d= -f2- | tr -d "\x27\x22"'
+ssh root@<REPLACE-ROUTER-LAN-IP> 'grep -m1 "^secret=" /etc/ShellCrash/configs/ShellCrash.cfg | cut -d= -f2- | tr -d "\x27\x22"'
 ```
 
 **诊断脚本在哪**（下面命令里的 `mihomo/` `cdn/` 路径都相对于 **`OpenwrtOpsToolkit` 仓**根目录 ——
@@ -21,8 +21,8 @@ ssh root@10.0.0.1 'grep -m1 "^secret=" /etc/ShellCrash/configs/ShellCrash.cfg | 
 
 ```bash
 git clone <OpenwrtOpsToolkit 的地址> && cd OpenwrtOpsToolkit
-export MIHOMO_SECRET="$(ssh root@10.0.0.1 'grep -m1 "^secret=" /etc/ShellCrash/configs/ShellCrash.cfg | cut -d= -f2- | tr -d "\x27\x22"')"
-export MIHOMO_API='http://10.0.0.1:9999'
+export MIHOMO_SECRET="$(ssh root@<REPLACE-ROUTER-LAN-IP> 'grep -m1 "^secret=" /etc/ShellCrash/configs/ShellCrash.cfg | cut -d= -f2- | tr -d "\x27\x22"')"
+export MIHOMO_API='http://<REPLACE-ROUTER-LAN-IP>:9999'
 ```
 
 ---
@@ -39,20 +39,20 @@ export MIHOMO_API='http://10.0.0.1:9999'
 
 ```bash
 # ① 配置还在不在（拒载回退的判据）
-ssh root@10.0.0.1 'curl -s -H "Authorization: Bearer <secret>" http://127.0.0.1:9999/proxies' \
+ssh root@<REPLACE-ROUTER-LAN-IP> 'curl -s -H "Authorization: Bearer <REDACTED-MIHOMO-SECRET>" http://127.0.0.1:9999/proxies' \
   | grep -o '"🤖 AI接口"\|"🤖 干净出口"\|"🚀 节点选择"'
 
 # ② 直接校验当前配置，看 mihomo 到底报什么
-ssh root@10.0.0.1 '/tmp/ShellCrash/CrashCore -t -f /tmp/ShellCrash/config.yaml'
+ssh root@<REPLACE-ROUTER-LAN-IP> '/tmp/ShellCrash/CrashCore -t -f /tmp/ShellCrash/config.yaml'
 
 # ③ 找顶层重复 key（最常见的原因）
-ssh root@10.0.0.1 "grep -nE '^(rule-providers|proxy-groups|proxies|rules|dns|sniffer):' /tmp/ShellCrash/config.yaml"
+ssh root@<REPLACE-ROUTER-LAN-IP> "grep -nE '^(rule-providers|proxy-groups|proxies|rules|dns|sniffer):' /tmp/ShellCrash/config.yaml"
 
 # ④ 看是不是生成物写坏了（尾逗号 = 策略名为空）
-ssh root@10.0.0.1 "grep -nE ',\]' /tmp/ShellCrash/config.yaml | head"
+ssh root@<REPLACE-ROUTER-LAN-IP> "grep -nE ',\]' /tmp/ShellCrash/config.yaml | head"
 
 # ⑤ 巡检脚本（17 段，含自动修复）
-ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-api-check.sh'
+ssh root@<REPLACE-ROUTER-LAN-IP> 'sh /etc/ShellCrash/ai-api-check.sh'
 ```
 
 **原因 / 解法**：
@@ -79,10 +79,10 @@ ssh root@10.0.0.1 'sh /etc/ShellCrash/ai-api-check.sh'
 
 ```bash
 # ① 先确认配置真的重新加载了（改规则后要重启，见 PITFALLS §4）
-ssh root@10.0.0.1 '/etc/ShellCrash/start.sh start'
+ssh root@<REPLACE-ROUTER-LAN-IP> '/etc/ShellCrash/start.sh start'
 
 # ② 看运行配置里规则的实际位置（不是模板位置）
-ssh root@10.0.0.1 "grep -n 'RULE-SET,cn\|电报消息\|国外媒体' /tmp/ShellCrash/config.yaml | head -20"
+ssh root@<REPLACE-ROUTER-LAN-IP> "grep -n 'RULE-SET,cn\|电报消息\|国外媒体' /tmp/ShellCrash/config.yaml | head -20"
 
 # ③ 离线算「每条规则真实生效目标」—— 直接列出声明 ≠ 实际的规则
 python mihomo/rule_audit.py config.yaml proxies.json third-party/ACL4SSR/Clash REPORT.md
@@ -146,7 +146,7 @@ python mihomo/mihomo_api.py dns gemini.google.com
 python mihomo/mihomo_api.py proxies
 
 # ② 该组候选是否还在（订阅更新后节点可能被删/改名）
-ssh root@10.0.0.1 'curl -s -H "Authorization: Bearer <secret>" "http://127.0.0.1:9999/proxies/<组名>"'
+ssh root@<REPLACE-ROUTER-LAN-IP> 'curl -s -H "Authorization: Bearer <REDACTED-MIHOMO-SECRET>" "http://127.0.0.1:9999/proxies/<组名>"'
 
 # ③ 单节点延迟（换几个 URL 试，看是不是探测 URL 的问题）
 python mihomo/mihomo_api.py delay https://opencode.ai/ "🤖 AI接口" "🚀 节点选择"
@@ -178,16 +178,16 @@ python mihomo/mihomo_api.py delay https://opencode.ai/ "🤖 AI接口" "🚀 节
 
 ```bash
 # ① 手动发最小请求（模型测试已从 ai-api-check.sh 移除，2026-10-26）
-ssh root@10.0.0.1 'KEY=$(cat /etc/ShellCrash/opencode.key); \
+ssh root@<REPLACE-ROUTER-LAN-IP> 'KEY=$(cat /etc/ShellCrash/opencode.key); \
   curl -s -x http://127.0.0.1:7890 -o /tmp/ai400.json -w "%{http_code}\n" \
   https://opencode.ai/zen/go/v1/chat/completions \
   -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   -d "{\"model\":\"deepseek-v4.1-flash\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":8}"'
 # 失败时看响应体前 200 字节
-ssh root@10.0.0.1 'head -c 200 /tmp/ai400.json'
+ssh root@<REPLACE-ROUTER-LAN-IP> 'head -c 200 /tmp/ai400.json'
 
 # ② 确认走的是代理口，且出口正常
-ssh root@10.0.0.1 'curl -s -x http://127.0.0.1:7890 -o /dev/null -w "%{http_code}\n" https://opencode.ai/'
+ssh root@<REPLACE-ROUTER-LAN-IP> 'curl -s -x http://127.0.0.1:7890 -o /dev/null -w "%{http_code}\n" https://opencode.ai/'
 ```
 
 **原因 / 解法**：
@@ -216,8 +216,8 @@ ssh root@10.0.0.1 'curl -s -x http://127.0.0.1:7890 -o /dev/null -w "%{http_code
 
 ```bash
 # ① 控制 API 通不通、要不要鉴权
-curl -s -o /dev/null -w '%{http_code}\n' http://10.0.0.1:9999/proxies
-curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer <secret>" http://10.0.0.1:9999/proxies
+curl -s -o /dev/null -w '%{http_code}\n' http://<REPLACE-ROUTER-LAN-IP>:9999/proxies
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer <REDACTED-MIHOMO-SECRET>" http://<REPLACE-ROUTER-LAN-IP>:9999/proxies
 
 # ② 换个工具试（它缺 secret 直接报错、带 IPv4/IPv6 自动选路、带重试）
 python mihomo/mihomo_api.py proxies
@@ -249,7 +249,7 @@ python mihomo/mihomo_api.py proxies
 # ① 确认审计输入是「当前运行配置」，不是旧快照
 ls -l config.yaml proxies.json
 # config.yaml 必须来自当前路由器：
-#   scp root@10.0.0.1:/tmp/ShellCrash/config.yaml ./config.yaml
+#   scp root@<REPLACE-ROUTER-LAN-IP>:/tmp/ShellCrash/config.yaml ./config.yaml
 
 # ② 跑审计
 python mihomo/rule_audit.py config.yaml proxies.json third-party/ACL4SSR/Clash REPORT.md
@@ -267,7 +267,7 @@ python -c "import json;d=json.load(open('findings.json',encoding='utf-8'));print
 | **审计输入是旧快照** | `config.yaml` 的时间戳早于最近一次订阅更新 | 重新 `scp` 运行配置 |
 | 上游 lists 与运行配置不是同一版 | `lists/` 里的上游列表和配置里的分段对不上 | 重新下载上游列表；或改用 `third-party/ACL4SSR/Clash/` 里与该配置配套的那份 |
 | 模板顺序本身冲突（ProxyLite 宽泛 TLD 早于 ChinaDomain） | 冲突条目集中在 `.hk` / Steam / Bing / googleapis | 「分类修正层」+ CN 中间层；见 [RULE-AUDIT.md](RULE-AUDIT.md) §4 |
-| **Google 广告域被宽泛 `google` 规则遮蔽** | `pagead2.googlesyndication.com` / `www.google-analytics.com` 的命中规则是 `DomainKeyword,google`，出口是 `🤖 干净出口`；模板 BanAD 的 REJECT 在更后面 | 在 Google 块之前加广告 carve-out；`ai-api-check.sh` 第 18 段逐条断言 |
+| **Google 广告域被宽泛 `google` 规则遮蔽** | `pagead2.googlesyndication.com` / `www.google-analytics.com` 的命中规则是 `DomainKeyword,google`，出口是 `🤖 干净出口`；模板 BanAD 的 REJECT 在更后面 | 在 Google 块之前加广告 carve-out；`ai-api-check.sh` carve-out 断言段（现役 17 段）逐条断言 |
 | 有意覆盖被当成冲突 | 剩余 severe 集中在 9 条 FCM、2 条 flashtalking 广告、2mdn 广告；`app-measurement.com` 已于 2026-10-22 改 REJECT | **这些是有意的**，登记在白名单里，不要「修」掉 |
 
 **预期基线**：Phase 1/2 实施后是「139 个代表域名 **0 异常**」，
@@ -286,11 +286,11 @@ python -c "import json;d=json.load(open('findings.json',encoding='utf-8'));print
 
 ```bash
 # ① 确认 cn provider 与 RULE-SET 行都在
-ssh root@10.0.0.1 "grep -n 'rule-providers:' -A 12 /tmp/ShellCrash/config.yaml | head -20"
-ssh root@10.0.0.1 "grep -n 'RULE-SET,cn' /tmp/ShellCrash/config.yaml"
+ssh root@<REPLACE-ROUTER-LAN-IP> "grep -n 'rule-providers:' -A 12 /tmp/ShellCrash/config.yaml | head -20"
+ssh root@<REPLACE-ROUTER-LAN-IP> "grep -n 'RULE-SET,cn' /tmp/ShellCrash/config.yaml"
 
 # ② 确认位置：最后一条「📲 电报消息」之后、第一条「🌍 国外媒体」之前
-ssh root@10.0.0.1 "grep -n '📲 电报消息\|🌍 国外媒体\|RULE-SET,cn' /tmp/ShellCrash/config.yaml | head"
+ssh root@<REPLACE-ROUTER-LAN-IP> "grep -n '📲 电报消息\|🌍 国外媒体\|RULE-SET,cn' /tmp/ShellCrash/config.yaml | head"
 
 # ③ mrs 与文本列表会不会不一致：看运行时实际命中
 python mihomo/mihomo_log.py 20 joox.com
@@ -321,13 +321,13 @@ python mihomo/mihomo_log.py 20 joox.com
 
 ```bash
 # ① 代理进程与端口
-ssh root@10.0.0.1 "ps | grep CrashCore; netstat -lntp | grep -E ':7890|:7892'"
+ssh root@<REPLACE-ROUTER-LAN-IP> "ps | grep CrashCore; netstat -lntp | grep -E ':7890|:7892'"
 
 # ② 内存与启动错误
-ssh root@10.0.0.1 "free -m; tail -30 /tmp/ShellCrash/ShellCrash.log"
+ssh root@<REPLACE-ROUTER-LAN-IP> "free -m; tail -30 /tmp/ShellCrash/ShellCrash.log"
 
 # ③ 配置生成失败的痕迹
-ssh root@10.0.0.1 "grep -n 'rules-cnip\|rules-dedup' /etc/ShellCrash/starts/clash_modify.sh; ls -la /etc/ShellCrash/rules-*.sh*"
+ssh root@<REPLACE-ROUTER-LAN-IP> "grep -n 'rules-cnip\|rules-dedup' /etc/ShellCrash/starts/clash_modify.sh; ls -la /etc/ShellCrash/rules-*.sh*"
 ```
 
 **判据 / 解法**：

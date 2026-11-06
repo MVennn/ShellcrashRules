@@ -17,33 +17,42 @@
 基础 config.yaml（13k 条模板规则）
    │  写入 /etc/ShellCrash/config.yaml（持久）→ 运行期副本在 /tmp/ShellCrash/config.yaml（tmpfs）
    ▼
-starts/clash_modify.sh  ← 合并链路的入口（本仓待补，设备侧在跑）
-   │  merger_yaml 合并四份来源：
-   │    yamls/user.yaml          → 顶层内核参数（tcp-concurrent / find-process-mode / profile.*）
-   │    yamls/proxy-groups.yaml  → 自定义策略组（🤖 AI接口 / 🤖 AI网页 / 🤖 干净出口 / 🎬 B站解锁 / 📺 大流量 + 地区组）
-   │    yamls/proxies.yaml       → 自定义节点（HY2 池，由 sub-sync.sh 在生成配置前补齐）
-   │    yamls/rules.yaml         → AI 分流规则（置顶，在所有模板规则之前）
-   │  同时 cat 进 fake_ip_filter 与 fake_ip_filter.list 合成 fake-ip 排除清单
+config/starts/clash_modify.sh :: modify_yaml()   ← 合并链路入口（本仓维护，设备侧同步在跑）
+   │  ① sub-sync.sh                 生成配置前补齐机场原始订阅节点（6 小时节流）
+   │  ② prepare_clash_base_config  准备基础配置
+   │  ③ generate_set_and_hosts_yaml
+   │  ④ split_and_customize_yaml_parts
+   │  ⑤ add_custom_inbounds_and_rules
+   │  ⑥ merger_yaml                合并四份来源（本步才做合并，不是入口）：
+   │       yamls/user.yaml          → 顶层内核参数（tcp-concurrent / find-process-mode / profile.*）
+   │       yamls/proxy-groups.yaml  → 自定义策略组（🤖 AI接口 / 🤖 AI网页 / 🤖 干净出口 / 🎬 B站解锁 / 📺 大流量 + 地区组）
+   │       yamls/proxies.yaml       → 自定义节点（HY2 池，由 ① 补齐）
+   │       yamls/rules.yaml         → AI 分流规则（置顶，在所有模板规则之前）
+   │       同时 cat 进 fake_ip_filter 与 fake_ip_filter.list 合成 fake-ip 排除清单
    ▼
-钩子 ① rules-porn.sh      注入 porn provider（MetaCubeX category-porn，6,520 域名 / 日更）
+ 钩子 ① rules-porn.sh      注入 porn provider（MetaCubeX category-porn，6,520 域名 / 日更）
    │                      RULE-SET,porn 规则本身由 rules.yaml 的 I 段提供
    ▼
-钩子 ② rules-mid.sh        插 - RULE-SET,cn,🎯 全球直连
+ 钩子 ② rules-mid.sh        插 - RULE-SET,cn,🎯 全球直连
    │                      （最后一条「📲 电报消息」之后，第一条「🌍 国外媒体」之前）
    ▼
-钩子 ③ rules-cnip.sh       把 8,980 条内联 CN IP-CIDR 折叠成一条 RULE-SET,cnip
+ 钩子 ③ rules-cnip.sh       把 8,980 条内联 CN IP-CIDR 折叠成一条 RULE-SET,cnip
    │                      （rule-providers.cnip：file / ipcidr / mrs；13k → 4.1k 条）
    ▼
-钩子 ④ reorder-groups.sh   ① proxy-groups 同名去重（保留首次出现）
+ 钩子 ④ reorder-groups.sh   ① proxy-groups 同名去重（保留首次出现）
    │                      ② 组内重复 key 清理 / 机场伪节点剔除
    │                      ③ 组顺序重排（常用入口 → 专用出口 → 地区组 → 工具 → 内部子组）
    │                      ④ 成员/节点重排（主选择器；手动/自动组按地区）
    │                      ⑤ mixed-port 归一（去掉重复的 host 前缀）
    ▼
-mihomo 校验（CrashCore -t）→ 加载
+ test_yaml（mihomo 校验 / CrashCore -t）→ finalize_clash_yaml → 加载
    ▼
-运行期 config.yaml（/tmp/ShellCrash/config.yaml）
+ 运行期 config.yaml（/tmp/ShellCrash/config.yaml）
 ```
+
+> 顺序正本是 `config/starts/clash_modify.sh` 的 `modify_yaml()`（sub-sync → prepare → generate →
+> split/add → **merger_yaml** → 4 钩子 → test_yaml → finalize）。旧图把 `merger_yaml` 画成入口，
+> 且漏了前置 5 步；按源码勘误如上，别再凭印象重排。
 
 ### 1.2 四个钩子的分工
 
@@ -116,7 +125,7 @@ mihomo 校验（CrashCore -t）→ 加载
 `beam-free` / `muse-spark-*`（403 `unsupported_country_region_territory` / `RegionError`）。
 
 这些型号靠 **zgate 的 `hop.proxy`** 单独走机场：alias map 给 OC 跳补一条同上游的
-孪生跳（`proxy: http://10.0.0.1:7896`），路由器上的 7896 是 `yamls/user.yaml` 的
+孪生跳（`proxy: http://<REPLACE-ROUTER-LAN-IP>:7896`），路由器上的 7896 是 `yamls/user.yaml` 的
 `listeners` 入站，**固定绑 🤖 AI接口 组、不看规则匹配**。zgate 把地区受限的
 403 当「换出口」处理（`chainAccept` / `regionBlocked`），直连被拒就自动落到机场跳 ——
 以后新出现的受限型号不需要动规则。
@@ -160,7 +169,7 @@ mihomo 校验（CrashCore -t）→ 加载
 | `config/generators/*.sh` | **本仓** | 人工维护 | cron `30 4 * * 0`（auto-update.sh → ai-rules-update.sh → hotupdate） |
 | `config/starts/fw_nftables.sh` | **本仓** | 人工维护（打补丁的上游件） | ShellCrash 启动时生成 `inet shellcrash`；`post-sc-update.sh` 在官方更新后恢复 |
 | `config/starts/start_legacy_wd.sh` | **本仓** | 人工维护（打补丁的上游件） | cron 每分钟 |
-| `config/starts/clash_modify.sh` | **本仓（待补）** | — | ShellCrash 启动 / 订阅更新 |
+| `config/starts/clash_modify.sh` | **本仓**（`config/starts/clash_modify.sh`，`modify_yaml()` 全链路见 §1.1） | 人工维护；设备侧由 ShellCrash 启动 / 订阅更新调用 | ShellCrash 启动 / 订阅更新 |
 | `config/ai-api-check.sh` | **本仓** | 人工维护 | 人工（订阅更新后必跑） |
 | `config/post-sc-update.sh` | **本仓** | 人工维护 | 人工（ShellCrash 官方脚本更新后） |
 | `firewall/tables/*.nft` | **本仓**（内容） | 人工维护 | **`rc.local`（`AX3000TOpenwrt` 仓）** 开机加载 + 守护进程补载 |
@@ -205,7 +214,7 @@ mihomo 校验（CrashCore -t）→ 加载
 | 🤖 干净出口 | `select` + 印度/台湾-优化3/新加坡/HY2 过滤 | `config/yamls/proxy-groups.yaml` | 唯一经 Google 侧 `cc` 实测判为非 CN 的稳定出口；`exclude-filter` 排除香港与公共节点 |
 | 🎬 B站解锁 | `select` + `filter: (香港WAP\|台湾-优化3\|日本-优化\|新加坡-优化3)` | `config/yamls/proxy-groups.yaml` | B站 API 域（`api/app/cm.bilibili.com`、`biliapi.com/.net`）的出口，规则见 `rules.yaml` J 段。**HY2 池到大陆方向不通**（香港/韩国能连 gstatic，但百度/知乎/B站 TLS EOF/超时；日本/新加坡节点本身超时）；实测 vmess 的香港WAP/台湾-优化3/日本-优化/新加坡-优化3 在 B站 `x/web-interface/zone` 分别显示对应地区，默认 `🇭🇰 香港WAP-优化`。CDN（bilivideo/hdslb/biliimg/acgvideo）规则用字面 `DIRECT`（`respect-rules` 的 DNS 才走 `direct-nameserver`），由 `clash_modify.sh` 单独指定上游 DNS；设备侧 `ipv6_dns=OFF`（Akamai IPv6 实测 22 KB/s），视频不占机场流量。MCDN/PCDN 域（`*.mcdn.bilivideo.cn`、`*.edge.mountaintoys.cn`）在生成的 `hosts:` 里指到 `127.0.0.1`，避免播放器踩到 6–11 KB/s 的劣化 P2P 节点。属地按请求源 IP 判定，没有独立检测接口；评论接口是 `cm.bilibili.com`，只加 `api` 不够 |
 | 🛟 主备自动 | `fallback`：`♻️ 自动选择` → `🆓 公共备用` | `config/yamls/proxy-groups.yaml` | `🚀 节点选择` 的默认项；机场节点正常时走 `♻️ 自动选择`，机场全挂时自动落到公共备用。**不放 DIRECT**，避免两边都挂时静默直连泄露真实 IP |
-| 🆓 公共备用 | `url-test` + `filter: 🆓 公共` | `config/yamls/proxy-groups.yaml` | 机场全挂时的最后网页通道：作为 `🛟 主备自动` 的兜底成员，同时保留在 `🚀 节点选择` 末尾供手动选择。节点由 PC 侧 `tools/public-nodes/screen.py` 从 6 个源筛选后写入路由器本地 `yamls/proxies.yaml`（不入库）；2026-10-23 实测池 1271 条、实测 259 条、保留 10 条（8 条存活，211–584ms），公共-08 对 OVH 2MB 实测 889 KB/s。**不可用于 AI / 网银 / 邮箱** |
+| 🆓 公共备用 | `url-test` + `filter: 🆓 公共` | `config/yamls/proxy-groups.yaml` | 机场全挂时的最后网页通道：作为 `🛟 主备自动` 的兜底成员，同时保留在 `🚀 节点选择` 末尾供手动选择。节点由 PC 侧 `tools/public-nodes/screen.py` 从当前 5 个源筛选后写入路由器本地 `yamls/proxies.yaml`（不入库；2026-10-23 为 6 源，Epodonios 2026-11-03 删库后移除）；2026-10-23 实测池 1271 条、实测 259 条、保留 10 条（8 条存活，211–584ms），公共-08 对 OVH 2MB 实测 889 KB/s。**不可用于 AI / 网银 / 邮箱** |
 | 📺 大流量 | `select`：`🆓 公共备用` → `♻️ 自动选择` | `config/yamls/proxy-groups.yaml` | 承载 `rules.yaml` H/I/I2/K 段：Epic 内容 CDN、成人站及其自有 CDN（`RULE-SET,porn` 兜底）、Telegram 两个 DC 段、游戏补丁（暴雪/Riot/EA/育碧/Xbox/GOG）、媒体 CDN（Reddit/Imgur/Pixiv/Vimeo/Twitch/SourceForge/`replicate.delivery`）、HuggingFace LFS / GitHub release / NVIDIA+AMD 驱动 / Maven，以及探测域 `proof.ovh.net`。默认走公共池省机场流量；`bulk-guard.sh`（`OpenwrtOpsToolkit` 仓）用 `proof.ovh.net` 对钉点/候选做二次校验，吞吐低于 800 KB/s 时切回机场并冷却 1 小时。**Steam 2026-10-27 移出**：`steamserver.net`（CM）、`api.steampowered.com`（内容服务器目录）、国内 CDN（`eccdnx` / `clngaa` / `pphimalayanrt`）与 `steamcontent.com` 全部 `DIRECT`，`steamstatic` / `steamcdn-a` / `steampipe*` 改走 `🚀 节点选择`，见 `rules.yaml` G2 段。**关键在 CM**：内容服务器目录按客户端公网 IP 分配 CDN，CM 走代理时 Valve 只给香港/东京（实测 43–183 Mbps），CM 直连后分配国内 CDN（实测 375–390 Mbps，国内 CDN 是 CN 段，防火墙层直接绕过 mihomo 走硬件转发）。`api.steampowered.com` 的 DNS 另在 `starts/clash_modify.sh` 的 `nameserver-policy` 里指到国内解析。**订阅流媒体刻意不进**：YouTube 全族必须走干净出口（Google cc），Netflix/Disney 对公共节点几乎必然判代理；成人站与 Telegram 不绑账号/支付出口、全程加密，所以接进来 |
 | 𝕏 媒体 | `fallback`：`𝕏 媒体-HY2` → `𝕏 媒体-备用` | `config/yamls/proxy-groups.yaml` | X/Twitter 图片与视频 CDN（`twimg.com`）专用出口，规则见 `rules.yaml` X 段。2026-10-23 白天实测：VMess+WS 并发建连会被串行化（10 并发真实图片 1.9–5.9s）；HY2（QUIC 多路复用）0.35s、单张 0.21–0.25s，所以 HY2 主组只收 HY2、不掺 VMess。当晚 HY2 对 `pbs.twimg.com` 4/4 超时、VMess 5/5 200，于是拆成 HY2 主 + VMess 备的 fallback：HY2 正常时仍享受并发，整池劣化时自动落到 VMess（实测 `pbs` 200/0.26–0.28s）。健康检查统一用 `pbs.twimg.com/robots.txt`（200、稳定；根路径 400 抖动大） |
 | 规则更新 cron | `30 4 * * 0` | 路由器 crontab | 每周跑 `auto-update.sh`（规则生成 + hotupdate） |
@@ -213,6 +222,7 @@ mihomo 校验（CrashCore -t）→ 加载
 | 守护 cron | `*/5 * * * *` | 路由器 crontab | 每 5 分钟自愈（补载三表、节点劣化复位、干净出口守护）—— 脚本在 `AX3000TOpenwrt` 仓 |
 | 大流量守卫 cron | `*/10 * * * *` | 路由器 crontab | 每 10 分钟判定一次（空闲时每 2 小时实测一次吞吐）—— 脚本在 `OpenwrtOpsToolkit` 仓，组名来自 `/etc/openwrt-ops/device.conf` |
 | 自检 cron | `5 5 * * *` | 路由器 crontab | 每天跑 `daily-ai-check.sh`（17 段配置审计 + 留痕）—— 脚本在本仓 `config/` |
+| 公共节点筛选 | 每天 11:00（Windows 计划任务 `ShellcrashRules-PublicNodes`） | PC 侧，不部署到路由器 | `tools/public-nodes/screen.py` 拉取五源并写入设备 `yamls/proxies.yaml` 的 `# >>> PUBLIC-NODES` 块；巡检看 `Get-ScheduledTaskInfo` 与 `.work/public-nodes/screen.log` |
 | 自检段数 | 17 段（原 18 段，第 4 段模型测试已移除） | `config/ai-api-check.sh` | 订阅更新后必跑；退出码 0/1 |
 
 ### 4.1 组名与规则目标的约定
