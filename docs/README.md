@@ -40,6 +40,7 @@
 | 位置 | 一句话定位 |
 |---|---|
 | [release-notes/](release-notes/README.md) | 面向使用者的 Release 说明，文件名 = `versionName`（不带 `v`）；格式规范在它的 README |
+| [release-notes/0.6.0.md](release-notes/0.6.0.md) | 最近一份 Release 说明：公共池写入原子化与收尾自检，筛选器失灵修复，计划任务改 11:00 |
 | [release-notes/0.5.0.md](release-notes/0.5.0.md) | 0.5.0 说明：游戏/下载 CDN 直连、AI 接口复测 60s、自检对齐 |
 | [release-notes/0.4.0.md](release-notes/0.4.0.md) | 0.4.0 说明：Steam 下载移出公共池，depot CDN 改直连 |
 | [release-notes/0.3.1.md](release-notes/0.3.1.md) | 0.3.1 说明：空集合定义 / VM 守卫 / 订阅同步 / 自检复核修复 |
