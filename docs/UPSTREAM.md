@@ -107,6 +107,38 @@ diff -u /tmp/acl4ssr-upstream/Clash/ChinaIp.list third-party/ACL4SSR/Clash/China
    **不允许出现「文档说已 vendor 但目录里没有」或反过来的错位。**
 4. 不拉 submodule（`--depth 1` 即可，**不要** `--recursive`）。
 
+### 3.1 上游版本状态与「最新内核」通道（2026-11-10 复核，当日已升级）
+
+> **一句话**：用户说的「新版本支持最新内核」指的是 1.9.4-release 起新增的
+> **upx 压缩内核 + 精简/标准/开发三档版本分支菜单**；设备脚本 1.9.5beta3 早在这条
+> 通道上，2026-11-10 11:06 已把内核二进制从 10/20 装入的 v1.19.28 换成作者 11/08
+> 发布的 v1.19.33（15,007,192 B），运行态 `/version` 同步返回 `v1.19.33`。
+
+| 通道 | 值 | 说明 |
+|---|---|---|
+| 正式 Release | `1.9.4-release`（2026-02-15） | Release 正文：「增加upx压缩版内核和内核版本分支选择菜单，现在支持精简版、标准版和开发版三个版本mihomo及singboxr内核下载」「优化版本回退功能，现在支持回退到近期tags」 |
+| `dev` 分支脚本 | `1.9.6alpha1` | 作者持续迭代的开发线；本仓 vendor 钉在 `de1d9e2`（2026-08-27），按 §6 带时点保留 |
+| 设备脚本 | `1.9.5beta3`（dev 裁剪版） | 比正式 Release 新，但 `scripts/menus/` 未随包安装，菜单式内核更新入口不可用 |
+| 作者 `update` 分支 | `meta_v=v1.19.33`（`GeoIP_v=20261108`） | `bin/version` 是菜单判「核心是否最新」的唯一依据；同批 2026-11-08 把 `bin/meta/clash-linux-arm64.upx` 换成 **15,007,192 B** |
+| 设备现役内核 | **`v1.19.33`** / `CrashCore.upx` **15,007,192 B** | 2026-11-10 11:06 装入（`-v` = `Mihomo Meta v1.19.33 … go1.27.3`）；`cfg core_v=v1.19.33`、运行态 `/version={"meta":true,"version":"v1.19.33"}`；旧 10,283,068 B / v1.19.28 备份在 `/root/CrashCore.upx.bak-v1.19.28-20261110` |
+
+**`custcorelink` 决定拉哪个内核**：设备当前仍钉
+`https://raw.githubusercontent.com/juewuy/ShellCrash/update/bin/meta/clash-linux-arm64.upx`。
+这个键既是「防被自动更新拉回旧版」的固定 URL，也决定下载走 `.upx` 还是 `.gz` ——
+上游 `.gz` 是 with_gvisor 约 57 MB，解压进 `/tmp`（tmpfs 48 MB）必炸；`.upx` 走 tmpfs
+适配路径。**手动升到比镜像新的版本会被自动更新拉回**，升级后 `custcorelink` 指向的就是
+作者 `update` 分支当前文件（v1.19.33），与 `core_v` 一致，下次自动更新不会再拉回旧版。
+2026-11-10 设备侧实测该 URL `HTTP/2 200`、`content-length: 15007192`、Range 可读。
+
+**升级落地记录（2026-11-10 11:06，设备维护者执行）**：用
+一份纯 LF 预置脚本（设备 `/tmp/` 留档，属内部工作副本，不随公开仓发布）
+完成「下载 → 15,007,192 B 与 `-v` 双校验 → 备份旧核 → 同目录原子 `mv` → `sed` 同步
+`core_v` → `start.sh restart` → 运行态 `/version` 验收」，核心进程始终为 1、
+探针 cron 与当日 `stats/2026-11-10.tsv` 持续在写，31 个分组与 `RULE-SET,cn` 未变。
+替换与重启同窗口由设备维护者完成，会话内不代跑长驻网关重启。升级后两仓
+`post-sc-update.sh` 的验收段已改为按 `CrashCore.upx` → `CrashCore.raw` → 运行态软链
+动态探测可执行内核跑 `-t`（见 [PITFALLS.md](PITFALLS.md) §44），不再因写死 `.raw` 漏校验。
+
 ---
 
 ## 4. GPL-3.0 的传染性：本仓整体许可意味着什么

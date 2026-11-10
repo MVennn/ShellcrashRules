@@ -171,7 +171,7 @@ config/starts/clash_modify.sh :: modify_yaml()   ← 合并链路入口（本仓
 | `config/starts/start_legacy_wd.sh` | **本仓** | 人工维护（打补丁的上游件） | cron 每分钟 |
 | `config/starts/clash_modify.sh` | **本仓**（`config/starts/clash_modify.sh`，`modify_yaml()` 全链路见 §1.1） | 人工维护；设备侧由 ShellCrash 启动 / 订阅更新调用 | ShellCrash 启动 / 订阅更新 |
 | `config/ai-api-check.sh` | **本仓** | 人工维护 | 人工（订阅更新后必跑） |
-| `config/post-sc-update.sh` | **本仓** | 人工维护 | 人工（ShellCrash 官方脚本更新后） |
+| `config/post-sc-update.sh` | **本仓** | 人工维护 | 人工（ShellCrash 官方脚本更新后）；验收段按 `CrashCore.upx` → `CrashCore.raw` → 运行态软链动态探测内核跑 `-t`（见 [PITFALLS.md](PITFALLS.md) §44） |
 | `firewall/tables/*.nft` | **本仓**（内容） | 人工维护 | **`rc.local`（`AX3000TOpenwrt` 仓）** 开机加载 + 守护进程补载 |
 | `tools/latency/archive/**` | **本仓**（归档件） | 人工维护 | 不部署，仅留档 |
 | `mihomo/` `cdn/` 诊断工具（规则审计 / 控制面诊断 / 站点可达性专项） | **`OpenwrtOpsToolkit` 仓**（公开） | 那边维护 | PC 侧人工执行，不上设备 |

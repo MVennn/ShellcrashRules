@@ -93,7 +93,18 @@ pidof CrashCore >/dev/null 2>&1 && log "CrashCore 已运行" || log "!! CrashCor
 section "5. 验收"
 RCFG=/tmp/ShellCrash/config.yaml
 if [ -s "$RCFG" ]; then
-    "$CRASHDIR"/CrashCore.raw -t -d "$CRASHDIR" -f "$RCFG" 2>&1 | tail -3 | tee -a "$LOG"
+    # 内核文件名随版本分支变化：精简/标准版是 CrashCore.upx，旧版是 CrashCore.raw，
+    # 运行态还可能是软链 /tmp/ShellCrash/CrashCore —— 写死任一名字升级后必漏校验或报 not found。
+    CORE_BIN=""
+    for c in "$CRASHDIR"/CrashCore.upx "$CRASHDIR"/CrashCore.raw /tmp/ShellCrash/CrashCore; do
+        if [ -x "$c" ]; then CORE_BIN=$c; break; fi
+    done
+    if [ -n "$CORE_BIN" ]; then
+        log "配置校验内核：$CORE_BIN"
+        "$CORE_BIN" -t -d "$CRASHDIR" -f "$RCFG" 2>&1 | tail -3 | tee -a "$LOG"
+    else
+        log "!! 未找到可执行内核（CrashCore.upx / CrashCore.raw / /tmp/ShellCrash/CrashCore），跳过 -t 校验"
+    fi
     log "分组数：$(grep -c '^  - name:' "$RCFG")"
     log "RULE-SET,cn：$(grep -c 'RULE-SET,cn,' "$RCFG")"
     grep -Fq '🤖 AI接口' "$RCFG" && log "自定义组：OK" || log "!! 自定义组缺失"

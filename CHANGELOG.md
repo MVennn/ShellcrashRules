@@ -9,6 +9,56 @@
 
 ---
 
+## [未发布]
+
+> 按 [docs/VERSIONING.md](docs/VERSIONING.md) §5：不发版不动版本号，只在本段追加条目。
+
+### 设备内核升级到 v1.19.33（2026-11-10）
+
+- 设备维护者在维护窗口用一份纯 LF 预置脚本（设备 `/tmp/` 留档，内部工作副本不随公开仓发布）执行：
+  把 `CrashCore.upx` 从 10/20 装入的 `v1.19.28`（10,283,068 B）换成作者 `update` 分支
+  11/08 发布的 `v1.19.33`（15,007,192 B），同目录原子 `mv`、`sed` 同步 `core_v=v1.19.33`、
+  `start.sh restart` 重建软链；旧核备份 `/root/CrashCore.upx.bak-v1.19.28-20261110`。
+- 为什么：机制（upx 通道 / 三档菜单）早已在位，缺的只是把二进制跟上作者 `bin/version`
+  的 `meta_v=v1.19.33`；替换与重启由设备维护者在维护窗口执行，本仓只记过程与验收，
+  未代跑长驻网关重启。
+- 验证（2026-11-10 11:09 设备只读复验）：`CrashCore.upx -v` =
+  `Mihomo Meta v1.19.33 … go1.27.3`、15,007,192 B；`cfg core_v=v1.19.33`；
+  运行态 `curl /version` = `{"meta":true,"version":"v1.19.33"}`；核心进程数 1、
+  31 个分组 / `RULE-SET,cn` 未变、探针 cron 在、`stats/2026-11-10.tsv` 仍在写。
+- 连带：[docs/UPSTREAM.md](docs/UPSTREAM.md) §3.1 当前值同步为 v1.19.33；
+  预置脚本 7/7 验收段由「`sleep 3` 单次 curl」改为「最多 20 秒轮询且判据含
+  `v1.19.33`」，避免 `start.sh` 后台拉起时 controller 未监听而空响应被 `|| true` 吞掉。
+
+### post-sc-update.sh 内核校验路径动态探测（2026-11-10）
+
+- 修 `config/post-sc-update.sh` 验收段：原 :96 写死
+  `"$CRASHDIR"/CrashCore.raw -t -d "$CRASHDIR" -f "$RCFG"`，在只有 `CrashCore.upx`
+  （ShellCrash 1.9.5beta3 起精简 / 标准版内核）的设备上直接 `not found`、`-t` 没跑。
+  改为按 `CrashCore.upx` → `CrashCore.raw` → `/tmp/ShellCrash/CrashCore` 顺序探测第一个
+  可执行内核，找到记一行 `配置校验内核：…`，三者都不在时显式 log 告警而非静默跳过。
+- 为什么：内核文件名随版本分支变，写死任一个都会漏掉另两种布局；设备 2026-11-10 实况为
+  仅 `CrashCore.upx`（10,283,068 B / v1.19.28）+ `/tmp/ShellCrash/CrashCore` 软链。
+- 验证：`sh -n` rc=0；五场景 fixture 全过（upx 优先 / 仅 raw 兼容旧环境 / 仅软链回退 /
+  全无告警 / 显式覆盖不回归）；改后 119 行纯 LF，md5 `2c8dcca32f3de81f705b1e65be481f3b`。
+  设备侧部署的是 OpenwrtOpsToolkit 通用版（见该仓 CHANGELOG），本仓脚本为配置仓正本。
+- 文档：[docs/PITFALLS.md](docs/PITFALLS.md) §44、[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) §10、
+  [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §4.5。
+
+### 补上游版本状态与「最新内核」通道说明（2026-11-10）
+
+- [docs/UPSTREAM.md](docs/UPSTREAM.md) 新增 §3.1：正式 Release `1.9.4-release` 起支持 upx
+  压缩内核与精简/标准/开发三档；对照 `dev=1.9.6alpha1` / 设备脚本 `1.9.5beta3` /
+  `update` 分支 `meta_v=v1.19.33`（11/08 换 15,007,192 B `.upx`） / 升级前调研时点设备现役 `v1.19.28`；
+  说明 `custcorelink` 决定拉 `.upx` 还是会撑爆 `/tmp` 的 `.gz`，以及「升级只差设备侧替换 + 重启」（当日 11:06 已执行，见本段「设备内核升级到 v1.19.33」条）。
+- 为什么：全仓扫描 1176 文件的复核显示「新版本支持最新内核」在两仓文档里**零落点**，
+  用户问的版本状态只能靠现场 SSH 取证；补进调研正本后不再需要每次重新查。
+- 未重新 vendor：现有副本是 `dev @ de1d9e2`（2026-08-27）带时点快照，按
+  [docs/DOC-RULES.md](docs/DOC-RULES.md) §6 保留；重 vendor 会冲掉 §2 的 4 处补丁点基线，
+  属于独立变更，不在本次范围。
+
+---
+
 ## [0.6.0] — 2026-11-06
 
 ### 门禁脚本 GBK 控制台自毁修复（2026-11-04）

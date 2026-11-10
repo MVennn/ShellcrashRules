@@ -354,6 +354,33 @@ ssh root@<REPLACE-ROUTER-LAN-IP> "grep -n 'rules-cnip\|rules-dedup' /etc/ShellCr
 
 ---
 
+<a id="ts-core-bin"></a>
+
+## 10. 升级后验收没跑 `-t`，或报 `CrashCore.raw: not found`
+
+**现象**：跑完 `post-sc-update.sh`，日志「===== 5. 验收 =====」里没有
+`配置校验内核：…`，或者出现 `ash: /etc/ShellCrash/CrashCore.raw: not found`；
+分组数 / 规则数照常打印，容易误以为全过。
+
+**排查步骤**（只读）：
+
+```sh
+ssh root@<REPLACE-ROUTER-LAN-IP> 'ls -l /etc/ShellCrash/CrashCore.* /tmp/ShellCrash/CrashCore'
+ssh root@<REPLACE-ROUTER-LAN-IP> 'grep -n CrashCore /etc/ShellCrash/post-sc-update.sh | tail -8'
+```
+
+**判据 / 解法**：
+
+| 看到什么 | 说明 | 怎么做 |
+|---|---|---|
+| 只有 `CrashCore.upx` + 软链，没有 `.raw` | 新版 upx 内核布局，旧版验收段写死了 `.raw` | 同步本仓 `config/post-sc-update.sh` 与 OpenwrtOpsToolkit `openwrt/post-sc-update.sh` 的动态探测版；已部署副本按「备份 → md5 → 原子 `mv`」替换，**不重启核心** |
+| 有 `.raw` 却仍报 `not found` | 文件没可执行位 / 路径不是 `$CRASHDIR` | `chmod 755`；核对 `CRASHDIR` 是否指向 `/etc/ShellCrash` |
+| 日志里有 `!! 未找到可执行内核` | 三种候选都不在 | 先确认核心进程在不在（`pidof CrashCore`），再查 `$RUNTIME_DIR` 软链 |
+
+**根治**：[PITFALLS.md](PITFALLS.md) §44 —— 校验路径必须走「候选列表 + `-x` 探测」，跳过分支必须留日志。
+
+---
+
 ## 还没找到？
 
 1. 先跑 `ai-api-check.sh` —— 17 段覆盖了本仓最容易悄悄坏掉的十几个点。

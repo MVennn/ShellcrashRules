@@ -987,3 +987,29 @@ HTTP 200 **且响应体含 `"delay"`**；`pool_health()`、`pick_live_node()`、
   非 GBK 字符降级成 `?` 而不是抛异常。同一问题首次记录见 ZcodeAIModels 仓「踩坑总汇」第 36 节（跨仓引用，非本仓路径）。
 - **验证**：`python -I tools/check-docs.py` → `[OK] …`、退出码 0；反证：把 `✓` 改回原样，
   同一命令退出码 1 并抛 `UnicodeEncodeError`。
+
+<a id="p44"></a>
+
+## 44. 升级后验收写死 `CrashCore.raw`，upx 内核的设备会漏掉 `-t` 校验 【通用】
+
+- **现象**：ShellCrash 1.9.5beta3 起提供 upx 压缩内核（`CrashCore.upx`），设备安装后
+  `/etc/ShellCrash/` 里只有 `CrashCore.upx` + `/tmp/ShellCrash/CrashCore` 软链，
+  **没有** `CrashCore.raw`。跑完 `post-sc-update.sh` 后：本仓版在验收段直接报
+  `ash: /etc/ShellCrash/CrashCore.raw: not found`（`-t` 没跑）；OpenwrtOpsToolkit 通用版
+  因为有 `[ -x "$CORE_BIN" ]` 保护，连报错都没有 —— 校验被**静默跳过**，日志照写
+  「===== 5. 验收 =====」，配置错了也看不出来。2026-11-10 真机核对确认该布局。
+- **根因**：两处验收段把内核文件名当常量写死 —— `config/post-sc-update.sh:96` 是
+  `"$CRASHDIR"/CrashCore.raw -t …`；OpenwrtOpsToolkit `openwrt/post-sc-update.sh:64`
+  默认 `CORE_BIN=$CRASHDIR/CrashCore.raw`、:196 用 `[ -x "$CORE_BIN" ]` 短路。
+  文件名随版本分支变：精简/标准版用 `.upx`，旧版用 `.raw`，运行态统一是
+  `$RUNTIME_DIR/CrashCore` 软链。写死任意一个都会漏掉另两种。
+- **解法**：验收段按 **`CrashCore.upx` → `CrashCore.raw` → `$RUNTIME_DIR/CrashCore`**
+  顺序探测第一个 `[ -x ]` 的可执行内核，找到就 `log "配置校验内核：$CHECK_BIN"` 再跑 `-t`；
+  三者都不在时**显式 log 告警**（`!! 未找到可执行内核…跳过 -t 校验`），不要静默跳过。
+  Ops 版保留 `CORE_BIN` 配置显式覆盖优先（`-x` 命中就不回退探测），启动链路
+  `pidof "$CORE_PROC"` 一行不动。
+- **下次怎么避**：凡是要 exec 内核二进制做校验 / 取版本号，路径一律走「候选列表 + `-x`
+  探测」，别把 `-t` 挂在某个具体文件名上；验收段的「跳过」分支必须留日志，否则巡检会假绿。
+- **验证**：五场景 fixture（upx+raw 并存→选 upx、仅 raw→选 raw、仅软链→选软链、
+  全无→显式告警、`CORE_BIN` 显式覆盖→不回退）全过；设备实况探测命中
+  `/etc/ShellCrash/CrashCore.upx`（`Mihomo Meta v1.19.28`）；两脚本 `sh -n` rc=0。
