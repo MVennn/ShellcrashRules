@@ -21,7 +21,7 @@
 
 本仓补两件事：
 
-- **配置层** —— 自定义策略组、AI 分流规则，以及订阅合并后的两个处理钩子（CN 直连中间层、策略组去重重排）
+- **配置层** —— 自定义策略组、AI 分流规则，以及订阅合并后的四个处理钩子（porn provider 注入、CN 直连中间层、CN IP 折叠、策略组去重重排）
 - **防火墙层** —— 三张独立 nft 表：QUIC 全局阻断、Google 国内边缘段重定向、Google 推送端口与 DNS 劫持。ShellCrash 每次重启都会重写它自己的整表，所以这三张必须独立存在
 
 **这是一份脱敏后的参考实现**：策略组名、节点名、服务器域名、IPv6 前缀等设备 / 订阅相关的值
@@ -61,16 +61,22 @@ Redir 模式只代理 TCP，UDP 一律直出 —— 这是本仓一半坑的来�
    ```
 
    退出码 0 = 全过。它覆盖最容易悄悄坏掉的十几个点（钩子丢失、QUIC 阻断表没加载、Google 出口规则被冲掉……）。
-5. 查策略组、测节点延迟、跑规则审计 —— 脚本在 `OpenwrtOpsToolkit` 仓，用法见 [docs/TOOLS.md](docs/TOOLS.md)。
-6. 出问题先查 [docs/PITFALLS.md](docs/PITFALLS.md) 与 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)。
+5. **ShellCrash 官方脚本更新后必跑恢复脚本** —— 官方 tarball 会覆盖 `starts/` 里三个打过本地补丁的文件，脚本按标记串逐个判断、缺失就从 `local-patches/` 恢复，最后按内核真实布局（`CrashCore.upx` → `CrashCore.raw` → 运行态软链）跑 `-t` 验收：
+
+   ```sh
+   ssh root@<路由器> 'sh /etc/ShellCrash/post-sc-update.sh'
+   ```
+
+6. 查策略组、测节点延迟、跑规则审计 —— 脚本在 `OpenwrtOpsToolkit` 仓，用法见 [docs/TOOLS.md](docs/TOOLS.md)。
+7. 出问题先查 [docs/PITFALLS.md](docs/PITFALLS.md) 与 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)。
 
 ## 目录
 
 ```
-config/         ShellCrash 扩展配置：策略组、规则生成器、合并钩子、节点模板
+config/         ShellCrash 扩展配置：策略组、规则生成器、四个合并钩子、starts 补丁、fakeip 排除清单、节点模板，外加自检与官方更新后恢复脚本
 firewall/       三张独立 nft 表与配套脚本
 docs/           文档（唯一索引：docs/README.md）
-tools/          节点筛选、延迟探测、文档自检与密钥守卫
+tools/          公开节点筛选（tools/public-nodes，见其 README）、文档自检、密钥与金库守卫、门面资源生成
 third-party/    随仓分发的上游规则列表与 starts 补丁（各自保留许可证）
 assets/         logo 与社交预览
 ```

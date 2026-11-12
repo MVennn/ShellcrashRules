@@ -14,6 +14,7 @@
 | 控制 API 客户端 `mihomo_api.py` | `OpenwrtOpsToolkit` 仓 `mihomo/` | PC 侧 | ❌ 只读 |
 | 节点延迟探测 `latency_probe.py` | `OpenwrtOpsToolkit` 仓 `mihomo/` | PC 侧 | ❌ 只读 |
 | 规则审计器 `rule_audit.py` | `OpenwrtOpsToolkit` 仓 `mihomo/` | PC 侧 | ❌ 只读 |
+| 公开节点筛选 `screen.py` / 多源对比 `evaluate.py` | 本仓 `tools/public-nodes/` | PC 侧（免密 SSH 到路由器） | ⚠️ 会重写路由器 `yamls/proxies.yaml` 的公共节点块并重启核心（写前备份） |
 | 规则审计口径与结论 | [RULE-AUDIT.md](RULE-AUDIT.md) | — | — |
 
 > 通用诊断工具**不在本仓**（本仓是参考实现，工具箱仓是公开仓）—— 边界见
@@ -125,7 +126,53 @@ python mihomo/latency_probe.py
 
 ---
 
-## 7. 相关文档
+## 7. 筛选公开节点（tools/public-nodes）
+
+PC 侧跑：每天拉取五个公开节点源 → 过滤去重 → 推到路由器用 mihomo 实测 → 只把存活且延迟合格的节点留在 `🆓 公共备用` 组。
+
+**前置**：Python 3.10+ 与 `PyYAML`；免密 SSH 到路由器（默认 `root@10.0.0.1`，用环境变量 `ROUTER_SSH` 覆盖）；设备上已有 `🆓 公共备用` 组（`config/yamls/proxy-groups.yaml`）。
+
+```bash
+python tools/public-nodes/screen.py --dry-run   # 只拉取 + 筛选，不碰路由器
+python tools/public-nodes/screen.py             # 日常增量：现有存活 + 新节点 + 冷却到期的死节点
+python tools/public-nodes/screen.py --full      # 全量扫描（约 3-5 分钟，会重启核心 3-4 次）
+```
+
+| 参数 | 含义 | 默认 |
+|---|---|---|
+| `--max-new` | 单轮最多测多少条新节点 | 200 |
+| `--max-keep` | 最终最多保留多少条存活节点 | 16 |
+| `--max-delay` | 延迟超过多少毫秒不保留 | 800 |
+| `--max-per-type` / `--max-per-base` | 同一协议 / 同一 `/24`（或根域）最多保留几条 | 8 / 5 |
+| `--batch-size` | 每批加载多少条（路由器内存有限，别超过 60） | 50 |
+| `--settle` | 重启后等健康检查的秒数 | 25 |
+
+多源对比（同一批大小、同一台路由器实测，测完自动恢复现有兜底节点）：
+
+```bash
+python tools/public-nodes/evaluate.py --only ermaozi-reachable,ermaozi-all --sample 120
+```
+
+| 参数 | 含义 | 默认 |
+|---|---|---|
+| `--only` | 逗号分隔，只跑指定源（名称见脚本内 `SOURCES`） | 全部源 |
+| `--sample` | 每个源测多少条 | 120 |
+| `--per-type` / `--per-base` | 每协议 / 每 `/24` 或根域最多进池几条 | 60 / 2 |
+| `--batch` / `--settle` | 每批条数 / 重启后等待秒数 | 45 / 25 |
+
+`uri_parse.py` 负责把 Base64 / V2Ray URI 订阅（vless / vmess / trojan / ss / hysteria2）转成 Clash 节点，`evaluate.py` 会自动识别 Clash YAML 或 URI 列表。
+
+**产物**：路由器 `/etc/ShellCrash/yamls/proxies.yaml` 里的 `# >>> PUBLIC-NODES` 标记块（写前备份为 `proxies.yaml.bak-public-screen-<时间戳>`，设备上只留最近 20 份）；PC 侧 `.work/public-nodes/` 下 `state.json`（节点指纹 → 存活/死亡、延迟、失败次数）、`screen.log`、`task.log`，全部在 `.gitignore` 内。
+
+**定时任务**：Windows 任务 `ShellcrashRules-PublicNodes` 每天 11:00 跑一次增量，动作是 `pythonw.exe tools\public-nodes\run-daily-hidden.pyw`，由它转调 `run-daily.cmd`（日志轮转、UTF-8、python 调用只在 `.cmd` 里维护），全程无控制台窗口。
+
+- `run-daily.cmd` 保持纯 ASCII、不用多行 `if`：计划任务用 cmd.exe + 936 代码页跑，UTF-8 中文注释与多行 `if` 都会让脚本在 python 启动前夭折。
+- 判据：一轮跑完日志里应有 `本轮存活 X 条；最终保留 Y 条` 且 `Y > 0`；`Y = 0` 时脚本返回 1。
+- 数据源清单、写空事故的两层兜底、内核路径预检与回滚，见 [tools/public-nodes/README.md](../tools/public-nodes/README.md)。
+
+---
+
+## 8. 相关文档
 
 | 要查什么 | 去哪 |
 |---|---|

@@ -984,7 +984,7 @@ HTTP 200 **且响应体含 `"delay"`**；`pool_health()`、`pick_live_node()`、
   不是解法 —— 必须改脚本。
 - **解法**：结论行只用 ASCII（`[OK]` / `[FAIL]` / `[!]`）；入口再加
   `if hasattr(sys.stdout, "reconfigure"): sys.stdout.reconfigure(errors="replace")`，
-  非 GBK 字符降级成 `?` 而不是抛异常。同一问题首次记录见 ZcodeAIModels 仓「踩坑总汇」第 36 节（跨仓引用，非本仓路径）。
+  非 GBK 字符降级成 `?` 而不是抛异常。同一问题首次记录见 ModelBus 仓「踩坑总汇」第 36 节（跨仓引用，非本仓路径）。
 - **验证**：`python -I tools/check-docs.py` → `[OK] …`、退出码 0；反证：把 `✓` 改回原样，
   同一命令退出码 1 并抛 `UnicodeEncodeError`。
 
@@ -1013,3 +1013,47 @@ HTTP 200 **且响应体含 `"delay"`**；`pool_health()`、`pick_live_node()`、
 - **验证**：五场景 fixture（upx+raw 并存→选 upx、仅 raw→选 raw、仅软链→选软链、
   全无→显式告警、`CORE_BIN` 显式覆盖→不回退）全过；设备实况探测命中
   `/etc/ShellCrash/CrashCore.upx`（`Mihomo Meta v1.19.28`）；两脚本 `sh -n` rc=0。
+
+<a id="p45"></a>
+
+## 45. 转换器 `new_name=true` 会改写节点名，按名字比对必然全部 miss 【通用】
+
+- **现象**：`sub-sync.sh` 每天在 `sub-sync.log` 里写
+  `WARN: 待补节点 31 个，超过安全上限 20，疑似基准解析异常，保留现有块`，
+  但待补的其实是**已存在**的节点。结果 `SUB-SYNC` 块里的 hysteria2 三条线一直停在
+  2026-10-22 抓的旧服务器，机场换服务器后从面板上看节点还在，实际连不上。
+- **根因**：ShellCrash 的订阅转换（`url_id` 走 server 转换）开了 `new_name=true`，
+  把订阅里的 `日本-优化` 改名成 `🇯🇵 日本-优化` 并加序号。`sub-sync.sh` 用
+  「转换后配置里的节点名」当 `have` 列表，拿原始订阅的**原名**去比对 → 一条都不命中；
+  待补数恒等于节点总数（31），越过 20 条保护线后就永久走「保留现有块」分支 ——
+  保护逻辑把真问题掩盖成了「基准解析异常」。
+- **解法**：比对基准里再抽一张端点表
+  （`sed -n 's/.*server: *\([^,[:space:]]*\), *port: *\([0-9][0-9]*\).*/\1:\2/p'`），
+  先比名字，未命中的再比 `server:port`；上限别写死，按基准数量折半再夹到 10~40。
+  日志把两种命中分开打印（`名字命中` / `端点命中（转换器改名）`），改名再变动时一眼能看出来。
+- **下次怎么避**：凡是拿「订阅侧名字」去比「转换后配置」的脚本，都要给一个与名字无关的
+  稳定键（端点、`uuid`、`password`）。名字在转换链路上是**展示字段**，不是标识。
+- **验证**：设备跑一次得到 `名字命中 0，端点命中 27，待补 4 条`，补完 4 条 HY2 实测
+  48–117 ms 全通；`sh -n` rc=0。
+
+<a id="p46"></a>
+
+## 46. 热更新 `PUT /configs` 的内存峰值会把小内存路由器打 OOM 【通用】
+
+- **现象**：点「更新订阅」/ 每周 `auto-update.sh` 跑完，路由器短暂全网断代理；
+  `dmesg` 留 `Out of memory: Killed process (CrashCore) … anon-rss:64780kB`，
+  `guardian.log` 同时报「可用内存仅 27MB」。用户侧就是「更新完订阅就连不上，过几分钟自己好」。
+- **根因**：mihomo 热更新是 `PUT /configs` 带上整份新配置做 reload，新旧两份配置、
+  规则集与 DNS 缓存在切换窗口内同时驻留，峰值约等于常驻的两倍。AX3000T 总内存
+  239 MB、CrashCore 常驻 66–72 MB，余量只有 30 MB 左右，必然被 OOM killer 挑中。
+  进程被杀后端口不再监听，而唯一兜底的 `guardian` 是 `*/5` 分钟一轮 —— 最长 5 分钟空窗。
+- **解法**：`auto-update.sh` 的 hotupdate 成功分支之后加**探活 10s**
+  （`pidof CrashCore` + `netstat -lnt | grep :7890`），不活就立刻 `start.sh start`，
+  不等 guardian。要根治得降峰值：拆小规则集、`rule-providers` 走 `on-demand`、
+  或把整份 reload 换成「先 stop 再 start」（牺牲可用性换内存，按需选）。
+- **下次怎么避**：任何「整份配置 reload」的自动化都要在**自己这一步**兜底拉起，
+  不能假定外部看门狗会及时救；探活判据用「进程在 + 端口在」两个条件，只看 `pidof` 会漏
+  掉进程活着但监听失败的半死状态。
+- **验证**：改后 `sh -n` rc=0，md5 与设备 `/etc/ShellCrash/auto-update.sh` 一致；
+  手动 `start.sh start` 后 7890/7892 恢复监听、`google`/`opencode` 均 200。
+

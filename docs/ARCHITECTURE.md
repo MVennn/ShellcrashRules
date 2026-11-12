@@ -181,7 +181,7 @@ config/starts/clash_modify.sh :: modify_yaml()   ← 合并链路入口（本仓
 | `guardian.sh`（守护进程） | **`AX3000TOpenwrt` 仓** | 那边 | cron 每 5 分钟：补载三表、节点劣化复位、干净出口守护 |
 | `bulk-guard.sh`（大流量守卫） | **`OpenwrtOpsToolkit` 仓** | 那边 | cron 每 10 分钟：按真实吞吐切 `📺 大流量`（公共池 ↔ 机场） |
 | `rule-providers.porn`（`category-porn.mrs`） | **上游 MetaCubeX** | 本仓 `rules-porn.sh` 只注入 provider 条目；mihomo 按 `interval: 86400` 自行更新 | `RULE-SET,porn,📺 大流量`（规则由 `ai-rules-update.sh` I 段输出） |
-| `/etc/mixedport.nft`（7890 收口） | **`AX3000TOpenwrt` 仓** | 那边 | `rc.local` 引用 —— ⚠️ **该文件在本仓与设备上都需确认存在**（历史记录里被引用但缺失） |
+| `/etc/mixedport.nft`（7890 收口） | **`AX3000TOpenwrt` 仓** | 那边 | 源文件是兄弟仓的 `system/mixedport.nft`（0.6.0 起随仓入库）；设备上 `rc.local` 开机加载、`guardian.sh` 补载 |
 | `recover-now.sh` 等恢复脚本 | **`AX3000TOpenwrt` 仓** | 那边 | 人工 |
 | ShellCrash 本体（`/etc/ShellCrash` 其余部分） | **ShellCrash 官方** | 官方更新 | 官方脚本更新会覆盖 `starts/` → 由 `post-sc-update.sh` 恢复本仓的补丁 |
 

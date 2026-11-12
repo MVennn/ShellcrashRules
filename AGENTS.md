@@ -38,5 +38,5 @@
 
 ## 6. 边界
 
-- 路由器系统层在 `AX3000TOpenwrt`；通用工具与 mihomo 控制面诊断在 `OpenwrtOpsToolkit`；控制台在 `OpenwrtConsole`；网关侧在 `ZcodeAIModels`。
+- 路由器系统层在 `AX3000TOpenwrt`；通用工具与 mihomo 控制面诊断在 `OpenwrtOpsToolkit`；控制台在 `OpenwrtConsole`；网关侧在 `ModelBus`（原 ZcodeAIModels）。
 - `third-party/` 是 vendored 上游，一个字节都不动。
