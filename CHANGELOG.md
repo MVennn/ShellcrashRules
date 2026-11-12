@@ -9,9 +9,46 @@
 
 ---
 
-## [未发布]
+## [0.6.1] — 2026-11-12
 
-> 按 [docs/VERSIONING.md](docs/VERSIONING.md) §5：不发版不动版本号，只在本段追加条目。
+> 补丁版本：没有新增能力，只修缺陷与对齐文档口径（进位依据见 [docs/VERSIONING.md](docs/VERSIONING.md) §1）。
+
+### 订阅补齐改用端点比对，修机场改名导致 4 条 HY2 长期不刷新（2026-11-12）
+
+- 修 `config/starts/sub-sync.sh`：比对基准新增端点表（`server:port`），先从订阅抽
+  `$TMP.eps`，比对时**先比名字、未命中的再比端点**；待补上限由固定 20 改为按基准
+  数量折半（`HAVE_N/2`，夹在 10~40），并新增一行日志
+  「比对：名字命中 X，端点命中 Y（转换器改名），待补 N 条」。
+- 为什么：转换器带 `new_name=true` 会把订阅里的「日本-优化」改写成「🇯🇵 日本-优化」，
+  `sub-sync.sh` 只按名字比对 → 全部 miss → 待补 31 条越过 20 条安全上限 → 每天 WARN
+  「疑似基准解析异常，保留现有块」。2026-11-09 起连撞四天，结果 `SUB-SYNC` 块里 4 条
+  HY2 一直停在 10-22 抓的旧服务器（`pbp7s`/`yh7pz`/`inddj`/`yylm8`），而订阅早已轮换为
+  `au8bc`/`nvp1u`/`k9sjl`/`c53qt` —— 换机场服务器后这批节点实际已死，面板看着还在。
+- 验证（设备实跑）：`比对：名字命中 0，端点命中 27（转换器改名），待补 4 条` /
+  `OK: 转换后缺 4 个节点，已同步（基准 28 个 / 端点 27 个）`；4 条 HY2 刷新后实测
+  日本 103ms、新加坡 48ms、香港 82ms、韩国 117ms 全部可达；`sh -n` rc=0。
+- 文档：[docs/PITFALLS.md](docs/PITFALLS.md) §45。
+
+### 订阅热更新后探活兜底，修 OOM 被杀后 5 分钟断网（2026-11-12）
+
+- 修 `config/generators/auto-update.sh`：`task.sh hotupdate` 成功分支之后加「探活 10s」
+  （`pidof CrashCore` + `netstat` 看 `:7890`），不活就立刻 `start.sh start`。
+- 为什么：热更新走 `PUT /configs` 整份 reload，内存峰值约常驻的两倍。AX3000T 只有
+  239 MB，实测被 OOM killer 杀掉（`Killed process (CrashCore) anon-rss 66MB`），
+  核心不监听；`guardian` 每 5 分钟一轮才拉起，这 5 分钟里全网断代理，用户侧表现为
+  「订阅更新完就连不上」。原来只靠 guardian 兜底，等于默认接受 5 分钟空窗。
+- 验证：`sh -n` rc=0；md5 `81D54FA731AAD6B32807444FD738AE42` 与设备
+  `/etc/ShellCrash/auto-update.sh` 一致。
+
+### ai-api-check.sh 部署对齐仓内规则（2026-11-12）
+
+- 设备 `/etc/ShellCrash/ai-api-check.sh` 被覆盖回仓内版（25237 B，md5
+  `6507E25C42659CF1764A3645134F192A`）。
+- 为什么：设备上是旧版（25116 B），仍按 `📺 大流量` 校验 `download2.epicgames.com` /
+  `cdn.blizzard.com` / `dyn.riotcdn.net`，而仓内 2026-10-30（`e0aa4b3`）起这三条已归
+  `🎯 全球直连`。规则本身没丢，是部署漂移 → 每天 05:05 的 `daily-ai-check` 假红
+  （`LAST_FAILURE`: 2026-11-12 05:05:04）。
+- 验证：设备实跑自检 `grep -c '^FAIL'` = 0，末行「结果: 全部通过」。
 
 ### 设备内核升级到 v1.19.33（2026-11-10）
 
@@ -56,6 +93,21 @@
 - 未重新 vendor：现有副本是 `dev @ de1d9e2`（2026-08-27）带时点快照，按
   [docs/DOC-RULES.md](docs/DOC-RULES.md) §6 保留；重 vendor 会冲掉 §2 的 4 处补丁点基线，
   属于独立变更，不在本次范围。
+
+### 文档口径与索引对齐（2026-11-12）
+
+- 修 `README.md`：合并钩子数由两个更正为**四个**（porn provider 注入、CN 直连中间层、
+  CN IP 折叠、策略组去重重排）；补第 5 步「ShellCrash 官方脚本更新后必跑
+  `sh /etc/ShellCrash/post-sc-update.sh`」；目录说明补 `starts` 补丁、fakeip 排除清单与
+  两个恢复/自检脚本。
+- 修 `docs/ARCHITECTURE.md`：`/etc/mixedport.nft` 出处更正为兄弟仓 `system/mixedport.nft`
+  （0.6.0 起随仓入库），删掉「该文件在本仓与设备上都需确认存在」的过期告警。
+- 新增 `docs/TOOLS.md` §7「筛选公开节点」：`screen.py` / `evaluate.py` 的跑法、参数默认值、
+  产物位置与每日 11:00 计划任务的判据 —— 工具 0.6.0 已随仓，缺的一直是用法正本。
+- 调整 `docs/README.md`、`AGENTS.md`：索引补「公开节点筛选」定位；网关仓名
+  `ZcodeAIModels` → `ModelBus`（改名后旧称已失效）。
+- 为什么：`e5c35ee` 起 docs 精简，钩子计数、`mixedport.nft` 出处与仓名与实际不符，
+  使用者照文档找会找错地方。
 
 ---
 
