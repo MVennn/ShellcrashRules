@@ -7,7 +7,12 @@
 # 唯一被判 cc=SG 的干净出口在路由器上完全不可见，Gemini 报「不支持此国家」。
 #
 # 做法：把原始订阅（UA clash.meta）与**转换后的配置**逐节点比对，只把「转换后
-# 没有的」追加进 proxies.yaml 的 SUB-SYNC 块。所以：
+# 没有的」追加进 proxies.yaml 的 SUB-SYNC 块。
+#
+# 比对基准有两份（2026-11-12）：转换器带 new_name=true，会把节点改名成
+# 「🇯🇵 日本-优化」，原始订阅里还是「日本-优化」—— 只按名字比会把整批节点
+# 判成「丢了」，11-09~11-12 每天都因此撞上限、块里 4 条 HY2 一直是旧服务器。
+# 所以先比名字，再比 server:port（改名不改端点）。所以：
 #   - 转换器支持了某类节点 → 块自动变空，不会重名；
 #   - 机场将来又加一类节点 → 自动补上，不需要再改代码。
 #
@@ -62,6 +67,11 @@ if [ "$HAVE_N" -lt 10 ]; then
     exit 0
 fi
 
+# 端点基准：改名后的节点靠 server:port 认领，避免把「转换器已包含」当成「丢了」。
+sed -n 's/.*server: *\([^,[:space:]]*\), *port: *\([0-9][0-9]*\).*/\1:\2/p' "$CONVERTED" \
+    | sort -u > "$TMP.eps"
+EPS_N=$(wc -l < "$TMP.eps")
+
 if ! "$CURL" -sf --connect-timeout 3 -m 15 -A "$UA" "$URL" -o "$TMP.raw"; then
     log "WARN: 原始订阅拉取失败，保留现有块"
     exit 0
@@ -77,20 +87,36 @@ grep -E "^ *- *\{ *name:" "$TMP.raw" \
     | sed "s/^ *- *{ *name: */- {name: /" \
     | sed "s/ *} *$/}/" > "$TMP.all"
 
+SEEN_NAME=0
+SEEN_EP=0
 : > "$TMP.nodes"
 while IFS= read -r line; do
     n=$(echo "$line" | sed -n "s/^- {name: \([^,]*\),.*/\1/p" | sed "s/^ *//;s/ *$//")
     [ -z "$n" ] && continue
-    grep -qxF "$n" "$TMP.have" && continue
+    if grep -qxF "$n" "$TMP.have"; then
+        SEEN_NAME=$((SEEN_NAME + 1))
+        continue
+    fi
+    ep=$(echo "$line" | sed -n "s/.*server: *\([^,[:space:]]*\), *port: *\([0-9][0-9]*\).*/\1:\2/p" | head -1)
+    if [ -n "$ep" ] && grep -qxF "$ep" "$TMP.eps"; then
+        SEEN_EP=$((SEEN_EP + 1))
+        continue
+    fi
     echo "$line" >> "$TMP.nodes"
 done < "$TMP.all"
 N=$(wc -l < "$TMP.nodes")
 
-# 一次性补进 20 个以上说明基准解析错了（会与订阅重名），宁可不动
-if [ "$N" -gt 20 ]; then
-    log "WARN: 待补节点 $N 个，超过安全上限 20，疑似基准解析异常，保留现有块"
+# 上限按基准比例判定：基准正常时「真丢」的节点只有个位数（转换器不认的协议类型），
+# 绝不可能达到基准节点数的一半。固定 20 的写法在机场节点变多、或转换器改名时
+# 会把正常差集也拦下（2026-11-09~11-12 连撞四天，HY2 的旧服务器一直刷不进来）。
+LIMIT=$((HAVE_N / 2))
+[ "$LIMIT" -gt 40 ] && LIMIT=40
+[ "$LIMIT" -lt 10 ] && LIMIT=10
+if [ "$N" -gt "$LIMIT" ]; then
+    log "WARN: 待补节点 $N 个，超过上限 $LIMIT（基准 $HAVE_N），疑似基准解析异常，保留现有块"
     exit 0
 fi
+log "比对：名字命中 $SEEN_NAME，端点命中 $SEEN_EP（转换器改名），待补 $N 条"
 
 # 补国旗前缀，与订阅里其它节点的命名风格一致（未知地区保持原名）
 if [ "$N" -gt 0 ]; then
@@ -135,5 +161,5 @@ fi
 sync
 mv -f "$TMP.new" "$TARGET"
 echo "$NOW" > "$TSF"
-log "OK: 转换后缺 $N 个节点，已同步（基准 $HAVE_N 个）"
+log "OK: 转换后缺 $N 个节点，已同步（基准 $HAVE_N 个 / 端点 $EPS_N 个）"
 exit 0
