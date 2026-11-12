@@ -30,6 +30,19 @@ SKIP=0
 	if [ "$SKIP" -eq 0 ]; then
 		if "$CRASHDIR/task/task.sh" hotupdate; then
 			echo "hotupdate: OK"
+			# 热更新走 PUT /configs 整份 reload，内存峰值约等于常驻的两倍：
+			# 239MB 的 AX3000T 上实测被 OOM killer 杀掉（dmesg: Killed process
+			# (CrashCore) anon-rss 66MB），guardian 每 5 分钟才拉起，期间全网断代理。
+			# 这里探活 10s，不活就立刻 start.sh start，不等 guardian。
+			i=0
+			while [ "$i" -lt 10 ]; do
+				pidof CrashCore >/dev/null 2>&1 && netstat -lnt 2>/dev/null | grep -q ':7890' && break
+				sleep 1; i=$((i+1))
+			done
+			if ! pidof CrashCore >/dev/null 2>&1 || ! netstat -lnt 2>/dev/null | grep -q ':7890'; then
+				echo "  热更新后核心未存活（疑似 OOM），立即重新拉起"
+				sh "$CRASHDIR/start.sh" start
+			fi
 		else
 			echo "hotupdate: FAILED（订阅转换服务 api.v1.mk 间歇性失败，属免费公共服务限流）"
 			echo "  改用本地 yaml 重建配置兜底：start.sh start 会用 yamls/ 重新生成并热加载"
