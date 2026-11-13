@@ -9,6 +9,48 @@
 
 ---
 
+## [未发布]
+
+### 补 8 条兜底与支付域规则，修 stripe 被 Netflix IP 段劫持（2026-11-13）
+
+- 改 `config/generators/ai-rules-update.sh`：P0 段（`:50-62`）新增 4 条 ——
+  `DOMAIN-SUFFIX,stripe.com,🚀 节点选择`、`cdn.ldstatic.com`、`s.immersivetranslate.com`、
+  `cloudflare-dns.com` 同组；分类段补 `api.gemai.cc`→🤖 人工智能（`:348`）、
+  `gh-proxy.com` / `ghfast.top`→🔗 GitHub 出口（`:488`）、`c.tenor.com`→🌍 国外媒体（`:517`）；
+  末尾加 8 条 grep 自检与一条 awk 顺序断言（`:719-735`）。
+- 为什么：11 天流量日志里 `gh-proxy.com`（26.1 MB）、`cdn.ldstatic.com`（13.8 MB）、
+  `s.immersivetranslate.com`（9.8 MB）、`cloudflare-dns.com`（6.7 MB）、`c.tenor.com`
+  （6.1 MB）、`api.gemai.cc`（4.7 MB）**全部落 MATCH 兜底**走 🐟 漏网之鱼，合计 67 MB。
+- 为什么 stripe 必须排在所有 IP-CIDR 之前：stats 里 `m.stripe.com` 挂在「🎥 NETFLIX」
+  组下（37,313 字节）—— 模板的 `IP-CIDR,34.208.0.0/12,🎥 NETFLIX` 比
+  `DOMAIN-SUFFIX,stripe.com,🌍 国外媒体` 更早，先匹配先赢，**支付域从来没走过国外媒体**。
+- `cloudflare-dns.com` 落 🚀 节点选择而不是 🎯 全球直连：路由器上直连实测
+  `curl https://cloudflare-dns.com/dns-query` → 000（握手即失败），直连等于废掉该 DoH 端点。
+- 验证：生成器实跑 678 行 / 39,628 B、规则 511 → 519（+8）；运行态 `/tmp/ShellCrash/config.yaml`
+  的 `rules:` 段首条即 stripe（第 583 行），早于 `IP-CIDR,34.208.0.0/12`（第 2921 行）；
+  实测 `gh-proxy.com` → DomainSuffix → 🔗 GitHub 出口、`s.immersivetranslate.com` →
+  DomainSuffix → 🚀 节点选择；`sh /etc/ShellCrash/ai-api-check.sh` 17 段全过。
+- 负向自检：删掉任一规则行 → 生成器 exit 1「警告: 2026-11-12 支付/兜底覆盖丢失」；
+  在 P0 段之前插 IP-CIDR → exit 1「警告: stripe 覆盖必须排在所有 IP-CIDR 之前」。
+
+### cnip 规则集从 `type: file` 改成 http 日更（2026-11-12）
+
+- 改 `config/hooks/rules-cnip.sh:41` —— `PROV_OPTS` 由纯本地文件改成 http provider：
+  `{type: http, behavior: ipcidr, format: mrs, path: ./ruleset/cnip.mrs, interval: 86400,
+  url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/cn.mrs}`；
+  `:54-59` 注释同步改写为「`path` 是内核的下载缓存、本地副本只是 url 不可达时的兜底」。
+- 为什么：`type: file` 是纯本地文件，内核既不下载也不校验，`interval` 写了也不生效。
+  设备 `/etc/ShellCrash/ruleset/cnip.mrs` 停在 **Sep 11**（冻结 62 天），而同目录
+  `cn.mrs` / `porn.mrs` 都是 11-12（两者走 `http` + `interval`）—— 国内 IP 段一个多月
+  没跟上，新分配的段拿不到直连兜底，只能走代理。
+- 源地址为什么必须 `@meta` 分支：实测 `@meta/geo/geoip/cn.mrs` → 200 / 37,470 B；
+  `@release/geo/geoip/cn.mrs` → 404；`github.com/.../raw/release/geoip/cn.mrs` → 404。
+- 一行没动的部分：`RULE_LINE`（不加 `no-resolve`，cnip 排在域名规则之前是故意的：
+  域名不在 geosite cn 表里但解析到国内 IP 的服务靠它兜底直连）与插入位置逻辑；
+  `:51` 的「文件必须存在」校验保留（首装无缓存时的守卫）。
+- 验证：`bash -n config/hooks/rules-cnip.sh` rc=0；源地址 `curl -sI` 200 / 37,470 B。
+- 文档：[docs/PITFALLS.md](docs/PITFALLS.md) §47。
+
 ## [0.6.1] — 2026-11-12
 
 > 补丁版本：没有新增能力，只修缺陷与对齐文档口径（进位依据见 [docs/VERSIONING.md](docs/VERSIONING.md) §1）。

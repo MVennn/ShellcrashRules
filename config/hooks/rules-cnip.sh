@@ -31,7 +31,14 @@ CFG="${1:-}"
 TARGET='🎯 全球直连'
 RULE_LINE=" - RULE-SET,cnip,${TARGET}"
 PROV_KEY="cnip"
-PROV_OPTS="{type: file, behavior: ipcidr, format: mrs, path: ./ruleset/cnip.mrs}"
+# "type: http" + interval: a "type: file" provider is a pure local file and is
+# never refreshed, so the cached cnip.mrs froze on the device while every other
+# provider in the same ruleset/ directory updated daily. The url MUST point at
+# the @meta branch of meta-rules-dat: @release and the github raw path both 404.
+# Note: RULE_LINE above must NOT get no-resolve. cnip sits in front of the
+# domain rules on purpose - services whose domain is missing from the geosite
+# cn list but which resolve to a CN IP still take this rule and go DIRECT.
+PROV_OPTS="{type: http, behavior: ipcidr, format: mrs, path: ./ruleset/cnip.mrs, interval: 86400, url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/cn.mrs}"
 
 die() {
 	echo "rules-cnip: $*" >&2
@@ -44,8 +51,12 @@ die() {
 DIR=$(dirname "$CFG")
 [ -w "$DIR" ] || die "directory not writable: $DIR"
 
-# The rule provider path is resolved relative to the core home directory
-# (CrashCore -d /etc/ShellCrash), so the ruleset file must live there.
+# The provider "path" is resolved relative to the core home directory
+# (CrashCore -d /etc/ShellCrash). With "type: http" that path is the download
+# cache the core refreshes every interval - the local copy is a fallback for
+# when the url is unreachable, not the source of truth anymore.
+# The check below therefore only guards a first install where no cache exists
+# yet; a cached file is never treated as up to date here, the core owns that.
 SELF_DIR=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || SELF_DIR=/etc/ShellCrash
 CNIP_FILE="$SELF_DIR/ruleset/cnip.mrs"
 [ -s "$CNIP_FILE" ] || die "ruleset file missing or empty: $CNIP_FILE"

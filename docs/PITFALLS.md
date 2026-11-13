@@ -1057,3 +1057,78 @@ HTTP 200 **且响应体含 `"delay"`**；`pool_health()`、`pick_live_node()`、
 - **验证**：改后 `sh -n` rc=0，md5 与设备 `/etc/ShellCrash/auto-update.sh` 一致；
   手动 `start.sh start` 后 7890/7892 恢复监听、`google`/`opencode` 均 200。
 
+<a id="p47"></a>
+
+## 47. 两处静默失效：`type: file` 的规则集永不更新、`🛑 广告拦截` 默认成员是 DIRECT 【通用】
+
+- **现象**（两处都不报错，只能靠横向比对发现）：
+  ① 设备 `ls -l /etc/ShellCrash/ruleset/` 里 `cnip.mrs` 停在 `Sep 11`（冻结 62 天），
+  同目录 `cn.mrs` / `porn.mrs` 都是 `11-12` —— 同一份配置里出现了两种「新鲜度」；
+  ② `🛑 广告拦截` 组在面板里显示 `DIRECT`，而规则表里 1,630 条反广告规则全部指向它 ——
+  只要 `cache.db` 被清、换核心或换设备重装，这批规则就集体放行，界面上看不出异常。
+- **根因 ①**：`rule-providers` 的 `type: file` 是**纯本地文件**，内核既不下载也不校验，
+  `interval` 写不写都不生效；只有 `type: http` / `inline` 才参与定时更新。
+  `config/hooks/rules-cnip.sh:34` 原来就是 `type: file`，设备上那份文件因此是
+  **第一次部署时的快照**，之后 62 天没动过（同目录别的 provider 都是 `http` + `interval`，
+  所以只有它冻住 —— 这个反差就是判据）。
+- **根因 ②**：这个组的定义**不在本仓**，来自上游订阅模板：`third-party/ShellCrash/rules/ShellClash.ini:24`
+  ``custom_proxy_group=🛑 广告拦截`select`[]DIRECT`[]REJECT``，默认成员 `DIRECT` 在前；
+  合并后的设备配置快照（`.work/rule-audit/config.snapshot.yaml:540-544`，gitignored 审计产物）
+  就是这个顺序。运行态之所以真在拦截，靠的是 mihomo 的 `store-selected` 把面板上手选的
+  `REJECT` 记进了 `cache.db` —— 默认值从来不是 `REJECT`，只是被运行态覆盖了。
+- **解法 ①**：`rules-cnip.sh:41` 换成 http provider 带日更：
+  `{type: http, behavior: ipcidr, format: mrs, path: ./ruleset/cnip.mrs, interval: 86400,
+  url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/cn.mrs}`。
+  源地址**必须是 `@meta` 分支**：`@release/geo/geoip/cn.mrs` 与
+  `github.com/.../raw/release/geoip/cn.mrs` 实测都是 404。`:51` 的「文件必须存在」校验
+  保留（首装无缓存时的守卫），`:54-62` 注释改成「`path` 是内核的下载缓存，本地副本只是
+  url 不可达时的兜底」。`RULE_LINE` 一行不动：cnip 排在域名规则**之前**且不加 `no-resolve`
+  是故意的 —— 域名不在 geosite cn 表里、但解析到国内 IP 的服务靠它兜底直连。
+- **解法 ②（尚未实施，判断为低收益高风险）**：不在本仓塞覆盖组 —— 组归属上游模板，
+  硬塞进 `config/yamls/proxy-groups.yaml` 会和模板更新打架（`clash_modify.sh` 的拼接顺序、
+  `reorder-groups.sh` 的同名去重都得替它让路）。**但 `guardian.sh` 巡检这条也暂缓**：
+  11 天流量统计里 `🛑 广告拦截` 命中 0 行，收益≈0；而设备上的 `guardian.sh`
+  （25,435 B，2026-11-06 调优版）比仓内 `openwrt/guardian.sh`（19,636 B 旧版）新，
+  为这 0 收益改动核心守护脚本不划算。真要修，正确姿势是在**设备版**基础上加一段
+  「`now != REJECT` 就 PUT 复位」，并加 `/etc/ShellCrash/.ad_group_manual` 开关文件
+  尊重面板手切；期望状态在 `AX3000TOpenwrt` 仓 `docs/OPERATIONS.md:65` 已写成
+  `🛑 广告拦截 = REJECT`。
+- **下次怎么避**：① 新增 / 迁移 provider 一律 `type: http` + `interval`，`type: file`
+  只当「url 不可达时的本地兜底」，永远不当日常来源；② 凡是「默认值靠运行态覆盖」的配置项
+  （`store-selected`、`store-fake-ip`、面板手选项），都要假设**覆盖会丢** ——
+  cache 一清就回落到配置文件里的默认值，所以默认值本身必须是安全值（拦截优先于放行）。
+- **验证**：`bash -n config/hooks/rules-cnip.sh` rc=0；`curl -sI` 打到
+  `.../@meta/geo/geoip/cn.mrs` = `200` / 37,470 B，同域 `@release` 分支 = `404`；
+  广告拦截组的运行态选中项由 `guardian.log` 每 5 分钟一轮的巡检行核对。
+
+<a id="p48"></a>
+
+## 48. 规则表里两处「看不见的漏」：支付域被更早的 IP-CIDR 抢走、日均 65 MB 的域名全落 MATCH 兜底 【通用】
+
+- **现象**：两者都**不报错、不断网**，只能靠逐条比对流量统计（`traffic-stats` 的 stats 行）发现：
+  ① 11 天统计里出现 `🎥 NETFLIX / m.stripe.com / 37313 / 15287` —— 一个支付域被记在
+  Netflix 组下；② MATCH 兜底吃掉 89.2 MB / 74 个域名（占总量 9.7%），其中
+  `gh-proxy.com` 26.1 MB、`cdn.ldstatic.com` 13.8 MB、`s.immersivetranslate.com` 9.8 MB、
+  `cloudflare-dns.com` 6.7 MB、`c.tenor.com` 6.1 MB、`api.gemai.cc` 4.7 MB ——
+  这些**都是高频域**，却在规则表里一条都不存在。
+- **根因 ①**：模板里的 `IP-CIDR,34.208.0.0/12,🎥 NETFLIX` 比
+  `DOMAIN-SUFFIX,stripe.com,🌍 国外媒体` 更早（先匹配先赢），而 stripe 的 CDN 就在
+  34.208/12 段里 → 域名规则永远轮不到。**IP 段规则能吃掉任何排在它之后的域名规则**，
+  这类遮蔽在规则数上万时人眼查不出来。
+- **根因 ②**：规则表只覆盖「订阅模板 ∪ 自定义 507 条」，既不在模板也不在自定义的域名
+  一律落 `MATCH,🐟 漏网之鱼`。11 天里真实流量只碰到 78 条域名规则（占 4,350 条的 2.1%），
+  3,599 条 0 命中 —— **覆盖率低不是问题，没覆盖到的高频域名才是**。
+- **解法**：在 `config/generators/ai-rules-update.sh` 的 P0 段（生成物最前，早于所有 IP-CIDR）
+  补支付域与兜底域：`stripe.com` / `cdn.ldstatic.com` / `s.immersivetranslate.com` /
+  `cloudflare-dns.com` → 🚀 节点选择，另有 `gh-proxy.com`+`ghfast.top` → 🔗 GitHub 出口、
+  `c.tenor.com` → 🌍 国外媒体、`api.gemai.cc` → 🤖 人工智能。八条全带 grep 自检，
+  另加一条 awk 断言「stripe 必须在第一条 IP-CIDR 之前」——自检比规则本身更重要，
+  否则下次有人把新规则加到「分类段」（IP-CIDR 之后）就静默失效。
+- **下次怎么避**：① 凡是**支付 / 登录 / 鉴权**域，必须放进 P0 段（早于所有 IP-CIDR），
+  不能和普通分类规则混在一起；② 域名规则与 IP 段规则混排时，先问「这段 IP 属于谁的 CDN」——
+  `34.208.0.0/12` 是 AWS us-west-2，挂在任何业务组下都会连带吃掉一批无关域名；
+  ③ 定期看 `traffic-stats` 的 MATCH 行，兜底流量占比超 5% 就说明有高频域没被显式覆盖。
+- **验证**：生成器实跑 678 行 / 519 条；运行态 `rules:` 段首条即 stripe（第 583 行），
+  早于 `IP-CIDR,34.208.0.0/12`（第 2921 行）2,338 条；实测 `gh-proxy.com` →
+  `DomainSuffix` → 🔗 GitHub 出口、`s.immersivetranslate.com` → `DomainSuffix` → 🚀 节点选择；
+  `ai-api-check.sh` 17 段全过。

@@ -37,7 +37,7 @@ config/starts/clash_modify.sh :: modify_yaml()   ← 合并链路入口（本仓
    │                      （最后一条「📲 电报消息」之后，第一条「🌍 国外媒体」之前）
    ▼
  钩子 ③ rules-cnip.sh       把 8,980 条内联 CN IP-CIDR 折叠成一条 RULE-SET,cnip
-   │                      （rule-providers.cnip：file / ipcidr / mrs；13k → 4.1k 条）
+   │                      （rule-providers.cnip：http + interval 86400 / ipcidr / mrs；13k → 4.1k 条）
    ▼
  钩子 ④ reorder-groups.sh   ① proxy-groups 同名去重（保留首次出现）
    │                      ② 组内重复 key 清理 / 机场伪节点剔除

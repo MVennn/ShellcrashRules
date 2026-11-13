@@ -47,6 +47,19 @@ fi
 	echo "# AI 服务分流规则 — 由 MetaCubeX/meta-rules-dat geosite category-ai-chat-!cn 生成"
 	echo "# 更新于 $(date '+%Y-%m-%d %H:%M:%S')"
 	echo "# 同键规则已去重（保留首次出现；顶部覆盖优先）"
+	echo "# ===== P0. 支付 / MATCH 兜底覆盖（必须早于所有 IP-CIDR 与模板规则，2026-11-12）====="
+	echo "# m.stripe.com 实测挂在「🎥 NETFLIX」组下（37313 字节）：模板里 IP-CIDR,34.208.0.0/12,🎥 NETFLIX"
+	echo "#   比 DOMAIN-SUFFIX,stripe.com,🌍 国外媒体 更早，先匹配先赢 —— stripe 那条从来没生效过。"
+	echo "#   支付域走流媒体出口有风控风险，这里在生成物最前面显式截走。"
+	echo "#   不要动那条 IP-CIDR：34.208.0.0/12 是 AWS us-west-2 整段，删了会误伤同段的其他服务。"
+	echo "- DOMAIN-SUFFIX,stripe.com,🚀 节点选择"
+	echo "# 11 天全落 MATCH 兜底（合计约 67MB 走 🐟 漏网之鱼）的通用域，逐个钉死出口："
+	echo "- DOMAIN-SUFFIX,cdn.ldstatic.com,🚀 节点选择"
+	echo "- DOMAIN-SUFFIX,s.immersivetranslate.com,🚀 节点选择"
+	# cloudflare-dns.com 是 DoH 端点：2026-11-12 在路由器上直连实测 000（8s 内无响应），
+	# 不能指 DIRECT，否则 DNS over HTTPS 直接废掉。它原本落 MATCH → 🐟 漏网之鱼 → 🚀 节点选择，
+	# 这里只是把出口显式钉死，行为等价但不再受兜底链路变化影响。
+	echo "- DOMAIN-SUFFIX,cloudflare-dns.com,🚀 节点选择"
 	echo "# ===== X. 𝕏 媒体（twimg.com 走 HY2，2026-10-23）====="
 	echo "# X/Twitter 图片 CDN 的并发建连在 VMess+WS 上会被串行化："
 	echo "#   2026-10-23 实测 10 并发真实图片，VMess 墙钟 1.9–5.9s、偶发单张 5–6s；"
@@ -335,6 +348,8 @@ fi
 	echo "- DOMAIN-SUFFIX,bolt.new,🤖 人工智能"
 	echo "- DOMAIN-SUFFIX,lovable.dev,🤖 人工智能"
 	echo "- DOMAIN-SUFFIX,replit.com,🤖 人工智能"
+	echo "# 2026-11-12：AI 域补漏（11 天全落 MATCH 兜底，走 🐟 漏网之鱼）"
+	echo "- DOMAIN-SUFFIX,api.gemai.cc,🤖 人工智能"
 	echo "# Google 服务统一出口（必须排在 geosite 规则和模板 googleapis 规则之前）"
 	echo "- DOMAIN-SUFFIX,play.googleapis.com,$CL"
 	echo "- DOMAIN-SUFFIX,android.clients.google.com,$CL"
@@ -473,6 +488,10 @@ fi
 	echo "- DOMAIN-SUFFIX,githubapp.com,$GH"
 	echo "# 2026-10-23：容器镜像域名不在 DOMAIN-KEYWORD,github 内，显式走 GitHub 出口"
 	echo "- DOMAIN-SUFFIX,ghcr.io,$GH"
+	echo "# 2026-11-12：GitHub 加速代理补漏 —— gh-proxy.com / ghfast.top 11 天全落 MATCH 兜底，"
+	echo "#   合计约 60MB 走了 🐟 漏网之鱼；它们只是 github 的镜像出口，跟 GitHub 家族同组。"
+	echo "- DOMAIN-SUFFIX,gh-proxy.com,$GH"
+	echo "- DOMAIN-SUFFIX,ghfast.top,$GH"
 	echo "# AI 关键字兜底：模板里这三条被更早的规则遮蔽，放到自定义块最前才生效"
 	echo "- DOMAIN-KEYWORD,claude,🤖 人工智能"
 	echo "- DOMAIN-KEYWORD,anthropic,🤖 人工智能"
@@ -498,6 +517,8 @@ fi
 	echo "- DOMAIN-SUFFIX,graph.org,🚀 节点选择"
 	echo "- DOMAIN-SUFFIX,tg.dev,🚀 节点选择"
 	echo "- DOMAIN-SUFFIX,live-video.net,🌍 国外媒体"
+	echo "# 2026-11-12：GIF 图床补漏（11 天全落 MATCH 兜底）"
+	echo "- DOMAIN-SUFFIX,c.tenor.com,🌍 国外媒体"
 	# googleapis.com 已在上方 Google 段指向干净出口；同键去重保留首次出现，
 	# 这里不再输出（旧行是死规则，会误导阅读者以为它走节点选择）。
 	echo "# C. 服务一致性"
@@ -696,6 +717,24 @@ for r in "DOMAIN-SUFFIX,image.civitai.com,📺 大流量" \
 done
 if ! awk '/^- DOMAIN-SUFFIX,image\.civitai\.com,/{i=NR} /^- DOMAIN-SUFFIX,civitai\.com,/{c=NR} END{exit !(i && c && i<c)}' "$OUT.tmp"; then
 	echo "警告: civitai 规则顺序错误（image.* 必须在主站之前）"
+	exit 1
+fi
+# 2026-11-12：支付 / MATCH 兜底覆盖 8 条（stripe + gh-proxy/ghfast + 通用兜底 + tenor + gemai）
+for r in "DOMAIN-SUFFIX,stripe.com,🚀 节点选择" \
+         "DOMAIN-SUFFIX,gh-proxy.com,$GH" \
+         "DOMAIN-SUFFIX,ghfast.top,$GH" \
+         "DOMAIN-SUFFIX,cdn.ldstatic.com,🚀 节点选择" \
+         "DOMAIN-SUFFIX,s.immersivetranslate.com,🚀 节点选择" \
+         "DOMAIN-SUFFIX,cloudflare-dns.com,🚀 节点选择" \
+         "DOMAIN-SUFFIX,c.tenor.com,🌍 国外媒体" \
+         "DOMAIN-SUFFIX,api.gemai.cc,🤖 人工智能"; do
+	if ! grep -qF -- "- $r" "$OUT.tmp"; then
+		echo "警告: 2026-11-12 支付/兜底覆盖丢失: $r"
+		exit 1
+	fi
+done
+if ! awk '/^- DOMAIN-SUFFIX,stripe\.com,/{s=NR} /^- IP-CIDR/{if(!i)i=NR} END{exit !(s && i && s<i)}' "$OUT.tmp"; then
+	echo "警告: stripe 覆盖必须排在所有 IP-CIDR 之前（模板 IP-CIDR,34.208.0.0/12,🎥 NETFLIX 会抢走它）"
 	exit 1
 fi
 if ! grep -qF -- "- IP-CIDR,74.125.0.0/16,$CL,no-resolve" "$OUT.tmp" || \
