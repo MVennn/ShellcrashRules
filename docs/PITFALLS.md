@@ -1088,7 +1088,7 @@ HTTP 200 **且响应体含 `"delay"`**；`pool_health()`、`pick_live_node()`、
   硬塞进 `config/yamls/proxy-groups.yaml` 会和模板更新打架（`clash_modify.sh` 的拼接顺序、
   `reorder-groups.sh` 的同名去重都得替它让路）。**但 `guardian.sh` 巡检这条也暂缓**：
   11 天流量统计里 `🛑 广告拦截` 命中 0 行，收益≈0；而设备上的 `guardian.sh`
-  （25,435 B，2026-11-06 调优版）比仓内 `openwrt/guardian.sh`（19,636 B 旧版）新，
+  （25,435 B，2026-11-06 调优版）比仓内 `openwrt/guardian.sh`（20,450 B 通用版）新，
   为这 0 收益改动核心守护脚本不划算。真要修，正确姿势是在**设备版**基础上加一段
   「`now != REJECT` 就 PUT 复位」，并加 `/etc/ShellCrash/.ad_group_manual` 开关文件
   尊重面板手切；期望状态在 `AX3000TOpenwrt` 仓 `docs/OPERATIONS.md:65` 已写成

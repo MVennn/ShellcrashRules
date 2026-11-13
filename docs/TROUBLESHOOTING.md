@@ -108,6 +108,8 @@ python mihomo/rule_audit.py config.yaml proxies.json third-party/ACL4SSR/Clash R
 
 **排查步骤**：
 
+> 下面命令在 **`OpenwrtOpsToolkit` 仓根**执行 —— `mihomo/` 诊断工具属那个仓，本仓根没有；在 PC 上排障同一条路径。
+
 ```bash
 # ① 抓实时日志看它命中了哪条规则（脚本会临时把 log-level 调 debug，结束会恢复）
 python mihomo/mihomo_log.py 20 gemini.google.com
@@ -229,7 +231,7 @@ python mihomo/mihomo_api.py proxies
 
 | 现象 | 原因 | 解法 |
 |---|---|---|
-| **401 Unauthorized**，脚本在第一行 `get("/proxies")` 就崩 | 控制器启用了 `secret:`（2026-10-20 04:18 ShellCrash 每周自动更新加的），而 **`MIHOMO_SECRET` 没设** —— 脚本只在有 secret 时才带 `Authorization` 头 | `export MIHOMO_SECRET=...`；或用 `mihomo/mihomo_api.py`（缺 secret 直接抛错、带 IPv4/IPv6 自动选路与多重试）。**不要**为了迁就脚本去改面板密码 |
+| **401 Unauthorized**，脚本在第一行 `get("/proxies")` 就崩 | 控制器启用了 `secret:`（2026-10-20 04:18 ShellCrash 每周自动更新加的），而 **`MIHOMO_SECRET` 没设** —— 脚本只在有 secret 时才带 `Authorization` 头 | `export MIHOMO_SECRET=...`；或用 `OpenwrtOpsToolkit` 仓的 `mihomo/mihomo_api.py`（缺 secret 直接抛错、带 IPv4/IPv6 自动选路与多重试）。**不要**为了迁就脚本去改面板密码 |
 | 超时 / `URLError` | 路由器 IPv6 链路不稳、API 忙、或 9999 被 OOM 打掉 | 用 `mihomo_api.py`（自带重试与 chunked 解码）；确认 `/tmp` 水位、确认没有双实例（[PITFALLS.md](PITFALLS.md) §12） |
 | 组名打印成 `MISSING` | 你给的组名 / 节点名清单跟订阅里的对不上（脚本本身**不写死**任何组名） | 改环境变量 `MIHOMO_PROBE_GROUPS` / `MIHOMO_PROBE_NODES`；或用 `mihomo_api.py proxies` 看真实名字 |
 | 节点那几列全是 `HTTP404` | 组名里的 emoji / 中文没编码 | 脚本已 `quote`；若手工拼 URL 一定要 URL 编码 |

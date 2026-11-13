@@ -172,17 +172,17 @@ config/starts/clash_modify.sh :: modify_yaml()   ← 合并链路入口（本仓
 | `config/starts/clash_modify.sh` | **本仓**（`config/starts/clash_modify.sh`，`modify_yaml()` 全链路见 §1.1） | 人工维护；设备侧由 ShellCrash 启动 / 订阅更新调用 | ShellCrash 启动 / 订阅更新 |
 | `config/ai-api-check.sh` | **本仓** | 人工维护 | 人工（订阅更新后必跑） |
 | `config/post-sc-update.sh` | **本仓** | 人工维护 | 人工（ShellCrash 官方脚本更新后）；验收段按 `CrashCore.upx` → `CrashCore.raw` → 运行态软链动态探测内核跑 `-t`（见 [PITFALLS.md](PITFALLS.md) §44） |
-| `firewall/tables/*.nft` | **本仓**（内容） | 人工维护 | **`rc.local`（`AX3000TOpenwrt` 仓）** 开机加载 + 守护进程补载 |
+| `firewall/tables/*.nft` | **本仓**（内容正本；`AX3000TOpenwrt` 仓 `system/` 下 `googlecn.nft` / `googleroute.nft` / `quicguard-sync.sh` 是逐字节镜像，`system/quicguard.nft` 是设备生成快照） | 人工维护 | **`rc.local`（`AX3000TOpenwrt` 仓）** 开机加载 + 守护进程补载 |
 | `tools/latency/archive/**` | **本仓**（归档件） | 人工维护 | 不部署，仅留档 |
 | `mihomo/` `cdn/` 诊断工具（规则审计 / 控制面诊断 / 站点可达性专项） | **`OpenwrtOpsToolkit` 仓**（公开） | 那边维护 | PC 侧人工执行，不上设备 |
-| `openwrt/*.sh` 路由器侧守护脚本（`bulk-guard.sh` / `guardian.sh` / `recover-now.sh`） | **`OpenwrtOpsToolkit` 仓**（公开） | 那边维护 | 部署到 `/etc/ShellCrash/`，cron 触发 |
+| `openwrt/*.sh` 路由器侧脚本：`bulk-guard.sh` / `traffic-stats.sh` / `post-sc-update.sh` / `rc.local` / `setup-zram.sh` | **`OpenwrtOpsToolkit` 仓**（公开） | 那边维护 | 部署到 `/etc/ShellCrash/`（`setup-zram.sh` 落 `/etc/openwrt-ops/`），cron 触发 |
 | `docs/**` | **本仓** | 人工维护 | — |
 | `rc.local` | **`AX3000TOpenwrt` 仓** | 那边 | 开机加载本仓三张 nft 表 |
-| `guardian.sh`（守护进程） | **`AX3000TOpenwrt` 仓** | 那边 | cron 每 5 分钟：补载三表、节点劣化复位、干净出口守护 |
-| `bulk-guard.sh`（大流量守卫） | **`OpenwrtOpsToolkit` 仓** | 那边 | cron 每 10 分钟：按真实吞吐切 `📺 大流量`（公共池 ↔ 机场） |
+| `guardian.sh`（守护进程，**设备上跑的那份**） | **`AX3000TOpenwrt` 仓** | 那边 | cron 每 5 分钟：补载三表、节点劣化复位、干净出口守护。⚠️ `OpenwrtOpsToolkit/openwrt/guardian.sh` 是**已分叉的通用版**（设备版自 2026-10-27「AI 数据面探活」与 2026-11-06「流量归因采样」两批起多出若干段），装机只装 AX3000TOpenwrt 版 |
+| `bulk-guard.sh`（大流量守卫） | **`OpenwrtOpsToolkit` 仓** | 那边 | cron 每 3 分钟（脚本用法注释的推荐值）：按真实吞吐切 `📺 大流量`（公共池 ↔ 机场） |
 | `rule-providers.porn`（`category-porn.mrs`） | **上游 MetaCubeX** | 本仓 `rules-porn.sh` 只注入 provider 条目；mihomo 按 `interval: 86400` 自行更新 | `RULE-SET,porn,📺 大流量`（规则由 `ai-rules-update.sh` I 段输出） |
 | `/etc/mixedport.nft`（7890 收口） | **`AX3000TOpenwrt` 仓** | 那边 | 源文件是兄弟仓的 `system/mixedport.nft`（0.6.0 起随仓入库）；设备上 `rc.local` 开机加载、`guardian.sh` 补载 |
-| `recover-now.sh` 等恢复脚本 | **`AX3000TOpenwrt` 仓** | 那边 | 人工 |
+| `recover-now.sh` 等恢复脚本（设备版） | **`AX3000TOpenwrt` 仓** | 那边 | 人工。`OpenwrtOpsToolkit/openwrt/recover-now.sh` 是通用版，两份已分叉 |
 | ShellCrash 本体（`/etc/ShellCrash` 其余部分） | **ShellCrash 官方** | 官方更新 | 官方脚本更新会覆盖 `starts/` → 由 `post-sc-update.sh` 恢复本仓的补丁 |
 
 **控制台（`OpenwrtConsole` 仓）的写入边界**：
@@ -220,7 +220,7 @@ config/starts/clash_modify.sh :: modify_yaml()   ← 合并链路入口（本仓
 | 规则更新 cron | `30 4 * * 0` | 路由器 crontab | 每周跑 `auto-update.sh`（规则生成 + hotupdate） |
 | 看门狗 cron | `* * * * *` | 路由器 crontab | 每分钟拉起代理（`starts/start_legacy_wd.sh shellcrash`） |
 | 守护 cron | `*/5 * * * *` | 路由器 crontab | 每 5 分钟自愈（补载三表、节点劣化复位、干净出口守护）—— 脚本在 `AX3000TOpenwrt` 仓 |
-| 大流量守卫 cron | `*/10 * * * *` | 路由器 crontab | 每 10 分钟判定一次（空闲时每 2 小时实测一次吞吐）—— 脚本在 `OpenwrtOpsToolkit` 仓，组名来自 `/etc/openwrt-ops/device.conf` |
+| 大流量守卫 cron | `*/3 * * * *` | 路由器 crontab | 每 3 分钟判定一次（脚本用法注释的推荐值；空闲时每 2 小时实测一次吞吐）—— 脚本在 `OpenwrtOpsToolkit` 仓，组名来自 `/etc/openwrt-ops/device.conf` |
 | 自检 cron | `5 5 * * *` | 路由器 crontab | 每天跑 `daily-ai-check.sh`（17 段配置审计 + 留痕）—— 脚本在本仓 `config/` |
 | 公共节点筛选 | 每天 11:00（Windows 计划任务 `ShellcrashRules-PublicNodes`） | PC 侧，不部署到路由器 | `tools/public-nodes/screen.py` 拉取五源并写入设备 `yamls/proxies.yaml` 的 `# >>> PUBLIC-NODES` 块；巡检看 `Get-ScheduledTaskInfo` 与 `.work/public-nodes/screen.log` |
 | 自检段数 | 17 段（原 18 段，第 4 段模型测试已移除） | `config/ai-api-check.sh` | 订阅更新后必跑；退出码 0/1 |
