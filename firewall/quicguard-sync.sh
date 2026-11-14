@@ -32,13 +32,22 @@ NFT=/usr/sbin/nft
 OUT=/etc/quicguard.nft
 TMP=/tmp/quicguard.nft.new.$$
 CHK=/tmp/quicguard.chk.$$
+# Per-PID error file. It used to be /tmp/quicguard.chk.err and
+# /tmp/quicguard.load.err - fixed names, so two concurrent runs (rc.local +
+# guardian, or an operator running it while the hook fires) overwrote each
+# other's diagnostics and the message printed was the other run's.
+ERR=/tmp/quicguard.err.$$
 
 say() { echo "[quicguard-sync] $*"; }
 die() {
 	echo "[quicguard-sync] ERROR: $*" >&2
-	rm -f "$TMP" "$CHK"
+	rm -f "$TMP" "$CHK" "$ERR"
 	exit 1
 }
+
+# A SIGINT/SIGTERM mid-generation used to leave /tmp/quicguard.nft.new.<pid>
+# behind on tmpfs (116MB total on this device, shared with the core).
+trap 'rm -f "$TMP" "$CHK" "$ERR"' EXIT INT TERM HUP
 
 [ -x "$NFT" ] || die "nft not found at $NFT"
 $NFT list set inet shellcrash cn_ip >/dev/null 2>&1 \
@@ -154,17 +163,19 @@ BODY
 # Validate under a throwaway table name: a syntax or interval error must never
 # reach the live ruleset.
 sed 's/table inet quicguard {/table inet quicguard_chk {/' "$TMP" > "$CHK"
-if ! $NFT -c -f "$CHK" 2>/tmp/quicguard.chk.err; then
+if ! $NFT -c -f "$CHK" 2>"$ERR"; then
 	say "validation FAILED:"
-	cat /tmp/quicguard.chk.err >&2
-	rm -f /tmp/quicguard.chk.err
+	cat "$ERR" >&2
 	if [ "$DRY" = "1" ]; then
-		say "--- generated file around the end of cn_ip_mirror ---"
-		sed -n '4520,4545p' "$TMP"
+		# Was sed -n '4520,4545p': a hardcoded line range that printed nothing
+		# as soon as the set shrank below 4520 lines (the usual failure is a
+		# malformed last element, i.e. at the END of the file).
+		say "--- last 30 lines of the generated file ---"
+		tail -n 30 "$TMP"
 	fi
 	die "generated table is invalid, live table untouched"
 fi
-rm -f "$CHK" /tmp/quicguard.chk.err
+rm -f "$CHK" "$ERR"
 say "validation OK"
 
 if [ "$DRY" = "1" ]; then
@@ -181,6 +192,12 @@ if [ -f "$OUT" ] && cmp -s "$TMP" "$OUT"; then
 	say "generated file unchanged"
 else
 	[ -f "$OUT" ] && cp -f "$OUT" "$OUT.bak.$(date +%Y%m%d-%H%M%S)" 2>/dev/null && say "backed up old $OUT"
+	# Keep only the 3 newest backups. Every regeneration (subscription update,
+	# ShellCrash restart) used to leave one more copy in /etc forever; /etc is
+	# overlay-on-flash and the device has a limited write budget.
+	ls -1t "$OUT".bak.* 2>/dev/null | tail -n +4 | while IFS= read -r _old; do
+		rm -f "$_old"
+	done
 	cp -f "$TMP" "$OUT.new" && mv -f "$OUT.new" "$OUT" || die "cannot install $OUT"
 	changed=1
 	say "installed $OUT"
@@ -189,7 +206,7 @@ rm -f "$TMP"
 
 live=0
 if $NFT list table inet quicguard >/dev/null 2>&1 && \
-   $NFT list table inet quicguard 2>/dev/null | grep -q '@cn_ip_mirror'; then
+   $NFT list table inet quicguard 2>/dev/null | grep -qF '@cn_ip_mirror'; then
 	live=1
 fi
 
@@ -197,13 +214,12 @@ if [ "$changed" = "1" ] || [ "$live" = "0" ]; then
 	# "add table" semantics never replace an existing table, so drop it first.
 	# Window without QUIC fast-fail rules: a few milliseconds.
 	$NFT destroy table inet quicguard 2>/dev/null
-	if ! $NFT -f "$OUT" 2>/tmp/quicguard.load.err; then
+	if ! $NFT -f "$OUT" 2>"$ERR"; then
 		say "load FAILED:"
-		cat /tmp/quicguard.load.err >&2
-		rm -f /tmp/quicguard.load.err
+		cat "$ERR" >&2
 		die "quicguard NOT loaded"
 	fi
-	rm -f /tmp/quicguard.load.err
+	rm -f "$ERR"
 	say "table inet quicguard reloaded"
 else
 	say "live table already up to date (counters preserved)"
@@ -211,7 +227,7 @@ fi
 
 # Survive sysupgrade.
 for f in /etc/quicguard.nft /etc/quicguard-sync.sh; do
-	if grep -qx "$f" /etc/sysupgrade.conf 2>/dev/null; then
+	if grep -qxF "$f" /etc/sysupgrade.conf 2>/dev/null; then
 		:
 	else
 		echo "$f" >> /etc/sysupgrade.conf
@@ -219,6 +235,21 @@ for f in /etc/quicguard.nft /etc/quicguard-sync.sh; do
 	fi
 done
 
-say "live sets: cn_ip_mirror=$(nft list set inet quicguard cn_ip_mirror 2>/dev/null | wc -l) lines, cn_ip6_mirror=$(nft list set inet quicguard cn_ip6_mirror 2>/dev/null | wc -l) lines"
+# Element count, not line count: `wc -l` on the set listing counts formatted
+# lines (4-5 per set, whatever the size) and reads like an element count, which
+# misled both the operator and anything parsing this line. Also uses $NFT like
+# the rest of the script instead of a bare `nft` from $PATH.
+count_set() {
+	_t=$($NFT list set inet quicguard "$1" 2>/dev/null \
+		| sed -n '/elements = {/,$p' \
+		| sed -e '1s/.*elements = {[[:space:]]*//' -e 's/}.*//' \
+		| tr '\n\t' '  ' \
+		| sed -e 's/[[:space:]][[:space:]]*/ /g' \
+		      -e 's/^ //' -e 's/ $//' -e 's/,$//')
+	[ -n "$_t" ] || { echo 0; return 0; }
+	_n=$(printf '%s' "$_t" | tr -cd ',' | wc -c)
+	echo $((_n + 1))
+}
+say "live sets: cn_ip_mirror=$(count_set cn_ip_mirror) elements, cn_ip6_mirror=$(count_set cn_ip6_mirror) elements"
 say "done"
 exit 0
