@@ -11,6 +11,26 @@ LOGDIR=$CRASHDIR/logs
 LOG=$LOGDIR/ai-check.log
 mkdir -p "$LOGDIR"
 
+# 单实例锁：cron 每天一次，但手动跑、开机补跑、上一次没跑完都会叠在一起。
+# 两个实例同时跑 = 同一份日志被两边追加，末尾轮转还会互相 mv 对方正在写的文件，
+# 结果是 .1 里混着两次运行的半截输出，失败原因读不出来。
+# mkdir 是原子操作，用它当锁；超过 2 小时视为上次崩溃留下的陈旧锁直接接管
+# （ai-api-check.sh 全量跑完约 2-3 分钟，2 小时足够宽松）。
+LOCKDIR=$LOGDIR/.ai-check.lock
+if ! mkdir "$LOCKDIR" 2>/dev/null; then
+	_ts=$(cat "$LOCKDIR/ts" 2>/dev/null || echo 0)
+	case "$_ts" in ''|*[!0-9]*) _ts=0 ;; esac
+	if [ $(($(date +%s) - _ts)) -gt 7200 ]; then
+		rm -rf "$LOCKDIR"
+		mkdir "$LOCKDIR" 2>/dev/null || exit 0
+	else
+		echo "$(date '+%F %T') 已有实例在跑，跳过本次" >> "$LOG"
+		exit 0
+	fi
+fi
+date +%s > "$LOCKDIR/ts"
+trap 'rm -rf "$LOCKDIR"' EXIT INT TERM HUP
+
 {
 	echo "===== $(date '+%F %T') 每日 AI 自检 ====="
 } >> "$LOG"
@@ -18,7 +38,7 @@ mkdir -p "$LOGDIR"
 if sh "$CRASHDIR/ai-api-check.sh" >> "$LOG" 2>&1; then
 	echo "结果: 全部通过" >> "$LOG"
 	# 只有当失败原因不是 weekly auto-update 造成时才清掉标记
-	[ -f "$LOGDIR/LAST_FAILURE" ] && grep -q "auto-update" "$LOGDIR/LAST_FAILURE" 2>/dev/null || rm -f "$LOGDIR/LAST_FAILURE"
+	[ -f "$LOGDIR/LAST_FAILURE" ] && grep -qF "auto-update" "$LOGDIR/LAST_FAILURE" 2>/dev/null || rm -f "$LOGDIR/LAST_FAILURE"
 else
 	echo "结果: 有失败项（见上）" >> "$LOG"
 	echo "$(date '+%F %T') daily ai-check FAILED" > "$LOGDIR/LAST_FAILURE"

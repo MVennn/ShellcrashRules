@@ -269,20 +269,39 @@ finalize_clash_yaml() {
     done
 }
 
+# 生成期钩子执行器：脚本不存在算正常（未安装该功能），存在但执行失败必须留痕。
+# 原来写作 [ -x "$CRASHDIR"/xxx.sh ] && "$CRASHDIR"/xxx.sh ...：钩子存在却报错时
+# 静默跳过，config.yaml 缺组顺序/规则，test_yaml 仍能通过，故障延后到分流异常。
+run_hook() {
+    _rh_hook=$1
+    shift
+    [ -x "$_rh_hook" ] || return 0
+    "$_rh_hook" "$@"
+    _rh_rc=$?
+    if [ "$_rh_rc" -ne 0 ]; then
+        if type logger >/dev/null 2>&1; then
+            logger "警告：生成期钩子 $(basename "$_rh_hook") 退出码 $_rh_rc，配置可能不完整" 33
+        else
+            echo "WARN: hook $(basename "$_rh_hook") rc=$_rh_rc" >&2
+        fi
+    fi
+    return 0
+}
+
 #修饰clash配置文件
 modify_yaml() {
     # 订阅转换器（target=clash）会静默丢掉它不认的节点类型，生成配置前先从
     # 机场原始订阅补齐（脚本自带 6 小时节流，失败不影响构建）
-    [ -x "$CRASHDIR"/starts/sub-sync.sh ] && "$CRASHDIR"/starts/sub-sync.sh
+    run_hook "$CRASHDIR"/starts/sub-sync.sh
     prepare_clash_base_config
     generate_set_and_hosts_yaml
     split_and_customize_yaml_parts
     add_custom_inbounds_and_rules
     merger_yaml
-    [ -x "$CRASHDIR"/rules-porn.sh ] && "$CRASHDIR"/rules-porn.sh "$TMPDIR"/config.yaml
-    [ -x "$CRASHDIR"/rules-mid.sh ] && "$CRASHDIR"/rules-mid.sh "$TMPDIR"/config.yaml
-    [ -x "$CRASHDIR"/rules-cnip.sh ] && "$CRASHDIR"/rules-cnip.sh "$TMPDIR"/config.yaml
-    [ -x "$CRASHDIR"/reorder-groups.sh ] && "$CRASHDIR"/reorder-groups.sh "$TMPDIR"/config.yaml
+    run_hook "$CRASHDIR"/rules-porn.sh "$TMPDIR"/config.yaml
+    run_hook "$CRASHDIR"/rules-mid.sh "$TMPDIR"/config.yaml
+    run_hook "$CRASHDIR"/rules-cnip.sh "$TMPDIR"/config.yaml
+    run_hook "$CRASHDIR"/reorder-groups.sh "$TMPDIR"/config.yaml
     test_yaml
     finalize_clash_yaml
 }

@@ -37,7 +37,7 @@ AI_GROUP="🤖 人工智能"
 TMP=/tmp/ai-rules-$$.yaml
 
 uclient-fetch -q -O "$TMP" -T 30 "$SRC" 2>/dev/null
-if [ ! -s "$TMP" ] || ! grep -q "payload:" "$TMP"; then
+if [ ! -s "$TMP" ] || ! grep -qF "payload:" "$TMP"; then
 	echo "下载或校验失败，未做任何修改"
 	rm -f "$TMP"
 	exit 1
@@ -559,42 +559,42 @@ if [ "$n" -lt 50 ]; then
 	echo "警告: 规则条数异常($n)，请检查 $OUT.tmp"
 	exit 1
 fi
-if ! grep -q "opencode.ai,🎯 全球直连" "$OUT.tmp"; then
+if ! grep -qF "opencode.ai,🎯 全球直连" "$OUT.tmp"; then
 	echo "警告: opencode.ai 直连覆盖规则丢失，请检查 $OUT.tmp"
 	exit 1
 fi
-if ! grep -q "workbuddy.ai,🎯 全球直连" "$OUT.tmp"; then
+if ! grep -qF "workbuddy.ai,🎯 全球直连" "$OUT.tmp"; then
 	echo "警告: workbuddy.ai 直连覆盖规则丢失，请检查 $OUT.tmp"
 	exit 1
 fi
-if ! grep -q "z.ai,🎯 全球直连" "$OUT.tmp"; then
+if ! grep -qF "z.ai,🎯 全球直连" "$OUT.tmp"; then
 	echo "警告: z.ai 直连覆盖规则丢失，请检查 $OUT.tmp"
 	exit 1
 fi
-if ! grep -q "bigmodel.cn,🎯 全球直连" "$OUT.tmp"; then
+if ! grep -qF "bigmodel.cn,🎯 全球直连" "$OUT.tmp"; then
 	echo "警告: bigmodel.cn 直连覆盖规则丢失，请检查 $OUT.tmp"
 	exit 1
 fi
-if ! grep -q "production.cloudflare.docker.com,📺 大流量" "$OUT.tmp"; then
+if ! grep -qF "production.cloudflare.docker.com,📺 大流量" "$OUT.tmp"; then
 	echo "警告: 容器镜像 CDN 的大流量规则丢失，请检查 $OUT.tmp"
 	exit 1
 fi
-if ! grep -q "play.googleapis.com,$CL" "$OUT.tmp"; then
+if ! grep -qF "play.googleapis.com,$CL" "$OUT.tmp"; then
 	echo "警告: Google 出口覆盖规则丢失，请检查 $OUT.tmp"
 	exit 1
 fi
-if ! grep -q "googleapis.com,$CL" "$OUT.tmp" || ! grep -q "bing.com,Ⓜ️ 微软服务" "$OUT.tmp"; then
+if ! grep -qF "googleapis.com,$CL" "$OUT.tmp" || ! grep -qF "bing.com,Ⓜ️ 微软服务" "$OUT.tmp"; then
 	echo "警告: 分类修正层丢失，请检查 $OUT.tmp"
 	exit 1
 fi
-if ! grep -q "DOMAIN-SUFFIX,github.com,$GH" "$OUT.tmp" || ! grep -q "DOMAIN-SUFFIX,githubusercontent.com,$GH" "$OUT.tmp"; then
+if ! grep -qF "DOMAIN-SUFFIX,github.com,$GH" "$OUT.tmp" || ! grep -qF "DOMAIN-SUFFIX,githubusercontent.com,$GH" "$OUT.tmp"; then
 	echo "警告: GitHub 出口覆盖规则丢失（可能被 geosite 同名规则去重掉），请检查 $OUT.tmp"
 	exit 1
 fi
-if ! grep -q "DOMAIN,dl.google.com,🎯 全球直连" "$OUT.tmp" ||
-   ! grep -q "DOMAIN-SUFFIX,gvt1.com,🎯 全球直连" "$OUT.tmp" ||
-   ! grep -q "DOMAIN-SUFFIX,gvt1-cn.com,🎯 全球直连" "$OUT.tmp" ||
-   ! grep -q "DOMAIN-SUFFIX,jetbrains.com,🎯 全球直连" "$OUT.tmp"; then
+if ! grep -qF "DOMAIN,dl.google.com,🎯 全球直连" "$OUT.tmp" ||
+   ! grep -qF "DOMAIN-SUFFIX,gvt1.com,🎯 全球直连" "$OUT.tmp" ||
+   ! grep -qF "DOMAIN-SUFFIX,gvt1-cn.com,🎯 全球直连" "$OUT.tmp" ||
+   ! grep -qF "DOMAIN-SUFFIX,jetbrains.com,🎯 全球直连" "$OUT.tmp"; then
 	echo "警告: 高带宽直连段丢失（可能被上游规则去重），请检查 $OUT.tmp"
 	exit 1
 fi

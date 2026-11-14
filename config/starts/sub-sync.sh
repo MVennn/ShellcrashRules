@@ -52,7 +52,7 @@ CURL=/usr/bin/curl
 # 跨设备 mv 是「复制 + 删除」而非原子 rename —— 断电时目标可能只剩半截
 # （2026-11-04 筛节点写入途中硬复位，proxies.yaml 就这样变成空文件）。
 TMP="${TARGET%/*}/.subsync.$$"
-trap 'rm -f "$TMP".raw "$TMP".have "$TMP".all "$TMP".nodes "$TMP".new' EXIT
+trap 'rm -f "$TMP".raw "$TMP".have "$TMP".all "$TMP".nodes "$TMP".new "$TMP".eps "$TMP".counts' EXIT
 
 # 转换后配置是「已有什么」的基准；读不到就宁可不动
 if [ ! -s "$CONVERTED" ]; then
@@ -87,23 +87,41 @@ grep -E "^ *- *\{ *name:" "$TMP.raw" \
     | sed "s/^ *- *{ *name: */- {name: /" \
     | sed "s/ *} *$/}/" > "$TMP.all"
 
+# 三分（名字命中 / 端点命中 / 待补）用一次 awk 完成：
+#   原写法对每一行起 5 个子进程（echo|sed ×2 + grep ×2 + echo），订阅里 300 个节点
+#   就是 1500 次 fork —— 在 239MB 的路由器上是秒级抖动，而且每个 grep 都要把基准表
+#   重新读一遍。awk 把两张基准表读进数组，单进程一遍扫完，判定语义与原来逐行
+#   grep -qxF 完全一致（精确整行匹配，不做正则）。
+awk -v have="$TMP.have" -v eps="$TMP.eps" -v cnt="$TMP.counts" '
+BEGIN {
+	while ((getline l < have) > 0) H[l] = 1
+	close(have)
+	while ((getline l < eps) > 0) E[l] = 1
+	close(eps)
+}
+{
+	n = $0
+	sub(/^- \{name: /, "", n)
+	# 原 sed 要求 name 后面跟着逗号，否则整行不算节点（策略组/多行块）；保持一致。
+	if (index(n, ",") == 0) next
+	sub(/,.*$/, "", n)
+	gsub(/^ +| +$/, "", n)
+	if (n == "") next
+	if (n in H) { sn++; next }
+	ep = ""
+	if (match($0, /server: *[^,[:space:]]+, *port: *[0-9]+/)) {
+		ep = substr($0, RSTART, RLENGTH)
+		sub(/^server: */, "", ep)
+		sub(/, *port: */, ":", ep)
+	}
+	if (ep != "" && (ep in E)) { se++; next }
+	print
+}
+END { print sn + 0, se + 0 > cnt }
+' "$TMP.all" > "$TMP.nodes"
 SEEN_NAME=0
 SEEN_EP=0
-: > "$TMP.nodes"
-while IFS= read -r line; do
-    n=$(echo "$line" | sed -n "s/^- {name: \([^,]*\),.*/\1/p" | sed "s/^ *//;s/ *$//")
-    [ -z "$n" ] && continue
-    if grep -qxF "$n" "$TMP.have"; then
-        SEEN_NAME=$((SEEN_NAME + 1))
-        continue
-    fi
-    ep=$(echo "$line" | sed -n "s/.*server: *\([^,[:space:]]*\), *port: *\([0-9][0-9]*\).*/\1:\2/p" | head -1)
-    if [ -n "$ep" ] && grep -qxF "$ep" "$TMP.eps"; then
-        SEEN_EP=$((SEEN_EP + 1))
-        continue
-    fi
-    echo "$line" >> "$TMP.nodes"
-done < "$TMP.all"
+[ -f "$TMP.counts" ] && read SEEN_NAME SEEN_EP < "$TMP.counts"
 N=$(wc -l < "$TMP.nodes")
 
 # 上限按基准比例判定：基准正常时「真丢」的节点只有个位数（转换器不认的协议类型），

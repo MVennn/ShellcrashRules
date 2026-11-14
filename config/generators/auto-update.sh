@@ -8,13 +8,39 @@
 CRASHDIR=/etc/ShellCrash
 LOGDIR=$CRASHDIR/logs
 LOG=$LOGDIR/auto-update.log
+LOGTMP=$LOG.tmp.$$
 mkdir -p "$LOGDIR"
+
+# 单实例锁：本脚本是唯一会触发 hotupdate 的地方。两次并发 = 两次 PUT /configs，
+# 内存峰值翻倍（docs/PITFALLS.md §46：单次峰值已是常驻的两倍，239MB 上必被 OOM）。
+# mkdir 原子加锁；超过 1 小时视为上次崩溃留下的陈旧锁，直接接管。
+LOCKDIR=$LOGDIR/.auto-update.lock
+if ! mkdir "$LOCKDIR" 2>/dev/null; then
+	_ts=$(cat "$LOCKDIR/ts" 2>/dev/null || echo 0)
+	case "$_ts" in ''|*[!0-9]*) _ts=0 ;; esac
+	if [ $(($(date +%s) - _ts)) -gt 3600 ]; then
+		rm -rf "$LOCKDIR"
+		mkdir "$LOCKDIR" 2>/dev/null || exit 1
+	else
+		echo "$(date) 已有实例在跑，跳过本次" >> "$LOG"
+		exit 0
+	fi
+fi
+date +%s > "$LOCKDIR/ts"
+trap 'rm -rf "$LOCKDIR"; rm -f "$LOGTMP"' EXIT INT TERM HUP
 
 # 日志轮转: 超过 256KB 只保留尾部 200 行
 if [ -f "$LOG" ]; then
 	SZ=$(wc -c < "$LOG" 2>/dev/null || echo 0)
-	[ "$SZ" -gt 262144 ] && { tail -200 "$LOG" > "$LOG.tmp" && mv -f "$LOG.tmp" "$LOG"; }
+	# 临时名带 $$：固定名 $LOG.tmp 在两个实例同时截断时会互相覆盖。
+	[ "$SZ" -gt 262144 ] && { tail -200 "$LOG" > "$LOGTMP" && mv -f "$LOGTMP" "$LOG"; }
 fi
+
+# 探活合成一次调用：原来循环里每轮跑两次 netstat|grep，10 轮最多 20 个子进程。
+core_up() {
+	pidof CrashCore >/dev/null 2>&1 || return 1
+	netstat -lnt 2>/dev/null | grep -qF ':7890'
+}
 
 rc=0
 SKIP=0
@@ -36,10 +62,10 @@ SKIP=0
 			# 这里探活 10s，不活就立刻 start.sh start，不等 guardian。
 			i=0
 			while [ "$i" -lt 10 ]; do
-				pidof CrashCore >/dev/null 2>&1 && netstat -lnt 2>/dev/null | grep -q ':7890' && break
+				core_up && break
 				sleep 1; i=$((i+1))
 			done
-			if ! pidof CrashCore >/dev/null 2>&1 || ! netstat -lnt 2>/dev/null | grep -q ':7890'; then
+			if ! core_up; then
 				echo "  热更新后核心未存活（疑似 OOM），立即重新拉起"
 				sh "$CRASHDIR/start.sh" start
 			fi
