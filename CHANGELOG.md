@@ -11,6 +11,55 @@
 
 ## [未发布]
 
+### 生成期脚本去 fork、单实例锁与锁接管竞态（2026-11-14）
+
+- 改 `config/hooks/reorder-groups.sh`：单实例锁从「超时即 `rm -rf` 接管」改为先读锁里的
+  `pid` 再 `kill -0` 判活 —— 233 MB 机器上 8 个 `awk` pass 超过 10 秒是常态，旧实现删掉的是
+  活着的进程的锁，而它收尾时又会删掉接管者的锁，第三个进程于是也能进来（[PITFALLS.md](docs/PITFALLS.md) §49）。
+- 改 `config/hooks/reorder-groups.sh`：8 个 pass 的临时文件名从固定 `$CFG.dedup` 改为 `$CFG.rg.$$`，
+  两轮生成并发时不再互相覆盖临时文件；`[ -f "$CFG" ]` 守卫前移到第一行，文件缺失时报
+  「no config」而不是后续 `sed -i` 的 `No such file`。
+- 改 `config/starts/sub-sync.sh`：订阅解析的 1500 次 `awk`/`sed` 子进程调用合并成一次 `awk` 遍历，
+  同步一轮省掉约 1.5k 个 fork（小内存机器上这轮直接决定会不会被 OOM killer 盯上）。
+- 改 `config/starts/clash_modify.sh`：5 处 `[ -x "$h" ] && "$h"` 收敛成 `run_hook()`，
+  钩子失败只留痕不中断后续步骤。
+- 改 `config/ai-api-check.sh`：新增 `--dry-run` / `--help`；`curl` 全部加 `-f --connect-timeout 3`；
+  临时文件带 `$$`；8 处「发现差异就修」补上闸门，字面量匹配改 `grep -F`（16 处）。
+- 改 `config/generators/ai-rules-update.sh`：15 处 `grep -q` 改 `-qF`，组名里的正则元字符不再误判。
+- 改 `config/generators/auto-update.sh`：日志临时名带 `$$`，加单实例锁，`core_up()` 合并两次探活。
+- 改 `config/daily-ai-check.sh`：加单实例锁（2 小时陈旧接管），字面量匹配改 `-qF`。
+- 改 `config/post-sc-update.sh`：日志留一份 `.prev`，字面量匹配改 `-qF`，`sc_up()` 合并探活，`curl` 加 `-f`。
+- 改 `firewall/quicguard-sync.sh`：诊断文件带 `$$`，`tail` 固定 `-n 30`，备份只留 3 份，
+  集合计数收敛成 `count_set()`。
+- 新增 `tools/hook-dryrun.sh`：在配置副本上跑钩子并 `diff`，退出码 0/1/2 —— 改钩子前先预演，
+  不再拿现网配置试（[TOOLS.md](docs/TOOLS.md) §1）。
+- 改 `config/starts/fw_nftables.sh`：flush 前把现有表 dump 到 `/tmp/ShellCrash/.nft.bak.$$`，
+  全部 `nft add` 跑完自检「这一轮至少建起一条链」，不满足就 `nft -f` 恢复上一份表并往 stderr
+  留一行 —— 原来 flush 后逐条 add 失败就是半成品表、无回滚、无日志（[PITFALLS.md](docs/PITFALLS.md) §50）。
+- 评估后不改：`config/hooks/reorder-groups.sh` 第一遍不幂等（补进去的成员先排在末尾）——
+  修法会把 `🚀 节点选择` 首成员从 `DIRECT` 换成 `🛟 主备自动`，等于换默认出口，
+  证不出等价，理由与触发条件记在 [PITFALLS.md](docs/PITFALLS.md) §51。
+- 改 `docs/PITFALLS.md` 新增 §49（锁接管竞态）、§50（nft 半成品表）、§51（刻意保留的不幂等）；
+  `docs/TOOLS.md` §1 工具表补 `hook-dryrun.sh`。
+
+---
+
+### 健康快照区分内存危急与偏低，`/tmp` 用量按挂载点取行（2026-11-14）
+
+- 新增 `config/health-snapshot.sh`：内存两个分支原来都加 `mem_low`，`reasons` 无法解释 `status`
+  为什么是 `critical` —— 低于 `MEM_CRIT_KB` 改报 `mem_critical` 并把 `status` 抬到 `critical`
+  （退出码 2），低于 `MEM_WARN_KB` 仍是 `mem_low`（退出码 1）。
+- `config/health-snapshot.sh`：`/tmp` 用量原来固定取 `df` 的 `NR==2`，同一设备挂了多份时
+  会取到别的挂载点；改为先按 `$NF=="/tmp"` 精确匹配，匹配不到再退回 `NR==2`。
+- `config/health-snapshot.sh`：没有 `curl` 时 `api.reachable` 恒为 `false` 却没有任何码解释，
+  新增 `no_curl` 枚举码，消费方能区分「连不上」与「没这个工具」。
+- `config/health-snapshot.sh`：`--out --no-api` 原来会把下一个选项当文件名，改为参数以 `-`
+  开头即报用法错误（退出码 2）；`boolz()` 定义前移到使用点之前。
+- 改 `docs/TOOLS.md` §8：退出码表与 `reasons` 枚举码列表补齐（新增 `mem_critical`、`no_curl`）。
+- 改 `docs/TOOLS.md` §8：补一句兄弟仓 `AX3000TOpenwrt` 的 `health-snapshot --json` 已把本脚本 `--no-api` 输出内嵌成 `shellcrash` 子对象，消费方不必再单独调一次。
+
+---
+
 ### 补 8 条兜底与支付域规则，修 stripe 被 Netflix IP 段劫持（2026-11-13）
 
 - 改 `config/generators/ai-rules-update.sh`：P0 段（`:50-62`）新增 4 条 ——
@@ -358,7 +407,6 @@
   ShellCrash 官方更新后能一起恢复；`quicguard-sync.sh` 重跑生成文件未变、live 表
   `cn_ip6_mirror` 1487 行；`ai-api-check.sh` 实跑全 OK
 
-
 ### 自检（2026-10-26）
 
 - 调整 `config/ai-api-check.sh` —— 移除原第 4 段「三种协议最小 token 测试」：
@@ -476,7 +524,6 @@
 - 验证 —— 7 个仓的同一份扫描脚本同步改完并各自跑通；`sh -n` ✓、
   `check-vault-not-staged --all` ✓、`check-secrets.py` ✓（123 个文件）、
   `check-docs.py` ✓（22 篇）
-
 
 ### 𝕏 媒体（2026-10-23）
 

@@ -57,6 +57,7 @@ ShellcrashRules/
 | `config/post-sc-update.sh` | `/etc/ShellCrash/post-sc-update.sh` | 人工（ShellCrash 官方脚本更新后） | 删 `local-patches/` 即不再恢复 |
 | `config/ai-api-check.sh` | `/etc/ShellCrash/ai-api-check.sh` | 人工（订阅更新后必跑）+ `daily-ai-check.sh`（每日 05:05） | 只读为主；少数段带自动修复，删掉即不修 |
 | `config/daily-ai-check.sh` | `/etc/ShellCrash/daily-ai-check.sh` | cron `5 5 * * *` | 删 crontab 对应行；日志在 `/etc/ShellCrash/logs/`，保留最近 14 份 |
+| `config/health-snapshot.sh` | `/etc/ShellCrash/health-snapshot.sh` | 人工 / 控制台与运维工具按需调用（只读，JSON 打到 stdout） | 删文件即可：只 `nft list` + 读 `/proc`，不改配置、不写设备状态 |
 | `config/archive/geo-test.sh` | **不部署** | 无（一次性诊断，已归档） | 归档件，保留备查 |
 | `firewall/tables/quicguard.nft` | `/etc/quicguard.nft` | `rc.local`（`AX3000TOpenwrt` 仓）+ 守护进程补载；**设备上的文件由 `quicguard-sync.sh` 生成**（含 CN 镜像集合） | `nft delete table inet quicguard`，或 `nft -f` 任意 `/etc/quicguard.nft.bak.*` |
 | `firewall/quicguard-sync.sh` | `/etc/quicguard-sync.sh` | 人工投放；按 ShellCrash 的 `cn_ip` / `cn_ip6` 重写 `/etc/quicguard.nft`（订阅更新 / ShellCrash 重启后要重跑） | 删文件 + 恢复旧 `/etc/quicguard.nft` |

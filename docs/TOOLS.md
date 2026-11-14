@@ -10,6 +10,8 @@
 | 工具 | 在哪 | 跑在哪 | 会不会改设备状态 |
 |---|---|---|---|
 | AI 接口自检 `ai-api-check.sh` | 本仓 `config/`，设备侧 `/etc/ShellCrash/` | 路由器上 | ⚠️ 少数几段带自动修复（改 log-level、修 `task.sh` 路径、重载 nft 表） |
+| 健康快照 `health-snapshot.sh` | 本仓 `config/`，设备侧 `/etc/ShellCrash/` | 路由器上 | ❌ 只读（只 `nft list` 与读 `/proc`，不重启、不改配置、不写设备状态） |
+| 钩子预演 `hook-dryrun.sh` | 本仓 `tools/` | PC 侧（对配置副本跑） | ❌ 只读现网（在副本上跑钩子并 `diff`，退出码 0 无差异 / 1 有差异 / 2 用法或环境错误） |
 | 规则生成器 `ai-rules-update.sh` | 本仓 `config/generators/` | 路由器上 | ✅ 写 `yamls/rules.yaml`（写前校验不过就什么都不改） |
 | 控制 API 客户端 `mihomo_api.py` | `OpenwrtOpsToolkit` 仓 `mihomo/` | PC 侧 | ❌ 只读 |
 | 节点延迟探测 `latency_probe.py` | `OpenwrtOpsToolkit` 仓 `mihomo/` | PC 侧 | ❌ 只读 |
@@ -172,7 +174,51 @@ python tools/public-nodes/evaluate.py --only ermaozi-reachable,ermaozi-all --sam
 
 ---
 
-## 8. 相关文档
+## 8. 取结构化健康快照
+
+`ai-api-check.sh` 是给人看的逐段断言（退出码只有 0/1），控制台和运维工具要的是机器可读的一份状态。
+`health-snapshot.sh` 把同一批事实一次采齐并输出 JSON，**消费方不要再各自 curl / `nft list` / 读 `/proc` 重实现一遍**。
+
+```bash
+# 路由器上：JSON 打到 stdout（默认）
+ssh root@<REPLACE-ROUTER-LAN-IP> 'sh /etc/ShellCrash/health-snapshot.sh'
+# 原子写文件（先写 .tmp.$$ 再 mv，不会留半截 JSON）
+ssh root@<REPLACE-ROUTER-LAN-IP> 'sh /etc/ShellCrash/health-snapshot.sh --out /tmp/ShellCrash/health.json'
+# 开机早期 / 离线场景：跳过 mihomo 控制 API 探测
+ssh root@<REPLACE-ROUTER-LAN-IP> 'sh /etc/ShellCrash/health-snapshot.sh --no-api'
+```
+
+| 退出码 | 含义 |
+|---|---|
+| 0 | 健康 |
+| 1 | 有告警（内存偏低 / `/tmp` 满 / nft 表缺失 / 上次自检失败 / API 不可达 / 没有 curl） |
+| 2 | 严重：核心没跑、运行配置 `/tmp/ShellCrash/config.yaml` 缺失，或内存可用低于 `MEM_CRIT_KB` |
+
+字段（`"schema": "shellcrash.health/1"`，**只增不改**，新增字段消费方必须容忍缺省）：
+
+| 字段 | 含义 |
+|---|---|
+| `ts` / `epoch` / `uptime_s` | RFC3339 时间（带 `+08:00` 冒号偏移）/ 秒级时间戳 / 开机秒数 |
+| `mem.total_kb` / `avail_kb` / `used_pct` | `/proc/meminfo`；老内核没有 `MemAvailable` 时用 `MemFree+Buffers+Cached` 兜底，都拿不到就报 0 而不是假的 100% |
+| `tmp.total_kb` / `used_kb` / `used_pct` | `/tmp` 是 tmpfs，写满会 OOM 杀核心再触发整机重启，必须盯 |
+| `core.running` / `pid` / `rss_kb` | `pidof CrashCore` + `/proc/<pid>/status` 的 `VmRSS` |
+| `api.enabled` / `reachable` / `version` | 控制 API 探测结果；secret 只从 `MIHOMO_SECRET` 或设备 cfg 读，**绝不回显** |
+| `nft.quicguard` / `googleroute` / `googlecn` | 三张独立表各自是否在（ShellCrash 重启只重写 `inet shellcrash`，这三张得自己活下来） |
+| `rules.runtime` / `yamls` / `runtime_config` | 运行配置与 `yamls/rules.yaml` 的规则条数、运行配置是否存在 |
+| `checks.last_failure` / `ai_check_log_age_s` / `ai_check_lock` / `auto_update_lock` | `logs/LAST_FAILURE` 是否在、自检日志多久前更新、两把单实例锁是否被占 |
+| `cron.lifeline_wd` / `lifeline_task` | 两条 cron 生命线（`start_legacy_wd.sh`、`task/task.sh`）是否还在 —— 订阅更新会把它们重置 |
+| `status` / `reasons` | `ok` / `warn` / `critical`；`reasons` 只放 ASCII 枚举码，不放句子。全部码：`mem_critical`（低于 `MEM_CRIT_KB`，同时把 `status` 抬到 `critical`）、`mem_low`（低于 `MEM_WARN_KB`）、`tmp_high`、`core_down`、`nft_missing:<表名>`、`api_unreachable`、`no_curl`（没有 curl，`api.reachable` 恒 false，靠这个码区分「连不上」与「没工具」）、`no_runtime_config`、`last_failure_present`、`no_secret` |
+
+阈值可用环境变量覆盖：`MEM_WARN_KB`（默认 40960）、`MEM_CRIT_KB`（默认 20480）、`TMP_WARN_PCT`（默认 80）；
+`CRASHDIR` 与 `MIHOMO_API` 的默认值与其它脚本一致，PC 侧调试时用它们指到 fixture 目录。
+
+> 快照里不含主机名、内网 IP、节点名与 secret —— 它会被贴进 issue 和聊天窗口，少一个字段就少一处泄露面。
+
+兄弟仓 `AX3000TOpenwrt` 的 `system/router-health/health-snapshot.sh --json` 已把本脚本 `--no-api` 的输出内嵌成 `shellcrash` 子对象（路径由 `SHELLCRASH_SNAP` 覆盖，来源缺失或输出半截一律写 `null`），那边的面板与脚本不必再单独调一次。
+
+---
+
+## 9. 相关文档
 
 | 要查什么 | 去哪 |
 |---|---|
