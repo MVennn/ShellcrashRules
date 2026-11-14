@@ -20,6 +20,43 @@
 # 由 starts/clash_modify.sh 在配置合并后、校验前调用
 
 CFG="$1"
+# 先验文件存在：原来这一行在 mixed-port 归一之后，文件缺失时 grep 静默失败、
+# 随后的 sed -i 往 stderr 抛 "No such file"，看起来像脚本坏了而不是参数错了。
+[ -f "$CFG" ] || { echo "no config: $CFG" >&2; exit 1; }
+
+# 临时文件名带 $$：8 个 pass 原来都用 $CFG.dedup / $CFG.reorder 这类固定名，
+# 两轮生成并发（start.sh restart 的后台生成 + 看门狗补载，见 docs/PITFALLS.md §35）
+# 会同时写同一个临时文件，mv 出来的配置就是两次 awk 交错的结果。
+TMPB="$CFG.rg.$$"
+LOCK="$CFG.rg.lock"
+# 单实例锁：临时名带 $$ 只解决"两个进程写同一个临时文件"，解决不了两个进程
+# 交错跑 pass（A 的 dedup 覆盖 B 的 reorder 结果）。mkdir 在 tmpfs 上是原子的。
+# 等 10 秒还没拿到锁 = 另一轮生成正在写配置，本轮直接跳过（它跑完的结果与
+# 本轮等价，重排是幂等的），把时间让给校验而不是在这里排队。
+# 锁目录里写持有者 pid：233MB 机器上 8 个 awk pass 跑超过 10 秒很正常，超时不等于
+# 陈旧。直接 rm -rf 接管会删掉活着的进程的锁，而它收尾时又会删掉接管者的锁
+# （第三个进程于是也能进来，锁整体失效）。所以接管前先 kill -0 判活。
+LOCKPID="$LOCK/pid"
+i=0
+while ! mkdir "$LOCK" 2>/dev/null; do
+	i=$((i + 1))
+	if [ "$i" -gt 10 ]; then
+		HOLDER=$(cat "$LOCKPID" 2>/dev/null)
+		if [ -n "$HOLDER" ] && kill -0 "$HOLDER" 2>/dev/null; then
+			echo "[reorder-groups] 另一轮生成仍在重排（pid $HOLDER），本轮跳过" >&2
+			exit 0
+		fi
+		# 陈旧锁（持有者已退出或 pid 文件没写成）：接管一次，仍失败就放弃
+		rm -rf "$LOCK" 2>/dev/null
+		mkdir "$LOCK" 2>/dev/null || { echo "[reorder-groups] 另一轮生成正在重排配置，本轮跳过" >&2; exit 0; }
+		break
+	fi
+	sleep 1
+done
+echo $$ > "$LOCKPID" 2>/dev/null
+# 只在自己仍是持有者时释放锁：否则接管者的锁会被这里的 trap 删掉。
+trap 'if [ "$(cat "$LOCKPID" 2>/dev/null)" = "$$" ]; then rm -rf "$LOCK"; fi; rm -f "$TMPB".dedup "$TMPB".decoy "$TMPB".remap "$TMPB".reorder "$TMPB".reorder-members "$TMPB".node-order "$TMPB".fish-order' EXIT INT TERM HUP
+
 # MIXED_PORT_NORMALIZE 归一 mixed-port：
 #   ShellCrash 多次生成时可能把它叠成 127.0.0.1:127.0.0.1:7890 → mihomo 校验失败
 #   → ShellCrash 静默回退基础配置 → 自定义代理组全丢（2026-10-20 09:18 实测）
@@ -27,7 +64,6 @@ MP_PORT=$(grep -m1 -E "^mixed-port:" "$CFG" 2>/dev/null | grep -oE "[0-9]+$")
 if [ -n "$MP_PORT" ]; then
   sed -i -E "s|^mixed-port:.*$|mixed-port: $MP_PORT|" "$CFG"
 fi
-[ -f "$CFG" ] || { echo "no config: $CFG" >&2; exit 1; }
 
 
 # ---- 第一遍：proxy-groups 清洗（同名组去重 + 组内重复 key 清理）----
@@ -99,7 +135,7 @@ END {
 	if (dropped > 0) print "[reorder-groups] 丢弃重复 proxy-group: " dropped " 个" > "/dev/stderr"
 	if (dupkey > 0) print "[reorder-groups] 丢弃组内重复 key: " dupkey " 行" > "/dev/stderr"
 }
-' "$CFG" > "$CFG.dedup" && mv -f "$CFG.dedup" "$CFG"
+' "$CFG" > "$TMPB.dedup" && mv -f "$TMPB.dedup" "$CFG"
 
 awk '
 function flush() {
@@ -141,7 +177,7 @@ END {
 	if (inpg) flush()
 	if (dropped > 0) print "[reorder-groups] 丢弃重复 proxy-group: " dropped " 个" > "/dev/stderr"
 }
-' "$CFG" > "$CFG.dedup" && mv -f "$CFG.dedup" "$CFG"
+' "$CFG" > "$TMPB.dedup" && mv -f "$TMPB.dedup" "$CFG"
 
 # ---- 第二遍前：剔除机场伪节点（2026-10-23）----
 # 机场把「剩余流量 / 套餐到期 / 过滤掉N条线路」也写成真节点形状；其中
@@ -164,7 +200,7 @@ ing && /^      - / {
 }
 { print }
 END { if (dropped > 0) print "[reorder-groups] 丢弃机场伪节点定义/成员: " dropped " 行" > "/dev/stderr" }
-' "$CFG" > "$CFG.decoy" && mv -f "$CFG.decoy" "$CFG"
+' "$CFG" > "$TMPB.decoy" && mv -f "$TMPB.decoy" "$CFG"
 
 # 纯中转组已删除：把它们的规则改指当前实际出口，行为保持不变。
 # 用 awk 按字段重写，避免 sed 对 4 字节 emoji 的匹配差异。
@@ -205,7 +241,7 @@ BEGIN {
 	}
 	print
 }
-' "$CFG" > "$CFG.remap" && mv -f "$CFG.remap" "$CFG"
+' "$CFG" > "$TMPB.remap" && mv -f "$TMPB.remap" "$CFG"
 
 awk '
 function flush() {
@@ -277,17 +313,17 @@ END {
 		for (j=1;j<=n;j++) if (!used[j]) print buf[j]
 	}
 }
-' "$CFG" > "$CFG.reorder" && mv -f "$CFG.reorder" "$CFG"
+' "$CFG" > "$TMPB.reorder" && mv -f "$TMPB.reorder" "$CFG"
 
 # 第二遍：重排 🚀 节点选择 的成员顺序（主备自动/自动选择置顶）
 has_fallback=0
-grep -q "  - name: 🛟 主备自动" "$CFG" && has_fallback=1
+grep -qF "  - name: 🛟 主备自动" "$CFG" && has_fallback=1
 has_public=0
-grep -q "  - name: 🆓 公共备用" "$CFG" && has_public=1
+grep -qF "  - name: 🆓 公共备用" "$CFG" && has_public=1
 has_bulk=0
-grep -q "  - name: 📺 大流量" "$CFG" && has_bulk=1
+grep -qF "  - name: 📺 大流量" "$CFG" && has_bulk=1
 has_github=0
-grep -q "  - name: 🔗 GitHub 出口" "$CFG" && has_github=1
+grep -qF "  - name: 🔗 GitHub 出口" "$CFG" && has_github=1
 awk -v has_fallback="$has_fallback" -v has_public="$has_public" -v has_bulk="$has_bulk" -v has_github="$has_github" '
 function flush_members() {
 	if (cnt > 0) {
@@ -355,7 +391,7 @@ inlist {
 }
 { print }
 END { flush_members() }
-' "$CFG" > "$CFG.reorder-members" && mv -f "$CFG.reorder-members" "$CFG"
+' "$CFG" > "$TMPB.reorder-members" && mv -f "$TMPB.reorder-members" "$CFG"
 
 # 第三遍：🚀 手动切换 / ♻️ 自动选择 的节点按地区排序
 # 目的：手动选节点时先看到常用地区，而不是订阅顺序（日本→新加坡→香港…随机）。
@@ -416,7 +452,7 @@ inlist {
 }
 { print }
 END { if (inblock || inlist) flush_list() }
-' "$CFG" > "$CFG.node-order" && mv -f "$CFG.node-order" "$CFG"
+' "$CFG" > "$TMPB.node-order" && mv -f "$TMPB.node-order" "$CFG"
 
 # 第四遍：🐟 漏网之鱼 的 DIRECT 收尾（模板默认把 DIRECT 夹在地区组中间）
 awk '
@@ -432,4 +468,4 @@ inblock && /^[a-zA-Z]/ {
 inblock && /^      - DIRECT$/ { direct = $0; next }
 { print }
 END { if (inblock && direct != "") print direct }
-' "$CFG" > "$CFG.fish-order" && mv -f "$CFG.fish-order" "$CFG"
+' "$CFG" > "$TMPB.fish-order" && mv -f "$TMPB.fish-order" "$CFG"
