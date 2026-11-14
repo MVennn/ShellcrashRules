@@ -168,6 +168,16 @@ start_nft_wan() { #nftables公网防火墙
 }
 start_nftables() { #nftables配置总入口
     #初始化nftables
+    # flush 之后是逐条 nft add：任一失败就是半成品表，而且没有回滚 —— 表现为
+    # 「能上网但分流全没了」或直接断网，日志里一个字都没有。这里在 flush 前把现有表
+    # dump 到 tmpfs，全部 add 完再自检；这一轮连一条链都没建起来就用备份 nft -f 恢复，
+    # 并往 stderr 留一行，不让故障静默（PITFALLS §50）。
+    # 只在「上一份确实有链」时才备份，避免拿空表当保险。
+    NFT_BAK="/tmp/ShellCrash/.nft.bak.$$"
+    NFT_HAD_BAK=0
+    if nft list table inet shellcrash > "$NFT_BAK" 2>/dev/null && grep -q 'chain ' "$NFT_BAK" 2>/dev/null; then
+        NFT_HAD_BAK=1
+    fi
     nft add table inet shellcrash 2>/dev/null
     nft flush table inet shellcrash 2>/dev/null
     #公网访问防火墙
@@ -218,4 +228,13 @@ start_nftables() { #nftables配置总入口
         JUMP="meta l4proto tcp redirect to $redir_port" #跳转劫持的具体命令
         start_nft_route prerouting_vm prerouting nat -100
     }
+    #自检：这一轮应当至少建起一条链，否则说明 add 全线失败（表被 flush 成空）
+    if [ "$NFT_HAD_BAK" = 1 ] && ! nft list table inet shellcrash 2>/dev/null | grep -q 'chain '; then
+        if nft -f "$NFT_BAK" 2>/dev/null; then
+            echo "[fw_nftables] 本轮 nft add 全线失败，已从备份恢复上一份表（分流保持故障前状态）" >&2
+        else
+            echo "[fw_nftables] 本轮 nft add 全线失败，备份恢复也失败，分流可能已中断" >&2
+        fi
+    fi
+    rm -f "$NFT_BAK" 2>/dev/null
 }
