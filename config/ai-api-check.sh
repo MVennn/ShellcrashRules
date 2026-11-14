@@ -13,8 +13,27 @@ AUTH="Authorization: Bearer $SECRET"
 G="%F0%9F%A4%96%20AI%E6%8E%A5%E5%8F%A3"   # 🤖 AI接口
 fail=0
 
+# 自动修复开关（默认开 = 历史行为）。--dry-run / --no-fix 只检查、不改设备文件：
+# 控制台拉状态、事后复盘、两个人同时看同一台路由器时，脚本不该悄悄改配置。
+FIX=1
+# 逐参数解析：只认 $1 时 `ai-api-check.sh foo --dry-run` 会忽略 dry-run 真去改设备。
+while [ $# -gt 0 ]; do
+	case "$1" in
+		--dry-run|--no-fix) FIX=0 ;;
+		--help|-h)
+			awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"
+			exit 0 ;;
+		*) : ;;
+	esac
+	shift
+done
+
+skip_fix() {
+	echo "[dry-run] 未执行修复：$1"
+}
+
 echo "===== 1. 策略组状态 ====="
-J=$(curl -s --max-time 8 -H "$AUTH" "$API/proxies/$G")
+J=$(curl -s -f --connect-timeout 3 --max-time 8 -H "$AUTH" "$API/proxies/$G")
 NOW=$(echo "$J" | jsonfilter -e '@.now' 2>/dev/null)
 CNT=$(echo "$J" | jsonfilter -e '@.all[*]' 2>/dev/null | wc -l)
 if [ -z "$NOW" ]; then
@@ -26,13 +45,13 @@ fi
 
 echo ""
 echo "===== 2. 组到 opencode.ai 的延迟 ====="
-D=$(curl -s --max-time 15 -H "$AUTH" "$API/proxies/$G/delay?timeout=8000&url=https%3A%2F%2Fopencode.ai%2F")
+D=$(curl -s -f --connect-timeout 3 --max-time 15 -H "$AUTH" "$API/proxies/$G/delay?timeout=8000&url=https%3A%2F%2Fopencode.ai%2F")
 echo "$D"
-echo "$D" | grep -q '"delay"' || { echo "FAIL: 延迟测试失败"; fail=1; }
+echo "$D" | grep -qF '"delay"' || { echo "FAIL: 延迟测试失败"; fail=1; }
 
 echo ""
 echo "===== 3. opencode.ai 可达性（经 mihomo 代理口） ====="
-CODE=$(curl -s -x http://127.0.0.1:7890 -o /dev/null -w '%{http_code}' --max-time 15 https://opencode.ai/)
+CODE=$(curl -s -f -x http://127.0.0.1:7890 -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 15 https://opencode.ai/)
 echo "HTTP $CODE"
 [ "$CODE" = "200" ] || { echo "FAIL: 不是 200"; fail=1; }
 
@@ -41,24 +60,29 @@ echo "===== 4. 已移除（三种协议最小 token 测试） ====="
 
 echo ""
 echo "===== 5. 分组排序钩子 ====="
-if grep -q "reorder-groups.sh" /etc/ShellCrash/starts/clash_modify.sh; then
+if grep -qF "reorder-groups.sh" /etc/ShellCrash/starts/clash_modify.sh; then
 	echo "OK: clash_modify.sh 钩子在"
 else
 	echo "WARN: 钩子丢失（ShellCrash 脚本可能更新过），正在重新添加"
+	if [ "$FIX" -eq 0 ]; then
+		skip_fix "给 clash_modify.sh 补 reorder-groups.sh 钩子"
+		fail=1
+	else
 		sed -i '/^    merger_yaml$/a\    [ -x "$CRASHDIR"/reorder-groups.sh ] && "$CRASHDIR"/reorder-groups.sh "$TMPDIR"/config.yaml' /etc/ShellCrash/starts/clash_modify.sh
 		# 语法通过不代表真的插进去了：上游改了 merger_yaml 的缩进/写法时
 		# sed 一行都不会插。必须重新 grep 确认。
-		if sh -n /etc/ShellCrash/starts/clash_modify.sh && grep -q "reorder-groups.sh" /etc/ShellCrash/starts/clash_modify.sh; then
+		if sh -n /etc/ShellCrash/starts/clash_modify.sh && grep -qF "reorder-groups.sh" /etc/ShellCrash/starts/clash_modify.sh; then
 			echo "已修复，重启生效: /etc/ShellCrash/start.sh start"
 		else
 			echo "FAIL: 钩子未能插入（merger_yaml 锚点可能已变），请检查 /etc/ShellCrash/starts/clash_modify.sh"
 			fail=1
 		fi
+	fi
 fi
 # 机场伪节点：过滤掉N条线路 / 剩余流量 / 套餐 / 到期 / 官网 都不是可用线路。
 # 「过滤掉14条线路」与日本-优化同 server/port/uuid，2026-10-23 被 url-test 选中后
 # 健康检查一抖就把 🛟 主备自动 整组切到公共池，所以必须在生成阶段剔除。
-if grep -q "丢弃机场伪节点" /etc/ShellCrash/reorder-groups.sh 2>/dev/null; then
+if grep -qF "丢弃机场伪节点" /etc/ShellCrash/reorder-groups.sh 2>/dev/null; then
 	echo "OK: reorder-groups.sh 含机场伪节点过滤"
 else
 	echo "FAIL: reorder-groups.sh 缺少机场伪节点过滤"
@@ -73,7 +97,7 @@ else
 	fail=1
 fi
 
-FIRST=$(curl -s --max-time 8 -H "$AUTH" "$API/proxies/%F0%9F%9A%80%20%E8%8A%82%E7%82%B9%E9%80%89%E6%8B%A9" | jsonfilter -e '@.all[0]' 2>/dev/null)
+FIRST=$(curl -s -f --connect-timeout 3 --max-time 8 -H "$AUTH" "$API/proxies/%F0%9F%9A%80%20%E8%8A%82%E7%82%B9%E9%80%89%E6%8B%A9" | jsonfilter -e '@.all[0]' 2>/dev/null)
 if [ "$FIRST" = "🛟 主备自动" ]; then
 	echo "OK: 节点选择首项 = 🛟 主备自动（机场优先，公共节点兜底）"
 else
@@ -87,12 +111,17 @@ if grep -q '\$CRASHDIR/config\.\$format' /etc/ShellCrash/task/task.sh; then
 	echo "OK: hotupdate 使用 SAFE_PATHS 内路径"
 else
 	echo "WARN: 路径被重置（ShellCrash 脚本可能更新过），正在修复"
-	sed -i 's#\$TMPDIR/config\.\$format#\$CRASHDIR/config.\$format#' /etc/ShellCrash/task/task.sh
-	if sh -n /etc/ShellCrash/task/task.sh && grep -q '\$CRASHDIR/config\.\$format' /etc/ShellCrash/task/task.sh; then
-		echo "已修复，下次 hotupdate 生效"
-	else
-		echo "FAIL: 修复失败，请检查 /etc/ShellCrash/task/task.sh"
+	if [ "$FIX" -eq 0 ]; then
+		skip_fix "修 task/task.sh 的 hotupdate 重载路径"
 		fail=1
+	else
+		sed -i 's#\$TMPDIR/config\.\$format#\$CRASHDIR/config.\$format#' /etc/ShellCrash/task/task.sh
+		if sh -n /etc/ShellCrash/task/task.sh && grep -q '\$CRASHDIR/config\.\$format' /etc/ShellCrash/task/task.sh; then
+			echo "已修复，下次 hotupdate 生效"
+		else
+			echo "FAIL: 修复失败，请检查 /etc/ShellCrash/task/task.sh"
+			fail=1
+		fi
 	fi
 fi
 
@@ -107,10 +136,15 @@ fi
 if nft list table inet quicguard >/dev/null 2>&1; then
 	echo "OK: quicguard 已加载"
 else
-	echo "WARN: quicguard 未加载，正在加载"
-	nft -f /etc/quicguard.nft || { echo "FAIL: quicguard 加载失败"; fail=1; }
+	if [ "$FIX" -eq 0 ]; then
+		skip_fix "加载 quicguard 表（nft -f /etc/quicguard.nft）"
+		fail=1
+	else
+		echo "WARN: quicguard 未加载，正在加载"
+		nft -f /etc/quicguard.nft || { echo "FAIL: quicguard 加载失败"; fail=1; }
+	fi
 fi
-if grep -q 'play.googleapis.com' /etc/ShellCrash/yamls/rules.yaml; then
+if grep -qF 'play.googleapis.com' /etc/ShellCrash/yamls/rules.yaml; then
 	echo "OK: Google 出口覆盖规则在"
 else
 	echo "FAIL: rules.yaml 缺少 Google 覆盖规则"
@@ -159,21 +193,30 @@ CFG=/tmp/ShellCrash/config.yaml
 QIC_RULE='[ "$quic_rj" = '"'"'ON'"'"' -a "$lan_proxy" = true ] && [ "$1" = '"'"'prerouting'"'"' ] && nft add rule inet shellcrash $1 udp dport {443, 8443} counter reject with icmpx type port-unreachable'
 
 # 9.1 fw_nftables.sh 的 QUIC reject 钩子（ShellCrash 更新会覆盖本脚本）
-if [ -f "$QF" ] && grep -q 'QUIC_BLOCK_MARKER' "$QF"; then
+if [ -f "$QF" ] && grep -qF 'QUIC_BLOCK_MARKER' "$QF"; then
 	echo "OK: fw_nftables.sh 含 QUIC reject 钩子"
 else
+	# 临时名带 $$：手动跑与 cron 跑撞在一起时，原来两个进程共写 /tmp/fw.fix，
+	# 谁先 mv 谁就把对方那一份（可能是半截）装到设备脚本上。
+	FWFIX=/tmp/fw.fix.$$
 	awk -v r="$QIC_RULE" '/#屏蔽quic/ && !done {
 		print "    #QUIC_BLOCK_MARKER 境外QUIC真正reject（此前仅return，会让HTTP/3带国内出口IP直连逃逸）"
 		print "    " r
 		done=1
-	} { print }' "$QF" > /tmp/fw.fix 2>/dev/null
-	if [ -s /tmp/fw.fix ] && sh -n /tmp/fw.fix 2>/dev/null && grep -q 'QUIC_BLOCK_MARKER' /tmp/fw.fix; then
-		mv /tmp/fw.fix "$QF"
-		echo "FIX: fw_nftables.sh 已补回 QUIC reject 钩子（下次 ShellCrash 启动生效）"
+		} { print }' "$QF" > "$FWFIX" 2>/dev/null
+	if [ -s "$FWFIX" ] && sh -n "$FWFIX" 2>/dev/null && grep -qF 'QUIC_BLOCK_MARKER' "$FWFIX"; then
+		if [ "$FIX" -eq 0 ]; then
+			skip_fix "把 QUIC reject 钩子写回 fw_nftables.sh"
+			fail=1
+		else
+			mv "$FWFIX" "$QF"
+			echo "FIX: fw_nftables.sh 已补回 QUIC reject 钩子（下次 ShellCrash 启动生效）"
+		fi
 	else
 		echo "FAIL: 无法补回 fw_nftables.sh 的 QUIC reject 钩子"
 		fail=1
 	fi
+	rm -f "$FWFIX"
 fi
 
 # 9.2 运行中的 nft 表是否真的有 QUIC reject 规则
@@ -182,9 +225,14 @@ if nft list table inet shellcrash 2>/dev/null | grep -q 'udp dport { 443, 8443 }
 else
 	H=$(nft -a list table inet shellcrash 2>/dev/null | awk '/udp dport \{ *443, *8443 *\} return/ {for(i=1;i<=NF;i++) if($i=="handle") {print $(i+1); exit}}' | tr -d ' ')
 	if [ -n "$H" ]; then
-		nft insert rule inet shellcrash prerouting handle "$H" udp dport {443, 8443} counter reject with icmpx type port-unreachable 2>/dev/null \
-			&& echo "FIX: live nft 表已重新插入 QUIC reject 规则" \
-			|| { echo "FAIL: 插入 QUIC reject 规则失败"; fail=1; }
+		if [ "$FIX" -eq 0 ]; then
+			skip_fix "往 live nft 表插 QUIC reject 规则"
+			fail=1
+		else
+			nft insert rule inet shellcrash prerouting handle "$H" udp dport {443, 8443} counter reject with icmpx type port-unreachable 2>/dev/null \
+				&& echo "FIX: live nft 表已重新插入 QUIC reject 规则" \
+				|| { echo "FAIL: 插入 QUIC reject 规则失败"; fail=1; }
+		fi
 	else
 		echo "FAIL: live 表里找不到 QUIC return 规则，无法插入 reject"
 		fail=1
@@ -195,12 +243,17 @@ fi
 if [ -f "$CM" ] && grep -q 'tls: {ports: \[443, 8443\], override-destination: true}' "$CM"; then
 	echo "OK: clash_modify.sh 的 TLS 嗅探含 override-destination"
 else
-	sed -i 's/tls: {ports: \[443, 8443\]}/tls: {ports: [443, 8443], override-destination: true}/' "$CM" 2>/dev/null
-	if grep -q 'tls: {ports: \[443, 8443\], override-destination: true}' "$CM" 2>/dev/null; then
-		echo "FIX: clash_modify.sh 已补上 override-destination（需再跑一次 task.sh hotupdate 生效）"
-	else
-		echo "FAIL: 无法给 clash_modify.sh 补上 override-destination"
+	if [ "$FIX" -eq 0 ]; then
+		skip_fix "给 clash_modify.sh 补 TLS override-destination"
 		fail=1
+	else
+		sed -i 's/tls: {ports: \[443, 8443\]}/tls: {ports: [443, 8443], override-destination: true}/' "$CM" 2>/dev/null
+		if grep -q 'tls: {ports: \[443, 8443\], override-destination: true}' "$CM" 2>/dev/null; then
+			echo "FIX: clash_modify.sh 已补上 override-destination（需再跑一次 task.sh hotupdate 生效）"
+		else
+			echo "FAIL: 无法给 clash_modify.sh 补上 override-destination"
+			fail=1
+		fi
 	fi
 fi
 
@@ -212,10 +265,14 @@ else
 fi
 
 # 9.5 fake_ip_filter 的 +.google.com（客户端拿全球边缘真实IP，避免落到国内边缘）
-if [ -f "$FF" ] && grep -qx '+.google.com' "$FF"; then
+if [ -f "$FF" ] && grep -qxF '+.google.com' "$FF"; then
 	echo "OK: fake_ip_filter 含 +.google.com"
 else
-	echo '+.google.com' >> "$FF" 2>/dev/null && echo "FIX: fake_ip_filter 已补 +.google.com（需 hotupdate 生效）"
+	if [ "$FIX" -eq 0 ]; then
+		skip_fix "往 fake_ip_filter 追加 +.google.com"
+	else
+		echo '+.google.com' >> "$FF" 2>/dev/null && echo "FIX: fake_ip_filter 已补 +.google.com（需 hotupdate 生效）"
+	fi
 fi
 echo ""
 
@@ -259,19 +316,19 @@ if [ -f "$RCFG" ]; then
 		echo "FAIL: 203.208.32.0/19 缺 no-resolve（Google 端点会被按域名劫持）"
 		fail=1
 	fi
-	if grep -q "ngstr-lra8j" "$RCFG"; then
+	if grep -qF "ngstr-lra8j" "$RCFG"; then
 		echo "OK: sniffer skip-domain 含 Play CDN 域名"
 	else
 		echo "FAIL: sniffer skip-domain 缺 CDN 域名（Play 下载会超时）"
 		fail=1
 	fi
-	if grep -q 'OUT.tmp" #ATOMIC_WRITE_MARKER' "$GEN" && grep -q 'mv -f "$OUT.tmp" "$OUT"' "$GEN"; then
+	if grep -qF 'OUT.tmp" #ATOMIC_WRITE_MARKER' "$GEN" && grep -qF 'mv -f "$OUT.tmp" "$OUT"' "$GEN"; then
 		echo "OK: 生成器为原子写（tmp → 校验 → mv）"
 	else
 		echo "FAIL: 生成器缺少原子写"
 		fail=1
 	fi
-	if grep -q 'play.googleapis.com,$CL" "$OUT.tmp"' "$GEN"; then
+	if grep -qF 'play.googleapis.com,$CL" "$OUT.tmp"' "$GEN"; then
 		echo "OK: 生成器校验读的是临时文件"
 	else
 		echo "FAIL: 生成器校验读的不是临时文件（会在 mv 前误判退出）"
@@ -286,19 +343,19 @@ echo ""
 echo "===== 11. 夜间加固项（cn_ip剔除 / sniffer跳过CDN / 组出口） ====="
 FW=/etc/ShellCrash/starts/fw_nftables.sh
 CM=/etc/ShellCrash/starts/clash_modify.sh
-if [ -f "$FW" ] && grep -q 'CN_IP_EXCLUDE_203208' "$FW"; then
+if [ -f "$FW" ] && grep -qF 'CN_IP_EXCLUDE_203208' "$FW"; then
 	echo "OK: fw_nftables.sh 含 CN_IP 剔除标记（重启后不会把 Google 国内边缘段加回 cn_ip）"
 else
 	echo "FAIL: fw_nftables.sh 缺 CN_IP_EXCLUDE_203208 标记"
 	fail=1
 fi
-if nft list set inet shellcrash cn_ip 2>/dev/null | grep -q "203.208.32.0/19"; then
+if nft list set inet shellcrash cn_ip 2>/dev/null | grep -qF "203.208.32.0/19"; then
 	echo "FAIL: live cn_ip 集合仍含 203.208.32.0/19"
 	fail=1
 else
 	echo "OK: live cn_ip 集合不含 203.208.32.0/19"
 fi
-if [ -f "$CM" ] && grep -q "ngstr-lra8j" "$CM"; then
+if [ -f "$CM" ] && grep -qF "ngstr-lra8j" "$CM"; then
 	echo "OK: clash_modify.sh 的 sniffer skip-domain 含 Play CDN 域名"
 else
 	echo "FAIL: clash_modify.sh 的 sniffer skip-domain 缺 CDN 域名"
@@ -341,13 +398,13 @@ fi
 
 echo ""
 echo "===== 13. IPv6 fake-IP 旁路防护（fc00::/16 必须进代理） ====="
-if nft list table inet googleroute 2>/dev/null | grep -q "ip6 daddr fc00::/16"; then
+if nft list table inet googleroute 2>/dev/null | grep -qF "ip6 daddr fc00::/16"; then
 	echo "OK: googleroute 表含 fake-IPv6(fc00::/16) → :7892 的重定向"
 else
 	echo "FAIL: fake-IPv6 未被重定向进代理（IPv6 优先的客户端会间歇性超时）"
 	fail=1
 fi
-if grep -q 'googleroute.nft' /etc/rc.local; then
+if grep -qF 'googleroute.nft' /etc/rc.local; then
 	echo "OK: rc.local 含 googleroute 开机加载"
 else
 	echo "FAIL: rc.local 缺 googleroute 开机加载"
@@ -356,9 +413,11 @@ fi
 
 echo ""
 echo "===== 14. 干净出口组（唯一 Google 判为非 CN 的稳定出口） ====="
-ASEC=$(sed -n "s/^secret=//p" /etc/ShellCrash/configs/ShellCrash.cfg 2>/dev/null | head -1 | tr -d "'\"")
+# 复用段 1 已经解析出来的 SECRET：原来在这里再 sed 一遍同一个文件，
+# 多一次 fork + 一次全文件读，还多一个「两处解析口径漂移」的可能。
+ASEC="$SECRET"
 CLE="%F0%9F%A4%96%20%E5%B9%B2%E5%87%80%E5%87%BA%E5%8F%A3"
-if [ -f "$RCFG" ] && grep -q "name: 🤖 干净出口" "$RCFG"; then
+if [ -f "$RCFG" ] && grep -qF "name: 🤖 干净出口" "$RCFG"; then
 	echo "OK: 运行配置含 🤖 干净出口 组"
 	N=$(grep -cF ",🤖 干净出口" "$RCFG")
 	if [ "$N" -ge 20 ]; then
@@ -367,12 +426,14 @@ if [ -f "$RCFG" ] && grep -q "name: 🤖 干净出口" "$RCFG"; then
 		echo "FAIL: 指向干净出口的规则只有 $N 条（应为 20+）"
 		fail=1
 	fi
-	MEM=$(curl -s -m 5 -H "Authorization: Bearer $ASEC" "http://127.0.0.1:9999/proxies/$CLE" 2>/dev/null | grep -oE "\"all\":\[[^]]*\]" | head -1)
+	# 一次请求同时取 all 与 now：原来对同一个 URL 连发两次 curl（各最多 5s）。
+	CLEJ=$(curl -s -f --connect-timeout 3 -m 5 -H "Authorization: Bearer $ASEC" "http://127.0.0.1:9999/proxies/$CLE" 2>/dev/null)
+	MEM=$(echo "$CLEJ" | grep -oE "\"all\":\[[^]]*\]" | head -1)
 	case "$MEM" in
 		*HY2*|*印度*) echo "OK: 干净出口候选含 HY2/印度节点" ;;
 		*) echo "FAIL: 干净出口候选异常: ${MEM:-无}"; fail=1 ;;
 	esac
-	NOWC=$(curl -s -m 5 -H "Authorization: Bearer $ASEC" "http://127.0.0.1:9999/proxies/$CLE" 2>/dev/null | grep -oE "\"now\":\"[^\"]*\"" | head -1 | sed "s/\"now\":\"//;s/\"$//")
+	NOWC=$(echo "$CLEJ" | grep -oE "\"now\":\"[^\"]*\"" | head -1 | sed "s/\"now\":\"//;s/\"$//")
 	case "$NOWC" in
 		*HY2*|*印度*|*台湾-优化3*) echo "OK: 干净出口当前 = $NOWC" ;;
 		*) echo "WARN: 干净出口当前 = ${NOWC:-空}（守护会在 5 分钟内复位）" ;;
@@ -386,18 +447,18 @@ echo ""
 echo "===== 15. 出口组与守护进程 ====="
 AIN="%F0%9F%A4%96%20%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD"
 AWE="%F0%9F%A4%96%20AI%E7%BD%91%E9%A1%B5"
-NOWA=$(curl -s -m 5 -H "Authorization: Bearer $ASEC" "http://127.0.0.1:9999/proxies/$AIN" 2>/dev/null | grep -oE "\"now\":\"[^\"]*\"" | head -1 | sed "s/\"now\":\"//;s/\"$//")
+NOWA=$(curl -s -f --connect-timeout 3 -m 5 -H "Authorization: Bearer $ASEC" "http://127.0.0.1:9999/proxies/$AIN" 2>/dev/null | grep -oE "\"now\":\"[^\"]*\"" | head -1 | sed "s/\"now\":\"//;s/\"$//")
 if [ "$NOWA" = "🤖 AI网页" ]; then
 	echo "OK: 🤖 人工智能 = 🤖 AI网页（出口固定，不会漂到被判 CN 的节点）"
 else
 	echo "WARN: 🤖 人工智能 当前 = ${NOWA:-空}（守护会在 5 分钟内复位）"
 fi
-NOWG=$(curl -s -m 5 -H "Authorization: Bearer $ASEC" "http://127.0.0.1:9999/proxies/$AWE" 2>/dev/null | grep -oE "\"now\":\"[^\"]*\"" | head -1 | sed "s/\"now\":\"//;s/\"$//")
+NOWG=$(curl -s -f --connect-timeout 3 -m 5 -H "Authorization: Bearer $ASEC" "http://127.0.0.1:9999/proxies/$AWE" 2>/dev/null | grep -oE "\"now\":\"[^\"]*\"" | head -1 | sed "s/\"now\":\"//;s/\"$//")
 case "$NOWG" in
 	*HY2*|*台湾-优化3*|*台湾-优化2-GPT*) echo "OK: 🤖 AI网页 出口 = $NOWG" ;;
 	*) echo "WARN: 🤖 AI网页 出口 = ${NOWG:-空}" ;;
 esac
-if [ -x /etc/ShellCrash/guardian.sh ] && grep -q "CLEAN" /etc/ShellCrash/guardian.sh; then
+if [ -x /etc/ShellCrash/guardian.sh ] && grep -qF "CLEAN" /etc/ShellCrash/guardian.sh; then
 	echo "OK: 守护进程在位（含干净出口/回退/OOM 拉起逻辑）"
 else
 	echo "WARN: 守护进程缺失或不含干净出口逻辑"
@@ -417,7 +478,12 @@ fi
 if nft list table inet quicguard 2>/dev/null | grep -q "udp dport { 443, 8443 } counter packets"; then
 	echo "OK: live quicguard 表已加载全局 QUIC 阻断"
 else
-	nft -f "$QG" 2>/dev/null && echo "FIX: quicguard 表已重载" || { echo "FAIL: quicguard 表重载失败"; fail=1; }
+	if [ "$FIX" -eq 0 ]; then
+		skip_fix "重载 quicguard 表（nft -f $QG）"
+		fail=1
+	else
+		nft -f "$QG" 2>/dev/null && echo "FIX: quicguard 表已重载" || { echo "FAIL: quicguard 表重载失败"; fail=1; }
+	fi
 fi
 QP=$(nft list table inet quicguard 2>/dev/null | grep -oE "udp dport \{ 443, 8443 \} counter packets [0-9]+" | grep -oE "[0-9]+" | tail -1)
 echo "INFO: QUIC 拦截累计 ${QP:-0} 包（说明浏览器仍在尝试 HTTP/3，属正常，每次都被拦下回落 TCP）"
