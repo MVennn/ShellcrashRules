@@ -32,6 +32,11 @@ jobs:
       - name: 密钥扫描
         run: python3 tools/check-secrets.py
 
+      # 规则静态门禁：空组名(mihomo 拒载)、关键覆盖规则、carve-out 顺序、
+      # 支付域早于 IP-CIDR、provider 必须 type:http+interval。零第三方依赖。
+      - name: 规则静态校验
+        run: python3 tools/check-rules.py
+
       - name: Shell 语法
         run: find . -name '*.sh' -not -path './third-party/*' -not -path './.work/*' -print0 | xargs -0 -n1 sh -n
 

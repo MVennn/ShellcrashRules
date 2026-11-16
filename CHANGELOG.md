@@ -11,6 +11,19 @@
 
 ## [未发布]
 
+### 订阅更新与规则适配（2026-11-16）
+
+- 在路由器（OpenWrt 6.12 / ShellCrash 1.9.5beta3）跑 auto-update.sh 更新机场订阅：ai-rules-update OK、hotupdate OK、rc=0，核心存活。
+- 设备新规则 519 条（含 2026-11-12 定义的 P0 支付/兜底段），比仓库旧快照多 12 条：stripe/cdn.ldstatic/immersivetranslate/cloudflare-dns 等支付与兜底域、api.gemai/grokbot/datadoghq/sentry 等新抓 AI 域、gh-proxy/ghfast GitHub 出口、c.tenor 国外媒体。
+- 已用 `tools/check-rules.py` 校验设备新规则（11 项全绿），并把新快照同步回 `config/generated/rules.yaml` 作基线。更新前已备份设备 config/rules/proxies 到 .backup-manual-20261116-175317。
+
+### 新增 CI 规则静态门禁 check-rules.py（2026-11-16）
+
+- 新增 `tools/check-rules.py`：把原先只在生成时自检 / 设备运行时 ai-api-check.sh 里的关键不变量前移到提交阶段，CI 只跑 sh -n 的历史到此为止。
+- 拦的问题（都是本仓踩过的坑）：空组名致 mihomo 拒载、规则类型拼错、关键覆盖规则被误删（stripe/gh-proxy/porn rule-set 等）、支付域 stripe 必须早于 IP-CIDR、广告 carve-out 早于 google 关键词、provider 退回 type:file 冻结不更新。
+- 边界：只校验规则文件自身结构/顺序/关键条目；按先匹配先赢的真实目标计算仍是 `OpenwrtOpsToolkit/mihomo/rule_audit.py` 的职责（需完整 config.yaml，只在 PC 上跑）。零第三方依赖，CI/GBK 控制台通用。
+- 接入 `.github/workflows/ci.yml` lint job；`docs/MAINTENANCE.md §2.2.1` 记录职责边界。验证：正向全绿（11 项 OK）、三类负向（空组名/删关键规则/provider type:file）均 exit 1；check-docs/check-secrets/sh -n/py_compile 全 0。
+
 ### 生成期脚本去 fork、单实例锁与锁接管竞态（2026-11-14）
 
 - 改 `config/hooks/reorder-groups.sh`：单实例锁从「超时即 `rm -rf` 接管」改为先读锁里的

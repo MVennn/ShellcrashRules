@@ -69,6 +69,18 @@ python <OPS_TOOLKIT_ROOT>/mihomo/rule_audit.py config.yaml proxies.json <RULES_R
 
 **任何一段 FAIL 都必须处理完再往下走** —— 这些段覆盖的正是「更新后悄悄坏掉」的部位。
 
+### 2.2.1 提交阶段的规则门禁（CI）
+
+设备上的 ai-api-check.sh 17 段是**运行时**自检（订阅更新后跑）；提交阶段另有
+NaNtools/check-rules.py` 做**静态**门禁，已接入 `.github/workflows/ci.yml`：
+
+- 校验对象：`config/generated/rules.yaml`、生成器 `ai-rules-update.sh`、两个 provider 钩子。
+- 拦的是：空组名（mihomo 拒载）、规则类型拼错、关键覆盖规则被误删、stripe 支付域早于
+  IP-CIDR、广告 carve-out 顺序、provider 退回 `type:file`（冻结不更新）。
+- 零第三方依赖，CI 与设备 GBK 控制台都能跑：`python3 tools/check-rules.py`（0 通过 / 1 失败）。
+- 边界：只校验规则文件自身的结构/顺序/关键条目，**不做**按先匹配先赢的真实目标计算
+  （那是 `OpenwrtOpsToolkit/mihomo/rule_audit.py` 的职责，需完整 config.yaml，只在 PC 上跑）。
+
 ### 2.3 校验结果往哪写
 
 写进仓库根 [CHANGELOG.md](../CHANGELOG.md) 的对应版本段：

@@ -1,6 +1,16 @@
 # AI 服务分流规则 — 由 MetaCubeX/meta-rules-dat geosite category-ai-chat-!cn 生成
-# 更新于 2026-10-30 21:40:38
+# 更新于 2026-11-16 17:53:28
 # 同键规则已去重（保留首次出现；顶部覆盖优先）
+# ===== P0. 支付 / MATCH 兜底覆盖（必须早于所有 IP-CIDR 与模板规则，2026-11-12）=====
+# m.stripe.com 实测挂在「🎥 NETFLIX」组下（37313 字节）：模板里 IP-CIDR,34.208.0.0/12,🎥 NETFLIX
+#   比 DOMAIN-SUFFIX,stripe.com,🌍 国外媒体 更早，先匹配先赢 —— stripe 那条从来没生效过。
+#   支付域走流媒体出口有风控风险，这里在生成物最前面显式截走。
+#   不要动那条 IP-CIDR：34.208.0.0/12 是 AWS us-west-2 整段，删了会误伤同段的其他服务。
+- DOMAIN-SUFFIX,stripe.com,🚀 节点选择
+# 11 天全落 MATCH 兜底（合计约 67MB 走 🐟 漏网之鱼）的通用域，逐个钉死出口：
+- DOMAIN-SUFFIX,cdn.ldstatic.com,🚀 节点选择
+- DOMAIN-SUFFIX,s.immersivetranslate.com,🚀 节点选择
+- DOMAIN-SUFFIX,cloudflare-dns.com,🚀 节点选择
 # ===== X. 𝕏 媒体（twimg.com 走 HY2，2026-10-23）=====
 # X/Twitter 图片 CDN 的并发建连在 VMess+WS 上会被串行化：
 #   2026-10-23 实测 10 并发真实图片，VMess 墙钟 1.9–5.9s、偶发单张 5–6s；
@@ -288,6 +298,8 @@
 - DOMAIN-SUFFIX,bolt.new,🤖 人工智能
 - DOMAIN-SUFFIX,lovable.dev,🤖 人工智能
 - DOMAIN-SUFFIX,replit.com,🤖 人工智能
+# 2026-11-12：AI 域补漏（11 天全落 MATCH 兜底，走 🐟 漏网之鱼）
+- DOMAIN-SUFFIX,api.gemai.cc,🤖 人工智能
 # Google 服务统一出口（必须排在 geosite 规则和模板 googleapis 规则之前）
 - DOMAIN-SUFFIX,play.googleapis.com,🤖 干净出口
 - DOMAIN-SUFFIX,android.clients.google.com,🤖 干净出口
@@ -313,10 +325,6 @@
 - DOMAIN-SUFFIX,liveperson.net,🚀 节点选择
 - DOMAIN-SUFFIX,lpsnmedia.net,🚀 节点选择
 - DOMAIN,browser-intake-datadoghq.com,🚀 节点选择
-- DOMAIN,servd-anthropic-website.b-cdn.net,🤖 人工智能
-- DOMAIN,copilot-proxy.githubusercontent.com,🤖 人工智能
-- DOMAIN,copilot-workspace.githubnext.com,🤖 人工智能
-- DOMAIN,copilotprodattachments.blob.core.windows.net,🤖 人工智能
 - DOMAIN,ai.google.dev,🤖 人工智能
 - DOMAIN,alkalicore-pa.clients6.google.com,🤖 人工智能
 - DOMAIN,alkalimakersuite-pa.clients6.google.com,🤖 人工智能
@@ -339,10 +347,17 @@
 - DOMAIN,production-openaicom-storage.azureedge.net,🤖 人工智能
 - DOMAIN,ppl-ai-file-upload.s3.amazonaws.com,🤖 人工智能
 - DOMAIN,pplx-res.cloudinary.com,🤖 人工智能
-- DOMAIN-SUFFIX,comfy.org,🤖 人工智能
-- DOMAIN-SUFFIX,ollama.com,🤖 人工智能
+- DOMAIN,copilot-proxy.githubusercontent.com,🤖 人工智能
+- DOMAIN,copilot-workspace.githubnext.com,🤖 人工智能
+- DOMAIN,production-copilot-host-westus.webpubsub.azure.com,🤖 人工智能
+- DOMAIN,copilotprodattachments.blob.core.windows.net,🤖 人工智能
+- DOMAIN,servd-anthropic-website.b-cdn.net,🤖 人工智能
+- DOMAIN-SUFFIX,elevenlabs.com,🤖 人工智能
+- DOMAIN-SUFFIX,meta.ai,🤖 人工智能
+- DOMAIN-SUFFIX,poecdn.net,🤖 人工智能
 - DOMAIN-SUFFIX,cohere.com,🤖 人工智能
 - DOMAIN-SUFFIX,copilot-stg.com,🤖 人工智能
+- DOMAIN-SUFFIX,poe.com,🤖 人工智能
 - DOMAIN-SUFFIX,copilot.com,🤖 人工智能
 - DOMAIN-SUFFIX,deepwiki.com,🤖 人工智能
 - DOMAIN-SUFFIX,deepwiki.org,🤖 人工智能
@@ -351,7 +366,6 @@
 - DOMAIN-SUFFIX,typesafe.ai,🤖 人工智能
 - DOMAIN-SUFFIX,kimi.ai,🤖 人工智能
 - DOMAIN-SUFFIX,moonshot.ai,🤖 人工智能
-- DOMAIN-SUFFIX,meta.ai,🤖 人工智能
 - DOMAIN-SUFFIX,metaaivm.com,🤖 人工智能
 - DOMAIN-SUFFIX,metaaiusercontent.com,🤖 人工智能
 - DOMAIN-SUFFIX,muse.ai,🤖 人工智能
@@ -361,6 +375,7 @@
 - DOMAIN-SUFFIX,artificialanalysis.ai,🤖 人工智能
 - DOMAIN-SUFFIX,chutes.ai,🤖 人工智能
 - DOMAIN-SUFFIX,clawhub.ai,🤖 人工智能
+- DOMAIN-SUFFIX,huggingface.co,🤖 人工智能
 - DOMAIN-SUFFIX,context7.com,🤖 人工智能
 - DOMAIN-SUFFIX,crewai.com,🤖 人工智能
 - DOMAIN-SUFFIX,devin.ai,🤖 人工智能
@@ -369,10 +384,8 @@
 - DOMAIN-SUFFIX,dify.ai,🤖 人工智能
 - DOMAIN-SUFFIX,dreamgen.com,🤖 人工智能
 - DOMAIN-SUFFIX,duck.ai,🤖 人工智能
+- DOMAIN-SUFFIX,hf.space,🤖 人工智能
 - DOMAIN-SUFFIX,h2o.ai,🤖 人工智能
-- DOMAIN-SUFFIX,youmind.site,🤖 人工智能
-- DOMAIN-SUFFIX,youmind.com,🤖 人工智能
-- DOMAIN-SUFFIX,youmind.ai,🤖 人工智能
 - DOMAIN-SUFFIX,kiro.dev,🤖 人工智能
 - DOMAIN-SUFFIX,langchain.com,🤖 人工智能
 - DOMAIN-SUFFIX,lmstudio.ai,🤖 人工智能
@@ -385,7 +398,7 @@
 - DOMAIN-SUFFIX,notegpt.io,🤖 人工智能
 - DOMAIN-SUFFIX,nousresearch.com,🤖 人工智能
 - DOMAIN-SUFFIX,novelai.net,🤖 人工智能
-- DOMAIN-SUFFIX,coderabbit.ai,🤖 人工智能
+- DOMAIN-SUFFIX,ollama.com,🤖 人工智能
 - DOMAIN-SUFFIX,openart.ai,🤖 人工智能
 - DOMAIN-SUFFIX,openclaw.ai,🤖 人工智能
 - DOMAIN-SUFFIX,openrouter.ai,🤖 人工智能
@@ -398,41 +411,11 @@
 - DOMAIN-SUFFIX,talkai.info,🤖 人工智能
 - DOMAIN-SUFFIX,tapnow.ai,🤖 人工智能
 - DOMAIN-SUFFIX,tripo3d.ai,🤖 人工智能
-- DOMAIN-SUFFIX,cerebras.ai,🤖 人工智能
-- DOMAIN-SUFFIX,hf.co,🤖 人工智能
-- DOMAIN-SUFFIX,hf.space,🤖 人工智能
-- DOMAIN-SUFFIX,huggingface.co,🤖 人工智能
-- DOMAIN-SUFFIX,manus.im,🤖 人工智能
-- DOMAIN-SUFFIX,manuscdn.com,🤖 人工智能
-- DOMAIN-SUFFIX,ant.dev,🤖 人工智能
-- DOMAIN-SUFFIX,anthropic.com,🤖 人工智能
-- DOMAIN-SUFFIX,anthropic.team,🤖 人工智能
-- DOMAIN-SUFFIX,antspace.dev,🤖 人工智能
-- DOMAIN-SUFFIX,chatbotclaude.com,🤖 人工智能
-- DOMAIN-SUFFIX,clau.de,🤖 人工智能
-- DOMAIN-SUFFIX,claude.ai,🤖 人工智能
-- DOMAIN-SUFFIX,claude.app,🤖 人工智能
-- DOMAIN-SUFFIX,claude.com,🤖 人工智能
-- DOMAIN-SUFFIX,claude.dev,🤖 人工智能
-- DOMAIN-SUFFIX,claude.new,🤖 人工智能
-- DOMAIN-SUFFIX,claude.site,🤖 人工智能
-- DOMAIN-SUFFIX,claudeacademy.com,🤖 人工智能
-- DOMAIN-SUFFIX,claudemcpclient.com,🤖 人工智能
-- DOMAIN-SUFFIX,claudemcpcontent.com,🤖 人工智能
-- DOMAIN-SUFFIX,claudepages.dev,🤖 人工智能
-- DOMAIN-SUFFIX,ai.studio,🤖 人工智能
+- DOMAIN-SUFFIX,grok.com,🤖 人工智能
+- DOMAIN-SUFFIX,grokbot.com,🤖 人工智能
+- DOMAIN-SUFFIX,grokipedia.com,🤖 人工智能
 - DOMAIN-SUFFIX,x.ai,🤖 人工智能
-- DOMAIN-SUFFIX,cohere.ai,🤖 人工智能
-- DOMAIN-SUFFIX,comfyci.org,🤖 人工智能
-- DOMAIN-SUFFIX,comfyregistry.org,🤖 人工智能
-- DOMAIN-SUFFIX,oystermercury.top,🤖 人工智能
-- DOMAIN-SUFFIX,githubcopilot.com,🤖 人工智能
-- DOMAIN-SUFFIX,codeium.com,🤖 人工智能
-- DOMAIN-SUFFIX,codeiumdata.com,🤖 人工智能
-- DOMAIN-SUFFIX,windsurf.build,🤖 人工智能
-- DOMAIN-SUFFIX,windsurf.com,🤖 人工智能
-- DOMAIN-SUFFIX,elevenlabs.com,🤖 人工智能
-- DOMAIN-SUFFIX,elevenlabs.io,🤖 人工智能
+- DOMAIN-SUFFIX,hf.co,🤖 人工智能
 - DOMAIN-SUFFIX,notebook.google,🤖 人工智能
 - DOMAIN-SUFFIX,deepmind.google,🤖 人工智能
 - DOMAIN-SUFFIX,antigravity-unleash.goog,🤖 人工智能
@@ -441,68 +424,94 @@
 - DOMAIN-SUFFIX,flow.google,🤖 人工智能
 - DOMAIN-SUFFIX,generativeai.google,🤖 人工智能
 - DOMAIN-SUFFIX,labs.google,🤖 人工智能
-- DOMAIN-SUFFIX,claudestudio.com,🤖 人工智能
+- DOMAIN-SUFFIX,ai.studio,🤖 人工智能
 - DOMAIN-SUFFIX,jules.google,🤖 人工智能
 - DOMAIN-SUFFIX,notebooklm.google,🤖 人工智能
 - DOMAIN-SUFFIX,deepmind.com,🤖 人工智能
-- DOMAIN-SUFFIX,grokipedia.com,🤖 人工智能
-- DOMAIN-SUFFIX,grok.com,🤖 人工智能
-- DOMAIN-SUFFIX,pplx.ai,🤖 人工智能
-- DOMAIN-SUFFIX,perplexity.com,🤖 人工智能
-- DOMAIN-SUFFIX,perplexity.ai,🤖 人工智能
-- DOMAIN-SUFFIX,sora.com,🤖 人工智能
-- DOMAIN-SUFFIX,chatgpt.com,🤖 人工智能
-- DOMAIN-SUFFIX,chat.com,🤖 人工智能
-- DOMAIN-SUFFIX,openai.org,🤖 人工智能
-- DOMAIN-SUFFIX,oaistatsig.com,🤖 人工智能
-- DOMAIN-SUFFIX,oaistatic.com,🤖 人工智能
-- DOMAIN-SUFFIX,crixet.com,🤖 人工智能
-- DOMAIN-SUFFIX,chatgpt.site,🤖 人工智能
-- DOMAIN-SUFFIX,openai.com,🤖 人工智能
-- DOMAIN-SUFFIX,oaiusercontent.com,🤖 人工智能
-- DOMAIN-SUFFIX,claudeusercontent.com,🤖 人工智能
-- DOMAIN-SUFFIX,cursorvm.com,🤖 人工智能
 - DOMAIN-SUFFIX,groq.com,🤖 人工智能
+- DOMAIN-SUFFIX,cohere.ai,🤖 人工智能
+- DOMAIN-SUFFIX,oystermercury.top,🤖 人工智能
+- DOMAIN-SUFFIX,comfyregistry.org,🤖 人工智能
+- DOMAIN-SUFFIX,comfyci.org,🤖 人工智能
+- DOMAIN-SUFFIX,comfy.org,🤖 人工智能
+- DOMAIN-SUFFIX,claudeusercontent.com,🤖 人工智能
+- DOMAIN-SUFFIX,claudestudio.com,🤖 人工智能
+- DOMAIN-SUFFIX,claudepages.dev,🤖 人工智能
+- DOMAIN-SUFFIX,claudemcpcontent.com,🤖 人工智能
+- DOMAIN-SUFFIX,claudemcpclient.com,🤖 人工智能
+- DOMAIN-SUFFIX,claudeacademy.com,🤖 人工智能
+- DOMAIN-SUFFIX,claude.site,🤖 人工智能
+- DOMAIN-SUFFIX,claude.new,🤖 人工智能
+- DOMAIN-SUFFIX,claude.dev,🤖 人工智能
+- DOMAIN-SUFFIX,claude.com,🤖 人工智能
+- DOMAIN-SUFFIX,claude.app,🤖 人工智能
+- DOMAIN-SUFFIX,claude.ai,🤖 人工智能
+- DOMAIN-SUFFIX,clau.de,🤖 人工智能
 - DOMAIN-SUFFIX,grazie.ai,🤖 人工智能
 - DOMAIN-SUFFIX,jetbrains.ai,🤖 人工智能
-- DOMAIN-SUFFIX,cursorapi.com,🤖 人工智能
-- DOMAIN-SUFFIX,poe.com,🤖 人工智能
-- DOMAIN-SUFFIX,poecdn.net,🤖 人工智能
+- DOMAIN-SUFFIX,chatbotclaude.com,🤖 人工智能
+- DOMAIN-SUFFIX,oaiusercontent.com,🤖 人工智能
+- DOMAIN-SUFFIX,openai.com,🤖 人工智能
+- DOMAIN-SUFFIX,chatgpt.site,🤖 人工智能
+- DOMAIN-SUFFIX,crixet.com,🤖 人工智能
+- DOMAIN-SUFFIX,oaistatic.com,🤖 人工智能
+- DOMAIN-SUFFIX,oaistatsig.com,🤖 人工智能
+- DOMAIN-SUFFIX,openai.org,🤖 人工智能
+- DOMAIN-SUFFIX,chat.com,🤖 人工智能
+- DOMAIN-SUFFIX,chatgpt.com,🤖 人工智能
+- DOMAIN-SUFFIX,sora.com,🤖 人工智能
+- DOMAIN-SUFFIX,antspace.dev,🤖 人工智能
+- DOMAIN-SUFFIX,anthropic.team,🤖 人工智能
+- DOMAIN-SUFFIX,anthropic.com,🤖 人工智能
+- DOMAIN-SUFFIX,ant.dev,🤖 人工智能
+- DOMAIN-SUFFIX,perplexity.ai,🤖 人工智能
+- DOMAIN-SUFFIX,perplexity.com,🤖 人工智能
+- DOMAIN-SUFFIX,pplx.ai,🤖 人工智能
+- DOMAIN-SUFFIX,codeium.com,🤖 人工智能
+- DOMAIN-SUFFIX,codeiumdata.com,🤖 人工智能
+- DOMAIN-SUFFIX,windsurf.build,🤖 人工智能
+- DOMAIN-SUFFIX,windsurf.com,🤖 人工智能
+- DOMAIN-SUFFIX,coderabbit.ai,🤖 人工智能
+- DOMAIN-SUFFIX,elevenlabs.io,🤖 人工智能
+- DOMAIN-SUFFIX,youmind.ai,🤖 人工智能
+- DOMAIN-SUFFIX,youmind.com,🤖 人工智能
+- DOMAIN-SUFFIX,youmind.site,🤖 人工智能
+- DOMAIN-SUFFIX,cerebras.ai,🤖 人工智能
 - DOMAIN-SUFFIX,cursor-cdn.com,🤖 人工智能
 - DOMAIN-SUFFIX,cursor.com,🤖 人工智能
 - DOMAIN-SUFFIX,cursor.sh,🤖 人工智能
-- DOMAIN-SUFFIX,notebooklm.google.com,🤖 人工智能
-- DOMAIN-SUFFIX,bard.google.com,🤖 人工智能
-- DOMAIN-SUFFIX,copilot.cloud.microsoft,🤖 人工智能
-- DOMAIN-SUFFIX,geller-pa.googleapis.com,🤖 人工智能
-- DOMAIN-SUFFIX,opal.google.com,🤖 人工智能
-- DOMAIN-SUFFIX,aida.googleapis.com,🤖 人工智能
-- DOMAIN-SUFFIX,aicode.googleapis.com,🤖 人工智能
-- DOMAIN-SUFFIX,aisandbox-pa.googleapis.com,🤖 人工智能
-- DOMAIN-SUFFIX,flow.google.com,🤖 人工智能
-- DOMAIN-SUFFIX,robinfrontend-pa.googleapis.com,🤖 人工智能
+- DOMAIN-SUFFIX,cursorapi.com,🤖 人工智能
+- DOMAIN-SUFFIX,cursorvm.com,🤖 人工智能
+- DOMAIN-SUFFIX,githubcopilot.com,🤖 人工智能
+- DOMAIN-SUFFIX,manus.im,🤖 人工智能
+- DOMAIN-SUFFIX,manuscdn.com,🤖 人工智能
 - DOMAIN-SUFFIX,stitch.withgoogle.com,🤖 人工智能
-- DOMAIN-SUFFIX,makersuite.google.com,🤖 人工智能
-- DOMAIN-SUFFIX,copilot.microsoft.com,🤖 人工智能
-- DOMAIN-SUFFIX,grok.x.com,🤖 人工智能
-- DOMAIN-SUFFIX,jules.google.com,🤖 人工智能
-- DOMAIN-SUFFIX,aistudio.google.com,🤖 人工智能
-- DOMAIN-SUFFIX,turn.livekit.cloud,🤖 人工智能
-- DOMAIN-SUFFIX,proactivebackend-pa.googleapis.com,🤖 人工智能
+- DOMAIN-SUFFIX,bard.google.com,🤖 人工智能
 - DOMAIN-SUFFIX,chatgpt.livekit.cloud,🤖 人工智能
 - DOMAIN-SUFFIX,host.livekit.cloud,🤖 人工智能
 - DOMAIN-SUFFIX,labs.google.com,🤖 人工智能
+- DOMAIN-SUFFIX,copilot.cloud.microsoft,🤖 人工智能
+- DOMAIN-SUFFIX,geller-pa.googleapis.com,🤖 人工智能
+- DOMAIN-SUFFIX,opal.google.com,🤖 人工智能
+- DOMAIN-SUFFIX,proactivebackend-pa.googleapis.com,🤖 人工智能
+- DOMAIN-SUFFIX,aida.googleapis.com,🤖 人工智能
+- DOMAIN-SUFFIX,aicode.googleapis.com,🤖 人工智能
+- DOMAIN-SUFFIX,aisandbox-pa.googleapis.com,🤖 人工智能
+- DOMAIN-SUFFIX,copilot.microsoft.com,🤖 人工智能
+- DOMAIN-SUFFIX,turn.livekit.cloud,🤖 人工智能
+- DOMAIN-SUFFIX,flow.google.com,🤖 人工智能
 - DOMAIN-SUFFIX,notebook.google.com,🤖 人工智能
-- DOMAIN-SUFFIX,labstailwind.pa.googleapis.com,🤖 人工智能
-- DOMAIN-SUFFIX,coderabbit.gallery.vsassets.io,🤖 人工智能
-- DOMAIN-SUFFIX,grazie.aws.intellij.net,🤖 人工智能
+- DOMAIN-SUFFIX,robinfrontend-pa.googleapis.com,🤖 人工智能
+- DOMAIN-SUFFIX,aistudio.google.com,🤖 人工智能
+- DOMAIN-SUFFIX,notebooklm.google.com,🤖 人工智能
+- DOMAIN-SUFFIX,jules.google.com,🤖 人工智能
+- DOMAIN-SUFFIX,makersuite.google.com,🤖 人工智能
+- DOMAIN-SUFFIX,grok.x.com,🤖 人工智能
 - DOMAIN-SUFFIX,gateway.ai.cloudflare.com,🤖 人工智能
+- DOMAIN-SUFFIX,coderabbit.gallery.vsassets.io,🤖 人工智能
+- DOMAIN-SUFFIX,labstailwind.pa.googleapis.com,🤖 人工智能
+- DOMAIN-SUFFIX,grazie.aws.intellij.net,🤖 人工智能
 - DOMAIN-SUFFIX,openai.com.cdn.cloudflare.net,🤖 人工智能
-- DOMAIN,copilot-telemetry-service.githubusercontent.com,🤖 人工智能
-- DOMAIN,copilot-telemetry.githubusercontent.com,🤖 人工智能
-- DOMAIN,o33249.ingest.sentry.io,🤖 人工智能
-- DOMAIN,o33249.ingest.us.sentry.io,🤖 人工智能
-- DOMAIN,openai.qualtrics.com,🤖 人工智能
 - DOMAIN-SUFFIX,coze.com,🤖 人工智能
 - DOMAIN-SUFFIX,marscode.com,🤖 人工智能
 - DOMAIN-SUFFIX,trae.ai,🤖 人工智能
@@ -510,6 +519,13 @@
 - DOMAIN-SUFFIX,ciciai.com,🤖 人工智能
 - DOMAIN-SUFFIX,ciciaicdn.com,🤖 人工智能
 - DOMAIN-SUFFIX,dola.com,🤖 人工智能
+- DOMAIN,o33249.ingest.sentry.io,🤖 人工智能
+- DOMAIN,o33249.ingest.us.sentry.io,🤖 人工智能
+- DOMAIN,openai.qualtrics.com,🤖 人工智能
+- DOMAIN,copilot-telemetry-service.githubusercontent.com,🤖 人工智能
+- DOMAIN,copilot-telemetry.githubusercontent.com,🤖 人工智能
+- DOMAIN,http-intake.logs.us5.datadoghq.com,🤖 人工智能
+- DOMAIN,o1158394.ingest.us.sentry.io,🤖 人工智能
 # ===== 分类修正层（必须在所有模板规则之前，顺序敏感）=====
 # A. 广告/追踪优先（必须早于宽泛 bing/googleapis/facebook）
 - DOMAIN-SUFFIX,bat.bing.com,🛑 广告拦截
@@ -611,6 +627,10 @@
 - DOMAIN-SUFFIX,githubapp.com,🔗 GitHub 出口
 # 2026-10-23：容器镜像域名不在 DOMAIN-KEYWORD,github 内，显式走 GitHub 出口
 - DOMAIN-SUFFIX,ghcr.io,🔗 GitHub 出口
+# 2026-11-12：GitHub 加速代理补漏 —— gh-proxy.com / ghfast.top 11 天全落 MATCH 兜底，
+#   合计约 60MB 走了 🐟 漏网之鱼；它们只是 github 的镜像出口，跟 GitHub 家族同组。
+- DOMAIN-SUFFIX,gh-proxy.com,🔗 GitHub 出口
+- DOMAIN-SUFFIX,ghfast.top,🔗 GitHub 出口
 # AI 关键字兜底：模板里这三条被更早的规则遮蔽，放到自定义块最前才生效
 - DOMAIN-KEYWORD,claude,🤖 人工智能
 - DOMAIN-KEYWORD,anthropic,🤖 人工智能
@@ -635,6 +655,8 @@
 - DOMAIN-SUFFIX,graph.org,🚀 节点选择
 - DOMAIN-SUFFIX,tg.dev,🚀 节点选择
 - DOMAIN-SUFFIX,live-video.net,🌍 国外媒体
+# 2026-11-12：GIF 图床补漏（11 天全落 MATCH 兜底）
+- DOMAIN-SUFFIX,c.tenor.com,🌍 国外媒体
 # C. 服务一致性
 - DOMAIN-SUFFIX,bing.com,Ⓜ️ 微软服务
 - DOMAIN-SUFFIX,xbox.com,Ⓜ️ 微软服务
