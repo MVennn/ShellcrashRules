@@ -45,15 +45,25 @@ fi
 
 echo ""
 echo "===== 2. 组到 opencode.ai 的延迟 ====="
-D=$(curl -s -f --connect-timeout 3 --max-time 15 -H "$AUTH" "$API/proxies/$G/delay?timeout=8000&url=https%3A%2F%2Fopencode.ai%2F")
-echo "$D"
-echo "$D" | grep -qF '"delay"' || { echo "FAIL: 延迟测试失败"; fail=1; }
+# url-test 组的 /delay 会触发测速并重选 now；dry-run 下不能碰运行态路由。
+if [ "$FIX" -eq 0 ]; then
+	skip_fix "组延迟测试（触发 url-test 重选 + 外部流量）"
+else
+	D=$(curl -s -f --connect-timeout 3 --max-time 15 -H "$AUTH" "$API/proxies/$G/delay?timeout=8000&url=https%3A%2F%2Fopencode.ai%2F")
+	echo "$D"
+	echo "$D" | grep -qF '"delay"' || { echo "FAIL: 延迟测试失败"; fail=1; }
+fi
 
 echo ""
 echo "===== 3. opencode.ai 可达性（经 mihomo 代理口） ====="
-CODE=$(curl -s -f -x http://127.0.0.1:7890 -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 15 https://opencode.ai/)
-echo "HTTP $CODE"
-[ "$CODE" = "200" ] || { echo "FAIL: 不是 200"; fail=1; }
+# 代理口探测消耗外部流量，dry-run 下同样跳过。
+if [ "$FIX" -eq 0 ]; then
+	skip_fix "opencode.ai 可达性探测（消耗外部流量）"
+else
+	CODE=$(curl -s -f -x http://127.0.0.1:7890 -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 15 https://opencode.ai/)
+	echo "HTTP $CODE"
+	[ "$CODE" = "200" ] || { echo "FAIL: 不是 200"; fail=1; }
+fi
 
 echo ""
 echo "===== 4. 已移除（三种协议最小 token 测试） ====="

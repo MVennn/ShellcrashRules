@@ -13,21 +13,29 @@ mkdir -p "$LOGDIR"
 
 # 单实例锁：本脚本是唯一会触发 hotupdate 的地方。两次并发 = 两次 PUT /configs，
 # 内存峰值翻倍（docs/PITFALLS.md §46：单次峰值已是常驻的两倍，239MB 上必被 OOM）。
-# mkdir 原子加锁；超过 1 小时视为上次崩溃留下的陈旧锁，直接接管。
+# mkdir 原子加锁。锁里写持有者 pid：超时不等于持有者已死，接管前 kill -0 判活；
+# pid 文件没写成（上次在写下 pid 前崩溃）算陈旧（PITFALLS §49）。
 LOCKDIR=$LOGDIR/.auto-update.lock
+LOCKPID="$LOCKDIR/pid"
 if ! mkdir "$LOCKDIR" 2>/dev/null; then
 	_ts=$(cat "$LOCKDIR/ts" 2>/dev/null || echo 0)
 	case "$_ts" in ''|*[!0-9]*) _ts=0 ;; esac
-	if [ $(($(date +%s) - _ts)) -gt 3600 ]; then
-		rm -rf "$LOCKDIR"
-		mkdir "$LOCKDIR" 2>/dev/null || exit 1
-	else
+	if [ $(($(date +%s) - _ts)) -le 3600 ]; then
 		echo "$(date) 已有实例在跑，跳过本次" >> "$LOG"
 		exit 0
 	fi
+	HOLDER=$(cat "$LOCKPID" 2>/dev/null)
+	if [ -n "$HOLDER" ] && kill -0 "$HOLDER" 2>/dev/null; then
+		echo "$(date) 已有实例在跑（pid $HOLDER，超过窗口但未退出），跳过本次" >> "$LOG"
+		exit 0
+	fi
+	rm -rf "$LOCKDIR" 2>/dev/null
+	mkdir "$LOCKDIR" 2>/dev/null || { echo "$(date) 另一实例正在接管锁，跳过本次" >> "$LOG"; exit 0; }
 fi
+echo $$ > "$LOCKPID" 2>/dev/null
 date +%s > "$LOCKDIR/ts"
-trap 'rm -rf "$LOCKDIR"; rm -f "$LOGTMP"' EXIT INT TERM HUP
+# 只在自己仍是持有者时释放锁；临时日志仍无条件清理。
+trap 'if [ "$(cat "$LOCKPID" 2>/dev/null)" = "$$" ]; then rm -rf "$LOCKDIR"; fi; rm -f "$LOGTMP"' EXIT INT TERM HUP
 
 # 日志轮转: 超过 256KB 只保留尾部 200 行
 if [ -f "$LOG" ]; then
@@ -37,9 +45,15 @@ if [ -f "$LOG" ]; then
 fi
 
 # 探活合成一次调用：原来循环里每轮跑两次 netstat|grep，10 轮最多 20 个子进程。
+# 端口从配置动态读，不写死 7890；读不到时用默认值兜底。
+_sc_cfg=$CRASHDIR/configs/ShellCrash.cfg
+_mix_port=$(sed -n 's/^mix_port=//p' "$_sc_cfg" 2>/dev/null | head -1)
+_redir_port=$(sed -n 's/^redir_port=//p' "$_sc_cfg" 2>/dev/null | head -1)
+MIX_PORT=${_mix_port:-7890}
+REDIR_PORT=${_redir_port:-7892}
 core_up() {
 	pidof CrashCore >/dev/null 2>&1 || return 1
-	netstat -lnt 2>/dev/null | grep -qF ':7890'
+	netstat -lnt 2>/dev/null | grep -qE ":($MIX_PORT|$REDIR_PORT)[[:space:]]"
 }
 
 rc=0

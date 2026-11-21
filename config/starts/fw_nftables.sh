@@ -167,6 +167,19 @@ start_nft_wan() { #nftables公网防火墙
     nft insert rule inet fw4 input meta mark 0x67890 accept 2>/dev/null
 }
 start_nftables() { #nftables配置总入口
+    # M2：逐条 add 任一失败就记为半成品表。包装 nft()，只统计对 shellcrash 表的
+    # add 失败；list/flush/-f 与 fw4 的合法失败不计入。计数写文件，兼容 Tproxy
+    # 分支的 (...) 子 shell。
+    NFT_FAIL_FILE="/tmp/ShellCrash/.nft.fail.$$"
+    : > "$NFT_FAIL_FILE" 2>/dev/null
+    nft() {
+        # $1=add, $3=inet, $4=shellcrash 时统计失败；其余命令原样透传。
+        if [ "$1" = add ] && [ "$3" = inet ] && [ "$4" = shellcrash ]; then
+            command nft "$@" || echo x >> "$NFT_FAIL_FILE"
+        else
+            command nft "$@"
+        fi
+    }
     #初始化nftables
     # flush 之后是逐条 nft add：任一失败就是半成品表，而且没有回滚 —— 表现为
     # 「能上网但分流全没了」或直接断网，日志里一个字都没有。这里在 flush 前把现有表
@@ -228,13 +241,16 @@ start_nftables() { #nftables配置总入口
         JUMP="meta l4proto tcp redirect to $redir_port" #跳转劫持的具体命令
         start_nft_route prerouting_vm prerouting nat -100
     }
-    #自检：这一轮应当至少建起一条链，否则说明 add 全线失败（表被 flush 成空）
-    if [ "$NFT_HAD_BAK" = 1 ] && ! nft list table inet shellcrash 2>/dev/null | grep -q 'chain '; then
-        if nft -f "$NFT_BAK" 2>/dev/null; then
-            echo "[fw_nftables] 本轮 nft add 全线失败，已从备份恢复上一份表（分流保持故障前状态）" >&2
+    #自检：本轮任一 shellcrash add 失败（半成品表）或一条链都没建起（全线失败），
+    #只要有故障前备份就恢复，避免「有链但不完整」的分流缺失静默通过。
+    NFT_ADD_FAIL=$(wc -l < "$NFT_FAIL_FILE" 2>/dev/null || echo 0)
+    case "$NFT_ADD_FAIL" in ''|*[!0-9]*) NFT_ADD_FAIL=0 ;; esac
+    if [ "$NFT_HAD_BAK" = 1 ] && { [ "$NFT_ADD_FAIL" -gt 0 ] || ! command nft list table inet shellcrash 2>/dev/null | grep -q 'chain '; }; then
+        if command nft -f "$NFT_BAK" 2>/dev/null; then
+            echo "[fw_nftables] 本轮 nft add 失败 $NFT_ADD_FAIL 次（半成品表），已从备份恢复上一份表" >&2
         else
-            echo "[fw_nftables] 本轮 nft add 全线失败，备份恢复也失败，分流可能已中断" >&2
+            echo "[fw_nftables] 本轮 nft add 失败 $NFT_ADD_FAIL 次，备份恢复也失败，分流可能已中断" >&2
         fi
     fi
-    rm -f "$NFT_BAK" 2>/dev/null
+    rm -f "$NFT_BAK" "$NFT_FAIL_FILE" 2>/dev/null
 }

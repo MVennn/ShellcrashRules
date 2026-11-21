@@ -178,6 +178,8 @@ fi
 
 sync
 mv -f "$TMP.new" "$TARGET"
-echo "$NOW" > "$TSF"
+# 时间戳原子写：先写临时文件再 mv，避免并发读者读到半行（PITFALLS 同类项）。
+_TSF_TMP="$TSF.tmp.$$"
+echo "$NOW" > "$_TSF_TMP" && mv -f "$_TSF_TMP" "$TSF"
 log "OK: 转换后缺 $N 个节点，已同步（基准 $HAVE_N 个 / 端点 $EPS_N 个）"
 exit 0

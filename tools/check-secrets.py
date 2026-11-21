@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# 本仓分叉变体；上游参考：ClientTriage/tools/check-secrets.py（2026-11-01 bug 奇偶同步）
-"""公开仓敏感信息扫描：凭据 + 本机路径 + 真实邮箱。
+"""公开仓敏感信息扫描：凭据 + 本机路径 + 真实邮箱（系列仓统一版）。
 
 用法：
     python tools/check-secrets.py            # 扫描已跟踪文件
@@ -11,7 +10,7 @@
 这是 `docs/SECRETS.md` 的可执行版本 —— 文档说「本仓不保存凭据与本机路径」，
 CI 里得有个脚本真的能拦住。
 
-比通用版多两条规则，都是本仓真实踩过的坑：
+比通用版多两条规则，都是本系列真实踩过的坑：
   - 本机用户目录（`C:\\Users\\<名字>`）：脚本把 `--config` 的绝对路径回显到
     报告里，报告又作为 evidence 提交，于是本机路径进了版本库。
   - 真实邮箱域名：报告里夹带过登录账号。
@@ -27,10 +26,11 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(errors="replace")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SKIP_DIRS = {".codegraph", ".git", ".work", "__pycache__", "dist",
-             "node_modules", "third-party", "venv", "vault"}
-SKIP_EXT = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".gz", ".pyc", ".woff", ".woff2",
-            ".zip", ".mrs"}
+# 跳过目录：并集保留各仓曾有过的有效项（vault/app/build/public 等）
+SKIP_DIRS = {".codegraph", ".git", ".work", "__pycache__", "app", "build", "dist",
+             "node_modules", "public", "third-party", "venv", "vault"}
+SKIP_EXT = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".gz", ".pyc",
+            ".woff", ".woff2", ".zip", ".mrs", ".svg", ".webp", ".jar"}
 
 # 占位符与示例行不算命中
 PLACEHOLDER = re.compile(
@@ -62,7 +62,7 @@ PATTERNS = [
 # 用户名位置被 `...` / `<...>` 取代，或用户名后紧跟 `\...` 截断的写法，视为已脱敏的
 # 描述性引用，放行；完整路径一律不放行。只对文档类文件生效。
 DOC_FILES = ("CHANGELOG.md", "PROGRESS.md", "SECURITY.md", "CONTRIBUTING.md")
-DOC_PREFIXES = ("docs/", "evidence/")
+DOC_PREFIXES = ("docs/", "evidence/", "memories/")
 # 描述性引用：用户名被 `...` / `<...>` 取代，或用户名后紧跟 `\...` 截断
 TRUNCATED_PATH = re.compile(
     r"[A-Za-z]:[\\/]Users[\\/](?:\.\.\.|<[^>]+>|[A-Za-z0-9._-]+\\\.\.\.)")
@@ -74,11 +74,9 @@ PLACEHOLDER_USER = re.compile(
     r"[A-Za-z]:[\\/]Users[\\/](?:You|User|<[^>]+>|[^\\/\s<>]*[一-鿿])", re.I)
 
 
-def is_doc_file(rel: str) -> bool:
-    base = rel.replace("\\", "/")
-    if base in DOC_FILES or base.startswith(DOC_PREFIXES):
-        return True
-    return base.split("/")[-1] in DOC_FILES
+def base_skip(rel: str) -> bool:
+    """共享层跳过钩子：本脚本独立自带，默认不额外跳过；需要时各仓在此按相对路径扩展。"""
+    return False
 
 
 def tracked_files() -> list[str]:
@@ -105,17 +103,29 @@ def untracked_files() -> list[str]:
     return [x for x in out.stdout.splitlines() if x.strip()]
 
 
+def is_doc_file(rel: str) -> bool:
+    base = rel.replace("\\", "/")
+    if base in DOC_FILES or base.startswith(DOC_PREFIXES):
+        return True
+    return base.split("/")[-1] in DOC_FILES
+
+
 def main() -> int:
     if "--all" in sys.argv:
         files = sorted(set(tracked_files()) | set(untracked_files()))
     else:
         files = tracked_files()
+    if not files:
+        print("[FAIL] 没有可扫描的文件（git ls-files 输出为空，检查是否在仓库内）")
+        return 2
     bad = []
     for rel in files:
         if os.path.splitext(rel)[1].lower() in SKIP_EXT:
             continue
         parts = rel.replace("\\", "/").split("/")
         if any(p in SKIP_DIRS for p in parts[:-1]):
+            continue
+        if base_skip(rel):
             continue
         # 文档类文件允许描述性引用泄漏原文，但必须是截断形式（`...\` 之后无层级）
         allow_truncated = is_doc_file(rel)

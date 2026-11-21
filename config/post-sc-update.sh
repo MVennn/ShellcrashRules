@@ -82,9 +82,15 @@ fi
 section "4. 启动"
 mkdir -p /tmp/ShellCrash
 # 存活判定收成一处：原来 while 每轮跑两次 netstat|grep，30 轮最多 60 个子进程。
+# 端口从配置动态读，不写死 7892/7890；读不到时用默认值兜底。
+_sc_cfg=$CRASHDIR/configs/ShellCrash.cfg
+_mix_port=$(sed -n 's/^mix_port=//p' "$_sc_cfg" 2>/dev/null | head -1)
+_redir_port=$(sed -n 's/^redir_port=//p' "$_sc_cfg" 2>/dev/null | head -1)
+MIX_PORT=${_mix_port:-7892}
+REDIR_PORT=${_redir_port:-7890}
 sc_up() {
     pidof CrashCore >/dev/null 2>&1 || return 1
-    netstat -lntp 2>/dev/null | grep -qF ':7892'
+    netstat -lntp 2>/dev/null | grep -qE ":($MIX_PORT|$REDIR_PORT)[[:space:]]"
 }
 if sc_up; then
     log "已在运行，跳过启动"
