@@ -72,7 +72,7 @@ fi
 	echo "# 顺序不能反：image.civitai.com 必须先于 civitai.com 命中。"
 	echo "- DOMAIN-SUFFIX,image.civitai.com,📺 大流量"
 	echo "- DOMAIN-SUFFIX,civitai.com,🚀 节点选择"
-	echo "# ===== G. 高带宽直连（省机场流量，2026-10-21）====="
+	echo "# ===== G. 高带宽直连（省机场流量，2026-10-21；gvt1.com 于 11-21 改回干净出口）====="
 	echo "# 模板把这些域名送进代理组，但它们在国内有可用 CDN，实测直连更快："
 	echo "#   dl.google.com   → 🤖 干净出口（DOMAIN-SUFFIX,google.com）Chrome/Play/Android SDK 下载"
 	echo "#   gvt1.com        → 🤖 干净出口（DOMAIN-SUFFIX,gvt1.com）  Chrome/Play 更新重定向"
@@ -83,7 +83,7 @@ fi
 	echo "# 反例（实测代理更快，保持代理）：nodejs.org 0.86 vs 3.25、cdn.jsdelivr.net 0.48 vs 1.74、"
 	echo "#   shared.akamai.steamstatic.com 8.7 vs 83 KB/s、repo.anaconda.com 0.81 vs 2.32 MB/s"
 	echo "- DOMAIN,dl.google.com,🎯 全球直连"
-	echo "- DOMAIN-SUFFIX,gvt1.com,🎯 全球直连"
+	echo "- DOMAIN-SUFFIX,gvt1.com,$CL"
 	echo "- DOMAIN-SUFFIX,gvt1-cn.com,🎯 全球直连"
 	echo "- DOMAIN-SUFFIX,jetbrains.com,🎯 全球直连"
 	echo "# 2026-10-23 补充（只收实测直连更快/国内 CDN 的域）："
@@ -592,7 +592,7 @@ if ! grep -qF "DOMAIN-SUFFIX,github.com,$GH" "$OUT.tmp" || ! grep -qF "DOMAIN-SU
 	exit 1
 fi
 if ! grep -qF "DOMAIN,dl.google.com,🎯 全球直连" "$OUT.tmp" ||
-   ! grep -qF "DOMAIN-SUFFIX,gvt1.com,🎯 全球直连" "$OUT.tmp" ||
+   ! grep -qF "DOMAIN-SUFFIX,gvt1.com,$CL" "$OUT.tmp" ||
    ! grep -qF "DOMAIN-SUFFIX,gvt1-cn.com,🎯 全球直连" "$OUT.tmp" ||
    ! grep -qF "DOMAIN-SUFFIX,jetbrains.com,🎯 全球直连" "$OUT.tmp"; then
 	echo "警告: 高带宽直连段丢失（可能被上游规则去重），请检查 $OUT.tmp"

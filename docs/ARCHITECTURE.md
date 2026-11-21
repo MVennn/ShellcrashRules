@@ -86,9 +86,11 @@ config/starts/clash_modify.sh :: modify_yaml()   ← 合并链路入口（本仓
 - 生成时按 `(类型, 域名)` 去重，**保留首次出现**：顶部 Google 服务覆盖优先，
   后续 geosite / 修正层里的同键规则会被丢弃（修复 `generativelanguage.googleapis.com`
   被 geosite AI 规则抢走的问题）；
-- 顶部另有「高带宽直连」段（G 段，2026-10-21）：`dl.google.com` / `gvt1.com` /
-  `gvt1-cn.com` / `jetbrains.com` 直连，避免被 `DOMAIN-SUFFIX,google.com` 的干净出口
+- 顶部「高带宽直连」段（G 段，2026-10-21）：`dl.google.com` / `gvt1-cn.com` /
+  `jetbrains.com` 直连，避免被 `DOMAIN-SUFFIX,google.com` 的干净出口
   规则或 `MATCH` 带去代理；实测直连比代理快 3–7 倍且不耗机场流量。
+  `gvt1.com` 于 2026-11-21 从直连改回「🤖 干净出口」：Play 下载走美国 gvt1 CDN，
+  国内直连会超时导致卡 1%；须与生成脚本 / rules.yaml / ai-api-check.sh 四处一致。
 
 `config/generators/auto-update.sh` 是每周维护入口（cron `30 4 * * 0`）：
 先跑规则生成器，**成功才**跑 `task/task.sh hotupdate`；生成器失败就跳过 hotupdate，

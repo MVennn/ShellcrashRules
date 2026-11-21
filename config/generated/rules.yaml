@@ -34,7 +34,7 @@
 # 反例（实测代理更快，保持代理）：nodejs.org 0.86 vs 3.25、cdn.jsdelivr.net 0.48 vs 1.74、
 #   shared.akamai.steamstatic.com 8.7 vs 83 KB/s、repo.anaconda.com 0.81 vs 2.32 MB/s
 - DOMAIN,dl.google.com,🎯 全球直连
-- DOMAIN-SUFFIX,gvt1.com,🎯 全球直连
+- DOMAIN-SUFFIX,gvt1.com,🤖 干净出口
 - DOMAIN-SUFFIX,gvt1-cn.com,🎯 全球直连
 - DOMAIN-SUFFIX,jetbrains.com,🎯 全球直连
 # 2026-10-23 补充（只收实测直连更快/国内 CDN 的域）：

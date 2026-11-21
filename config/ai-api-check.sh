@@ -510,11 +510,11 @@ fi
 
 echo ""
 echo "===== 17. 高带宽直连（省机场流量：Google 下载 / Chrome 更新 / JetBrains） ====="
-# 这几条在模板里会被带去代理组：dl.google.com 与 gvt1.com 被 google.com/gvt1.com 的
+# 这几条在模板里会被带去代理组：dl.google.com 被 google.com 的
 # 干净出口规则截走，gvt1-cn.com（Google 中国 CDN）根本不在 cn.mrs，jetbrains.com 落到 MATCH。
 HB=/etc/ShellCrash/yamls/rules.yaml
 for r in "DOMAIN,dl.google.com,🎯 全球直连" \
-         "DOMAIN-SUFFIX,gvt1.com,🎯 全球直连" \
+         "DOMAIN-SUFFIX,gvt1.com,🤖 干净出口" \
          "DOMAIN-SUFFIX,gvt1-cn.com,🎯 全球直连" \
          "DOMAIN-SUFFIX,jetbrains.com,🎯 全球直连" \
          "DOMAIN-SUFFIX,hf-mirror.com,🎯 全球直连" \
